@@ -394,6 +394,8 @@ GameObject:
   - component: {fileID: 580922097}
   - component: {fileID: 580922098}
   - component: {fileID: 580922099}
+  - component: {fileID: 580922100}
+  - component: {fileID: 580922101}
   m_Layer: 0
   m_Name: Manager
   m_TagString: Untagged
@@ -429,7 +431,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InstantiateManager
   objectToSpawn: {fileID: 295692051021194745, guid: f08f5136baba1b941a3459f9db5b1478, type: 3}
-  numberToSpawn: 20000
+  numberToSpawn: 200
+  spawnInstantly: 0
+  timeBeforeSpawn: 1
+  numberPerWave: 50
   spawnZone: {fileID: 1946087857}
 --- !u!114 &580922099
 MonoBehaviour:
@@ -443,10 +448,41 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 240cf7c6d971f3044b27da7c6c791293, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LogsManager
-  logPerFrame: 0
-  sampleInterval: 0.1
-  flushIntervalMs: 1000
-  maxBufferSize: 2048
+--- !u!114 &580922100
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 580922095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2f3fc9de65c329c41bd1341d1709d6af, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: '::'
+  staticCubes: []
+  movingCubes: []
+  percentageOfMovingCubes: 10
+  timeBeforeMovingCubes: 1
+  StartMoving: 0
+--- !u!114 &580922101
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 580922095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ab7e59ebfa0efd4e8a90b103d812c04, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: '::'
+  startPhase1: 1
+  startPhase2: 0
+  startPhase3: 0
+  autoLinkingPhase: 1
+  waitingPhase1Time: 2
+  waitBetweenPhases: 2
 --- !u!1 &1946087857
 GameObject:
   m_ObjectHideFlags: 0

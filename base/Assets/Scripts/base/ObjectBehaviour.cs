@@ -4,13 +4,16 @@ public class ObjectBehaviour : MonoBehaviour
 {
     public float speed = 5f;
     private float _velocity;
-
+    public bool isMoving = false;
     // Update is called once per frame
     private void FixedUpdate()
     {
-        Move();
-        Jump();
-        RotatePlace();
+        if (isMoving)
+        {
+            Move();
+            Jump();
+            RotatePlace();
+        }
     }
 
     private void Move()

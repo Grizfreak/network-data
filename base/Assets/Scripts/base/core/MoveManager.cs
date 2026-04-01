@@ -31,6 +31,11 @@ public class MoveManager : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
+        if (BaseLoader.instance != null)
+        {
+            percentageOfMovingCubes = BaseLoader.instance.resource.m_PercentageMovingCubesPerWave;
+            timeBeforeMovingCubes = BaseLoader.instance.resource.m_TimeBeforeMovingCubes;
+        }
         InstantiateManager.instance.OnInstanceCreated += OnGameObjectInstantiated;
     }
 

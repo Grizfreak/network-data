@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 706bd548179d0c541918f85c12761636, type: 3}
+  m_Name: Base
+  m_EditorClassIdentifier: base.model::BaseResource
+  m_Prefab: {fileID: 295692051021194745, guid: f08f5136baba1b941a3459f9db5b1478, type: 3}
+  m_Amount: 200000
+  m_SpawnOnce: 0
+  m_TimeBeforeEachSpawn: 10
+  m_NumberPerWave: 400
+  m_PercentageMovingCubesPerWave: 10
+  m_TimeBeforeMovingCubes: 10
+  m_Speed: 5
+  m_WaitingPhase1Time: 10
+  m_WaitBetweenPhases: 10
+  m_WaitBeforeQuittingApp: 10

@@ -11,8 +11,10 @@ public class PhaseManager : MonoBehaviour
     public bool autoLinkingPhase = true;
     public float waitingPhase1Time = 2f;
     public float waitBetweenPhases = 2f;
+    public float waitBeforeQuittingApp = 5f;
     private int _currentPhase = 0;
     public Action<string> PhaseFinished;
+    public Action AskPhase1Start;
 
     void Awake()
     {
@@ -28,6 +30,13 @@ public class PhaseManager : MonoBehaviour
 
     void Start()
     {
+        if (BaseLoader.instance != null)
+        {
+            waitingPhase1Time = BaseLoader.instance.resource.m_WaitingPhase1Time;
+            waitBetweenPhases = BaseLoader.instance.resource.m_WaitBetweenPhases;
+            waitBeforeQuittingApp = BaseLoader.instance.resource.m_WaitBeforeQuittingApp;
+        }
+        AskPhase1Start += StartPhase1;
         PhaseFinished += OnPhaseFinished;
     }
 
@@ -65,6 +74,9 @@ public class PhaseManager : MonoBehaviour
                 case 2:
                     StartPhase3();
                     break;
+                case 3:
+                    FinishTest();
+                    break;
                 default:
                     Debug.Log("All phases finished");
                     break;
@@ -95,6 +107,13 @@ public class PhaseManager : MonoBehaviour
         StartCoroutine(WaitAndStartPhase3());
     }
 
+    private void FinishTest()
+    {
+        Debug.Log("Phase 3 finished");
+        Debug.Log("Waiting for " + waitBeforeQuittingApp + " seconds before quitting the application...");
+        StartCoroutine(WaitAndQuit());
+    }
+
     private IEnumerator WaitAndStartPhase1()
     {
         yield return new WaitForSeconds(waitingPhase1Time);
@@ -113,5 +132,15 @@ public class PhaseManager : MonoBehaviour
         yield return new WaitForSeconds(waitBetweenPhases);
         MoveManager.instance.StartMovingCubes();
         yield return null;
+    }
+
+    private IEnumerator WaitAndQuit()
+    {
+        yield return new WaitForSeconds(waitBeforeQuittingApp);
+        #if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+        #else
+            Application.Quit();
+        #endif
     }
 }

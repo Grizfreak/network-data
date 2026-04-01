@@ -14,7 +14,7 @@ public class InstantiateManager : MonoBehaviour
         private int _spawnedInstances = 0;
 
         public Action<string> StartingInstantiation;
-        public Action<string> FinishedInstantiation;
+        public Action<string, int> FinishedInstantiation;
         /// <summary>
         /// GameObject used to get rectangleBounds to spawn objects within. If null, objects will be spawned at the position of this gameObject.
         /// </summary>
@@ -38,7 +38,12 @@ public class InstantiateManager : MonoBehaviour
         // Start is called once before the first execution of Update after the MonoBehaviour is created
         private void Start()
         {
-            
+            if (BaseLoader.instance == null) return;
+            objectToSpawn = BaseLoader.instance.resource.m_Prefab;
+            numberToSpawn = BaseLoader.instance.resource.m_Amount;
+            spawnInstantly = BaseLoader.instance.resource.m_SpawnOnce;
+            timeBeforeSpawn = BaseLoader.instance.resource.m_TimeBeforeEachSpawn;
+            numberPerWave = BaseLoader.instance.resource.m_NumberPerWave;
         }
 
         public void StartSpawning()
@@ -66,7 +71,7 @@ public class InstantiateManager : MonoBehaviour
                 var go = Instantiate(objectToSpawn, spawnPos, transform.rotation);
                 OnInstanceCreated.Invoke(go);
             }
-            FinishedInstantiation.Invoke("FinishedInstantiation");
+            FinishedInstantiation.Invoke("FinishedInstantiation", numberToSpawn);
             PhaseManager.instance.PhaseFinished.Invoke("PhaseFinished");
         }
 
@@ -85,7 +90,7 @@ public class InstantiateManager : MonoBehaviour
                     OnInstanceCreated.Invoke(go);
                 }
                 _spawnedInstances+= numberPerWave;
-                FinishedInstantiation.Invoke("FinishedInstantiation");
+                FinishedInstantiation.Invoke("FinishedInstantiation", _spawnedInstances);
             }
             PhaseManager.instance.PhaseFinished.Invoke("PhaseFinished");
         }

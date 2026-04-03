@@ -1,0 +1,17 @@
+{
+    "name": "base.profiling",
+    "rootNamespace": "",
+    "references": [
+        "base.core",
+        "base.model"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

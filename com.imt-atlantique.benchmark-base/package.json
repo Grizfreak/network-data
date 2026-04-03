@@ -1,0 +1,18 @@
+{
+  "name": "com.imt-atlantique.benchmark-base",
+  "version": "1.0.0",
+  "displayName": "Network Benchmark Base",
+  "description": "Core loader and resource management",
+  "unity": "2022.3",
+  "author": {
+    "name": "Aubert Antonin"
+  },
+  "samples": [
+    {
+        "displayName": "JSON Configurations",
+        "version": "1.0.0",
+        "description": "Base JSON configurations for the loader.",
+        "path": "Samples~"
+    }
+]
+}

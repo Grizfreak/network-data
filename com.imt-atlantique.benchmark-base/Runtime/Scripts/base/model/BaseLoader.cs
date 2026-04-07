@@ -57,6 +57,35 @@ public class BaseLoader : MonoBehaviour
 
     private void Start()
     {
+        #if PLATFORM_ANDROID
+        // Create a folder named conf_resources in the PersistentDataPath
+        if (!System.IO.Directory.Exists(Application.persistentDataPath + "/conf_resources"))
+        {
+            System.IO.Directory.CreateDirectory(Application.persistentDataPath + "/conf_resources");
+        }
+        // Check if conf_resources folder contains a file named Base.json or ProfilerStats.json
+        TextAsset configFile = System.IO.File.Exists(Application.persistentDataPath + "/conf_resources/Base.json") ? 
+            new TextAsset(System.IO.File.ReadAllText(Application.persistentDataPath + "/conf_resources/Base.json")) : null;
+        if (configFile != null)        {
+            // 3. PARSE INTO THE CLONE
+            // This only affects the RAM version, not the .asset file
+            Resource.ParseConfiguration(configFile.text);
+        }
+        else
+        {            
+            Debug.LogWarning("No configuration file named Base.json found in Resources folder. Running base test");
+        }
+        TextAsset profilerStats = System.IO.File.Exists(Application.persistentDataPath + "/conf_resources/ProfilerStats.json") ? 
+            new TextAsset(System.IO.File.ReadAllText(Application.persistentDataPath + "/conf_resources/ProfilerStats.json")) : null;
+        if (profilerStats != null)
+        {
+            ResourceStats.ParseConfiguration(profilerStats.text);
+        }
+        else
+        {
+            Debug.LogWarning("No profiler stats found in BaseLoader. Running base profiler profile");
+        }
+        #elif UNITY_STANDALONE
         string[] args = System.Environment.GetCommandLineArgs();
         
         for (int i = 0; i < args.Length; i++)
@@ -83,5 +112,6 @@ public class BaseLoader : MonoBehaviour
                 ResourceStats.ParseConfiguration(fileContent);
             }
         }
+        #endif
     }
 }

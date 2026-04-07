@@ -11,6 +11,7 @@ using UnityEngine;
 	/// </summary>
 	public class ProfilerStatsToCsvExporter : MonoBehaviour
 	{
+		#if UNITY_STANDALONE
 		private const char OutputSeparator = ',';
 
 		[SerializeField] [Tooltip("Input values found via ProfilerRecorderHandle.GetAvailable")]
@@ -221,4 +222,5 @@ using UnityEngine;
 			ReadOnlySpan<char> bufferSplice = new ReadOnlySpan<char>(LongAsCharsBuffer).Slice(bufferIndex, length);
 			return bufferSplice;
 		}
+#endif
 	}

@@ -39,7 +39,11 @@ using Unity.Profiling;
         private void Start()
         {
 
+            #if PLATFORM_STANDALONE
             string eventsFileName = $"events_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+            #elif UNITY_ANDROID
+            string eventsFileName = quest_events_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+            #endif
             eventsFilePath = Path.Combine(Application.persistentDataPath, eventsFileName);
 
             eventsWriter = new StreamWriter(eventsFilePath, false);

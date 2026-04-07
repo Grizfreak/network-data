@@ -14,7 +14,7 @@ import numpy as np
 NS_PER_MS = 1_000_000.0
 MS_PER_S = 1000.0
 
-DEBUG_SHOW_PLOTS = False
+DEBUG_SHOW_PLOTS = True
 
 class EventType(str, Enum):
     PHASE_FINISHED = "PhaseFinished"
@@ -112,56 +112,56 @@ def moving_average(signal, window=30):
     return np.convolve(signal, kernel, mode='same')
 
 def plot_FPS_over_time(data, events):
-    fig, (ax) = plt.subplots(1, 1, figsize=(12, 6))
+    fig, ax = plt.subplots(1, 1, figsize=(12, 6))
     active_event_colors = get_active_event_colors(events)
 
+    # Use the correct column from your CSV
     frame_time_ms = data['FrameTimeMs'].to_numpy()
-    # Convert to seconds
-    frame_time_s = frame_time_ms / 1000.0
+    time_axis = np.cumsum(frame_time_ms) / 1000.0  # Seconds
 
-    # Build cumulative time axis
-    time_axis = np.cumsum(frame_time_s)
+    # Raw FPS Calculation
+    # Avoid division by zero if there's a corrupted frame
+    fps_raw = 1000.0 / np.where(frame_time_ms > 0, frame_time_ms, 1e-6)
 
-    # Smooth frame time (better signal than smoothing FPS)
-    frame_time_smooth = ema(frame_time_ms, alpha=0.001)
+    # 1. Better Smoothing: Use a larger alpha (0.05 to 0.1) or a rolling window
+    # EMA with alpha 0.001 is too slow; 0.05 is much more responsive.
+    frame_time_smooth = ema(frame_time_ms, alpha=0.05)
+    fps_smooth = 1000.0 / frame_time_smooth
 
-    # Convert to FPS
-    fps = 1.0 / frame_time_s
+    # 2. Plotting
+    ax.plot(time_axis, fps_raw, color='blue', alpha=0.15, linewidth=0.5, label='Raw FPS')
+    ax.plot(time_axis, fps_smooth, color='blue', linewidth=2, label='Smoothed FPS (EMA 0.05)')
+    
+    # 3. Handle Spikes: Set a reasonable Y-limit based on data
+    # This prevents one 500ms spike from squishing the whole graph to the bottom
+    ax.set_ylim(0, max(fps_smooth.max() * 1.2, 120)) 
 
-    # Convert to FPS smooth
-    fps_smooth = 1.0 / (frame_time_smooth / 1000.0)
-
-    ax.plot(time_axis, fps, color='blue', alpha=0.2, linewidth=1, label='Raw FPS')
-    ax.plot(time_axis, fps_smooth, color='blue', linewidth=2, label='Smoothed FPS')
-    ax.set_title('FPS over Time')
-    ax.set_ylabel('FPS')
+    ax.set_title('Performance: FPS over Time', fontsize=14)
+    ax.set_ylabel('Frames Per Second')
     ax.set_xlabel('Time (s)')
-    ax.grid(True)
+    ax.grid(True, linestyle=':', alpha=0.7)
 
-
+    # Event Markers
     frame_to_time = dict(zip(data['Frame'], time_axis))
-    # Add event markers
     for event in events:
         if event['event'] in active_event_colors:
-            event_time = frame_to_time.get(event['frame'], None)
+            event_time = frame_to_time.get(event['frame'])
             if event_time is not None:
-                ax.axvline(x=event_time, color=active_event_colors[event['event']], linestyle='--', alpha=0.7, label=event['event'])
+                ax.axvline(x=event_time, color=active_event_colors[event['event']], 
+                           linestyle='--', alpha=0.8)
 
-    # Create legend for events
+    # Legend Fix (handles standard lines + custom event elements)
     legend_elements = [
-    Line2D([0], [0],
-           color=color,        # line color
-           linestyle='--',      # makes it a line
-           markersize=8,
-           label=event)
+        Line2D([0], [0], color=color, linestyle='--', label=event)
         for event, color in active_event_colors.items()
     ]
-    ax.legend(handles=[ax.lines[0], ax.lines[1]] + legend_elements, loc='upper left', bbox_to_anchor=(1.01, 1.0), borderaxespad=0)
+    ax.legend(handles=[ax.lines[1]] + legend_elements, loc='upper left', 
+              bbox_to_anchor=(1.01, 1.0))
 
     fig.tight_layout()
     if DEBUG_SHOW_PLOTS:
         plt.show()
-    return fig;
+    return fig
 
 def plot_FrameTimes_over_time(data, events):
     # take CPU frame time and GPU frame time

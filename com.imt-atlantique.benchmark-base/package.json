@@ -3,6 +3,12 @@
   "version": "1.0.0",
   "displayName": "Network Benchmark Base",
   "description": "Core loader and resource management",
+  "dependencies":{
+    "com.unity.xr.openxr": "1.16.1",
+    "com.unity.xr.hands": "1.7.3",
+    "com.unity.multiplayer.center": "1.0.1",
+    "com.unity.multiplayer.tools": "2.2.8"
+  },
   "unity": "2022.3",
   "author": {
     "name": "Aubert Antonin"

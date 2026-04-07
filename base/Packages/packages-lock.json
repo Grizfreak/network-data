@@ -4,7 +4,12 @@
       "version": "file:D:/Lab/unity-network-benchmark/com.imt-atlantique.benchmark-base",
       "depth": 0,
       "source": "local",
-      "dependencies": {}
+      "dependencies": {
+        "com.unity.xr.openxr": "1.16.1",
+        "com.unity.xr.hands": "1.7.3",
+        "com.unity.multiplayer.center": "1.0.1",
+        "com.unity.multiplayer.tools": "2.2.8"
+      }
     },
     "com.unity.ai.navigation": {
       "version": "2.0.9",

@@ -12,7 +12,6 @@ using UnityEngine.SceneManagement;
         private void Start()
         {
             SceneManager.activeSceneChanged += OnSceneChanged;
-            SceneManager.LoadScene("Packages/com.imt-atlantique.benchmark-base/Runtime/Scenes/Benchmark.unity");
         }
 
         private void Update()

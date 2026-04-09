@@ -2,7 +2,6 @@ using System;
 using System.Globalization;
 using System.IO;
 using UnityEngine;
-using Unity.Profiling;
 
     /// <summary>
     /// This component will log events related to the Phase System, by telling which frame happened which event
@@ -10,6 +9,12 @@ using Unity.Profiling;
     /// </summary>
     public class LogsManager : MonoBehaviour
     {
+        
+#if PLATFORM_STANDALONE
+        public string eventsFileName = "events_";
+#elif UNITY_ANDROID
+        public string eventsFileName = "quest_events_";
+#endif
         private string fileName;
         private string filePath;
         private string eventsFilePath;
@@ -38,13 +43,8 @@ using Unity.Profiling;
 
         private void Start()
         {
-
-            #if PLATFORM_STANDALONE
-            string eventsFileName = $"events_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
-            #elif UNITY_ANDROID
-            string eventsFileName = $"quest_events_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
-            #endif
-            eventsFilePath = Path.Combine(Application.persistentDataPath, eventsFileName);
+            string eventsFileFullName = eventsFileName + $"{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+            eventsFilePath = Path.Combine(Application.persistentDataPath, eventsFileFullName);
 
             eventsWriter = new StreamWriter(eventsFilePath, false);
 
@@ -59,7 +59,11 @@ using Unity.Profiling;
         {
             // Use realtimeSinceStartup to match the external OVR clock
             float timestamp = Time.realtimeSinceStartup;
-            
+            if (eventsWriter == null)
+            {
+                Debug.LogWarning("Events writer is not initialized. Event will not be logged: " + eventName);
+                return;
+            }
             eventsWriter.WriteLine(string.Format(CultureInfo.InvariantCulture,
                 "{0},{1:F3},{2},{3}",
                 frame, timestamp, eventName, number == -1 ? -1 : number));

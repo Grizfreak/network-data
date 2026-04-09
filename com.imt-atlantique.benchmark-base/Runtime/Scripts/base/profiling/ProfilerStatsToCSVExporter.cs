@@ -13,7 +13,7 @@ using UnityEngine;
 	{
 		#if UNITY_STANDALONE
 		private const char OutputSeparator = ',';
-
+		public string outputName = $"profiler_stats";
 		[SerializeField] [Tooltip("Input values found via ProfilerRecorderHandle.GetAvailable")]
 		private ProfilerStats profilerStatsFile;
 		private ProfilerStatsEntry[] profilerStats = { 
@@ -49,7 +49,7 @@ using UnityEngine;
 		private int _frameCounter;
 		private float _lastComputedFps;
 		
-		private void OnEnable()
+		private void Start()
 		{
 			// apply new profiler data from file
 			if (profilerStatsFile != null)
@@ -57,14 +57,16 @@ using UnityEngine;
 				profilerStats = profilerStatsFile.Entries;
 			}
 			
+			
 			// if data is passed from BaseLoader, get them
 			if (BaseLoader.Instance != null && BaseLoader.Instance.ResourceStats != null)
 			{
 				profilerStats = BaseLoader.Instance.ResourceStats.Entries;
 			}
-			string outputFilePath = Path.Combine(Application.persistentDataPath, $"profiler_stats-{DateTime.Now:yyyy.MM.dd-HH.mm}.csv");
+
+			var outputFile = outputName + $"-{DateTime.Now:yyyy.MM.dd-HH.mm}.csv";
+			var outputFilePath = Path.Combine(Application.persistentDataPath, outputFile);
 			_textWriter = new StreamWriter(outputFilePath, true);
-			
 			Debug.Log("Writing Profiler Stats to " + outputFilePath);
 			
 			_textWriter.Write("Frame");

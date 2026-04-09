@@ -22,6 +22,7 @@ using UnityEngine;
         public Action<string> PhaseStarted;
         public Action<string> PhaseFinished;
         public Action AskPhase1Start;
+        public Action FinishingExperimentation;
 
         private void Awake()
         {
@@ -81,6 +82,7 @@ using UnityEngine;
                     StartPhase3();
                     break;
                 case 3:
+                    FinishingExperimentation.Invoke();
                     FinishTest();
                     break;
                 default:
@@ -115,7 +117,7 @@ using UnityEngine;
             StartCoroutine(WaitAndStartPhase3());
         }
 
-        private void FinishTest()
+        public void FinishTest()
         {
             Debug.Log("Phase 3 finished");
             Debug.Log("Waiting for " + waitBeforeQuittingApp + " seconds before quitting the application...");

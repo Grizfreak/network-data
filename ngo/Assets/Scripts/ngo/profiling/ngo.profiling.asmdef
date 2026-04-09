@@ -1,0 +1,18 @@
+{
+    "name": "ngo.profiling",
+    "rootNamespace": "",
+    "references": [
+        "GUID:1491147abca9d7d4bb7105af628b223e",
+        "GUID:d033680c9678fb04cbe33ed97736422c",
+        "GUID:15f2c92dde2ad8c4fbeddbbb30976073"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

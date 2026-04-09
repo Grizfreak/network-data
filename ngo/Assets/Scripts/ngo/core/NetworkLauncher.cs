@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Net;
 using TMPro;
@@ -10,7 +11,7 @@ using UnityEngine.UI;
 
 public class NetworkLauncher : NetworkBehaviour
 {
-    BaseLauncher baseLauncher;
+    public static NetworkLauncher Instance;
     [SerializeField] private TMP_InputField addressInputField;
     [SerializeField] private TMP_Text guidelinesText;
     [SerializeField] private Button hostButton;
@@ -18,12 +19,29 @@ public class NetworkLauncher : NetworkBehaviour
     [SerializeField] private Button clientButton;
     [SerializeField] private Button quitButton;
     [SerializeField] private Button startButton;
+    private BaseLauncher baseLauncher;
+    public bool isLaunchedHeadless = false;
+    private bool searchForPhaseManager = false;
+
+    private void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
 
     private void Start()
     {
+        baseLauncher = this.GetComponent<BaseLauncher>();
         NetworkManager.Singleton.OnServerStarted += OnServerStarted;
         NetworkManager.Singleton.OnServerStopped += OnServerStopped;
-        baseLauncher = this.GetComponent<BaseLauncher>();
+        //TODO
+        //NetworkManager.Singleton.gameObject.GetComponent<UnityTransport>().MaxSendQueueSize = 1024 * 1024 * 100;
     }
 
     public void StartHost()
@@ -69,6 +87,19 @@ public class NetworkLauncher : NetworkBehaviour
         NetworkManager.Singleton.StartClient();
     }
 
+    private void Update()
+    {
+        if (searchForPhaseManager)
+        {
+            if (PhaseManager.Instance != null)
+            {
+                searchForPhaseManager = false;
+                PhaseManager.Instance.autoLinkingPhase = false;
+            }
+        }
+        
+    }
+
     private void OnClientConnected(ulong connectionId)
     {
         Debug.Log(connectionId);
@@ -76,22 +107,32 @@ public class NetworkLauncher : NetworkBehaviour
         {
             guidelinesText.text = "Connected to server ! Waiting for the test to start...";
         }
+
+        if (IsServer && isLaunchedHeadless)
+        {
+            //Where we start the next scene
+            StartTest();
+        }
     }
 
     public void StartTest()
     {
-        /*NetworkManager.SceneManager.LoadScene(
-            "Packages/com.imt-atlantique.benchmark-base/Runtime/Scenes/Benchmark.unity",
-            UnityEngine.SceneManagement.LoadSceneMode.Single);*/
+        NetworkManager.SceneManager.LoadScene(
+            "Benchmark",
+            UnityEngine.SceneManagement.LoadSceneMode.Single);
+        baseLauncher.startAutoPhase1 = true;
+        DisablePhaseManagerRpc();
+    }
+
+    [Rpc(SendTo.NotServer)]
+    private void DisablePhaseManagerRpc()
+    {
+        searchForPhaseManager = true;
     }
 
     private void OnClientDisconnected(ulong connectionId)
     {
         Debug.Log(connectionId);
-        if (IsClient)
-        {
-            
-        }
     }
 
     private void OnServerStarted()
@@ -147,7 +188,7 @@ public class NetworkLauncher : NetworkBehaviour
         UnityEditor.EditorApplication.isPlaying = false;
         #else
         Application.Quit();
-#endif
+        #endif
     }
 
     public void Disconnect()

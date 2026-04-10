@@ -1,32 +1,31 @@
 using UnityEngine;
+using System.IO;
 
-/// <summary>
-/// This class is responsible for loading the configuration from a .json file and storing it in a ScriptableObject.
-/// It uses the Singleton pattern to ensure that there is only one instance of the loader in the scene, and that it can be accessed from anywhere.
-/// The loader will create a clone of the original ScriptableObject, which is stored as an asset in the project, and then parse the configuration from the .json file into the clone.
-/// This way, the original asset remains unchanged and can be reused across multiple runs of the benchmark with different configurations.
-/// </summary>
 public class BaseLoader : MonoBehaviour
 {
     [Header("Settings Asset")]
     [SerializeField] private BaseResource originalResource;
 
     [SerializeField] private ProfilerStats originalStats;
-    
-    // This is the version the rest of your game will actually use
+
     public BaseResource Resource { get; private set; }
     public ProfilerStats ResourceStats { get; private set; }
-    
+
     public static BaseLoader Instance;
+
+    // 🔹 Internal helper to read "type" from JSON
+    [System.Serializable]
+    private class ResourceTypeProbe
+    {
+        public string type;
+    }
 
     private void Awake()
     {
-        // 1. Singleton Setup
         if (Instance == null)
         {
             Instance = this;
-            // Keep the loader alive across scene loads if necessary
-            DontDestroyOnLoad(gameObject); 
+            DontDestroyOnLoad(gameObject);
         }
         else
         {
@@ -34,13 +33,7 @@ public class BaseLoader : MonoBehaviour
             return;
         }
 
-        // 2. CREATE THE SAFE CLONE
-        // This copies the values from originalResource into a new instance in memory
-        if (originalResource != null)
-        {
-            Resource = Instantiate(originalResource);
-        }
-        else
+        if (originalResource == null)
         {
             Debug.LogError("Original Resource is missing from BaseLoader!");
         }
@@ -57,61 +50,104 @@ public class BaseLoader : MonoBehaviour
 
     private void Start()
     {
-        #if PLATFORM_ANDROID
-        // Create a folder named conf_resources in the PersistentDataPath
-        if (!System.IO.Directory.Exists(Application.persistentDataPath + "/conf_resources"))
+#if PLATFORM_ANDROID
+        string basePath = Application.persistentDataPath + "/conf_resources";
+
+        if (!Directory.Exists(basePath))
         {
-            System.IO.Directory.CreateDirectory(Application.persistentDataPath + "/conf_resources");
+            Directory.CreateDirectory(basePath);
         }
-        // Check if conf_resources folder contains a file named Base.json or ProfilerStats.json
-        TextAsset configFile = System.IO.File.Exists(Application.persistentDataPath + "/conf_resources/Base.json") ? 
-            new TextAsset(System.IO.File.ReadAllText(Application.persistentDataPath + "/conf_resources/Base.json")) : null;
-        if (configFile != null)        {
-            // 3. PARSE INTO THE CLONE
-            // This only affects the RAM version, not the .asset file
-            Resource.ParseConfiguration(configFile.text);
-        }
-        else
-        {            
-            Debug.LogWarning("No configuration file named Base.json found in Resources folder. Running base test");
-        }
-        TextAsset profilerStats = System.IO.File.Exists(Application.persistentDataPath + "/conf_resources/ProfilerStats.json") ? 
-            new TextAsset(System.IO.File.ReadAllText(Application.persistentDataPath + "/conf_resources/ProfilerStats.json")) : null;
-        if (profilerStats != null)
+
+        string resourcePath = basePath + "/Base.json";
+        if (File.Exists(resourcePath))
         {
-            ResourceStats.ParseConfiguration(profilerStats.text);
+            string json = File.ReadAllText(resourcePath);
+            Resource = CreateResourceFromJson(json);
         }
         else
         {
-            Debug.LogWarning("No profiler stats found in BaseLoader. Running base profiler profile");
+            Debug.LogWarning("No Base.json found. Using default resource.");
+            Resource = Instantiate(originalResource);
         }
-        #elif UNITY_STANDALONE
+
+        string profilerPath = basePath + "/ProfilerStats.json";
+        if (File.Exists(profilerPath))
+        {
+            string json = File.ReadAllText(profilerPath);
+            ResourceStats.ParseConfiguration(json);
+        }
+        else
+        {
+            Debug.LogWarning("No profiler stats found. Using default profiler.");
+        }
+
+#elif UNITY_STANDALONE
         string[] args = System.Environment.GetCommandLineArgs();
-        
+
+        string resourceJson = null;
+        string profilerJson = null;
+
         for (int i = 0; i < args.Length; i++)
         {
             if (args[i] == "--conf-file" && i + 1 < args.Length)
             {
-                string filePath = args[i + 1];
-                if (System.IO.File.Exists(filePath))
+                string path = args[i + 1];
+                if (File.Exists(path))
                 {
-                    string fileContent = System.IO.File.ReadAllText(filePath);
-                    
-                    // 3. PARSE INTO THE CLONE
-                    // This only affects the RAM version, not the .asset file
-                    Resource.ParseConfiguration(fileContent);
+                    resourceJson = File.ReadAllText(path);
                 }
             }
 
-            if (args[i] != "--conf-profiler" || i + 1 >= args.Length) continue;
+            if (args[i] == "--conf-profiler" && i + 1 < args.Length)
             {
-                string filePath = args[i + 1];
-                if (!System.IO.File.Exists(filePath)) continue;
-                string fileContent = System.IO.File.ReadAllText(filePath);
-
-                ResourceStats.ParseConfiguration(fileContent);
+                string path = args[i + 1];
+                if (File.Exists(path))
+                {
+                    profilerJson = File.ReadAllText(path);
+                }
             }
         }
-        #endif
+
+        // ✅ Resource loading
+        if (!string.IsNullOrEmpty(resourceJson))
+        {
+            Resource = CreateResourceFromJson(resourceJson);
+        }
+        else
+        {
+            Debug.LogWarning("No resource config provided. Using default.");
+            Resource = Instantiate(originalResource);
+        }
+
+        // ✅ Profiler loading
+        if (!string.IsNullOrEmpty(profilerJson))
+        {
+            ResourceStats.ParseConfiguration(profilerJson);
+        }
+#endif
+    }
+
+    // 🔥 Core: type-agnostic factory
+    private BaseResource CreateResourceFromJson(string json)
+    {
+        if (originalResource == null)
+        {
+            Debug.LogError("Cannot create resource: originalResource is null.");
+            return null;
+        }
+
+        // 1. Extract type
+        var probe = JsonUtility.FromJson<ResourceTypeProbe>(json);
+
+        // 2. Create correct instance via registry
+        BaseResource resource = ResourceTypeRegistry.Create(probe?.type);
+
+        // 3. Copy default values from original asset
+        JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(originalResource), resource);
+
+        // 4. Apply JSON overrides
+        JsonUtility.FromJsonOverwrite(json, resource);
+
+        return resource;
     }
 }

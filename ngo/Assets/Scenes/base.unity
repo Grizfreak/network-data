@@ -1712,7 +1712,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7814512ce1558154fb9d49b402dc8250, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
-  originalResource: {fileID: 11400000, guid: b678217a5bb74904088f5e777e8455ac, type: 2}
+  originalResource: {fileID: 11400000, guid: 586613c490c83ad4d94202d5bfb46e9e, type: 2}
   originalStats: {fileID: 11400000, guid: 4bfa3d190b988b14e8fa2c404f5d6b08, type: 2}
 --- !u!114 &1140055520
 MonoBehaviour:
@@ -4309,7 +4309,7 @@ MonoBehaviour:
   m_ProtocolType: 0
   m_UseWebSockets: 0
   m_UseEncryption: 0
-  m_MaxPacketQueueSize: 128
+  m_MaxPacketQueueSize: 1024
   m_MaxPayloadSize: 6144
   m_HeartbeatTimeoutMS: 500
   m_ConnectTimeoutMS: 1000

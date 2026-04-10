@@ -83,7 +83,6 @@ using UnityEngine;
                     break;
                 case 3:
                     FinishingExperimentation.Invoke();
-                    FinishTest();
                     break;
                 default:
                     Debug.Log("All phases finished");
@@ -117,11 +116,14 @@ using UnityEngine;
             StartCoroutine(WaitAndStartPhase3());
         }
 
-        public void FinishTest()
+        public void FinishTest(bool terminate = true)
         {
             Debug.Log("Phase 3 finished");
-            Debug.Log("Waiting for " + waitBeforeQuittingApp + " seconds before quitting the application...");
-            StartCoroutine(WaitAndQuit());
+            if (terminate)
+            {
+                Debug.Log("Waiting for " + waitBeforeQuittingApp + " seconds before quitting the application...");
+                StartCoroutine(WaitAndQuit());
+            }
         }
 
         private IEnumerator WaitAndStartPhase1()
@@ -144,7 +146,7 @@ using UnityEngine;
             yield return null;
         }
 
-        private IEnumerator WaitAndQuit()
+        public IEnumerator WaitAndQuit()
         {
             yield return new WaitForSeconds(waitBeforeQuittingApp);
 #if UNITY_EDITOR

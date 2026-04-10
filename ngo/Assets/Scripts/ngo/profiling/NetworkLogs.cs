@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -25,7 +27,6 @@ public class NetworkLogs : NetworkBehaviour
             PhaseManager.Instance.PhaseFinished += SendClientEventPfRpc;
             MoveManager.Instance.StartMovingEntities += SendClientEventSmeRpc;
             MoveManager.Instance.EndMovingEntities += SendClientEventEmeRpc;
-            PhaseManager.Instance.FinishingExperimentation += FinishExperimentRpc;
             manager.eventsFileName = "ngo_server_"+ manager.eventsFileName;
             profiler.outputName = "ngo_server_" + profiler.outputName;
         }
@@ -40,12 +41,6 @@ public class NetworkLogs : NetworkBehaviour
     private void SendClientEventSiRpc(string msg)
     {
         InstantiateManager.Instance.StartingInstantiation.Invoke(msg);
-    }
-
-    [Rpc(SendTo.NotServer)]
-    private void FinishExperimentRpc()
-    {
-        PhaseManager.Instance.FinishTest();
     }
     
     [Rpc(SendTo.NotServer)]

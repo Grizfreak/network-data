@@ -1,0 +1,17 @@
+{
+  "type": "ngo",
+
+    "mPrefab": {
+        "instanceID": 62498
+    },
+    "mAmount": 20000,
+    "mSpawnOnce": false,
+    "mTimeBeforeEachSpawn": 2.0,
+    "mNumberPerWave": 400,
+    "mPercentageMovingCubesPerWave": 10.0,
+    "mTimeBeforeMovingCubes": 2.0,
+    "mWaitingPhase1Time": 5.0,
+    "mWaitBetweenPhases": 5.0,
+    "mWaitBeforeQuittingApp": 10.0,
+    "syncInterval": 0.0
+}

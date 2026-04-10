@@ -11,9 +11,9 @@ using UnityEngine;
 	/// </summary>
 	public class ProfilerStatsToCsvExporter : MonoBehaviour
 	{
+		public string outputName = $"profiler_stats";
 		#if UNITY_STANDALONE
 		private const char OutputSeparator = ',';
-		public string outputName = $"profiler_stats";
 		[SerializeField] [Tooltip("Input values found via ProfilerRecorderHandle.GetAvailable")]
 		private ProfilerStats profilerStatsFile;
 		private ProfilerStatsEntry[] profilerStats = { 

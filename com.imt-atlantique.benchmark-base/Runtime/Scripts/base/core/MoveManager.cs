@@ -17,6 +17,7 @@ using UnityEngine.Serialization;
         public float timeBeforeMovingCubes;
 
         [FormerlySerializedAs("StartMoving")] public bool startMoving;
+        public bool stopMoving;
 
         public Action<string> StartMovingEntities;
         public Action<string> EndMovingEntities;
@@ -46,9 +47,18 @@ using UnityEngine.Serialization;
         // Update is called once per frame
         private void Update()
         {
-            if (!startMoving) return;
-            startMoving = false;
-            StartMovingCubes();
+            if (startMoving)
+            {
+                startMoving = false;
+                StartMovingCubes();
+            }
+
+            if (stopMoving)
+            {
+                stopMoving = false;
+                StopMovingCubes();
+            }
+            
         }
 
         private void OnGameObjectInstantiated(GameObject go)
@@ -59,6 +69,14 @@ using UnityEngine.Serialization;
         public void StartMovingCubes()
         {
             StartCoroutine(MoveCubesAfterDelay());
+        }
+
+        private void StopMovingCubes()
+        {
+            foreach (GameObject cube in movingCubes)
+            {
+                cube.GetComponent<ObjectBehaviour>().isMoving = false;
+            }
         }
 
         private IEnumerator MoveCubesAfterDelay()

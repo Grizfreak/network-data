@@ -6,6 +6,9 @@ import argparse
 import fpsplot
 import threadplot
 import memoryplot
+import networkdataplot
+import rpcplot
+import threadplot
 
 THREAD_CLAMP_MAX_MS = 200
 SAVE_DPI = 600
@@ -14,13 +17,17 @@ FIGURE_SIZE = (24, 8)
 def plot(couple_of_files, debug=False) -> list[plt.Figure]:
     figs = []
     # parse events
-    data = pd.read_csv(couple_of_files.event_file)
+    events = pd.read_csv(couple_of_files.event_file)
     # parse stats
-    stats = pd.read_csv(couple_of_files.stat_file)
+    data = pd.read_csv(couple_of_files.stat_file)
     # plot stats
-    figs.append(fpsplot.plot(stats, data, debug, FIGURE_SIZE))
-    figs.append(threadplot.plot(stats, data, debug, THREAD_CLAMP_MAX_MS, FIGURE_SIZE))
-    figs.append(memoryplot.plot(stats, data, debug, FIGURE_SIZE))
+    figs.append(fpsplot.plot(data, events, debug, FIGURE_SIZE))
+    figs.append(threadplot.plot(data, events, debug, THREAD_CLAMP_MAX_MS, FIGURE_SIZE))
+    figs.append(memoryplot.plot(data, events, debug, FIGURE_SIZE))
+    if "Object Spawned Bytes Received (bytes)" in data.columns:
+        figs.append(networkdataplot.plot(data, events, debug, FIGURE_SIZE))
+        figs.append(rpcplot.plot(data, events, debug, FIGURE_SIZE))
+        figs.append(threadplot.plot(data, events, debug, THREAD_CLAMP_MAX_MS, FIGURE_SIZE))
     return figs
 
 def save_plots(figures):

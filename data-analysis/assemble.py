@@ -1,7 +1,9 @@
 import os
 
 _siblings = {
-    "profiler_stats-" :"events_"
+    "profiler_stats-" :"events_",
+    "ngo_server_profiler_stats-" : "ngo_server_events_",
+    "ngo_client_profiler_stats-" : "ngo_client_events_",
 }
 
 class StatAndEvent:

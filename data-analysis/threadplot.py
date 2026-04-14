@@ -59,7 +59,8 @@ def plot(data, events, debug=False, clamp_max_ms=None, fig_size=(24, 8)):
     title = "Thread and GPU Frame Times (ms)"
     if clamp_max_ms is not None:
         title += f" - Clamped at {clamp_max_ms} ms"
-    ax.set_title(title)
+
+    fig.suptitle(title)
     ax.ticklabel_format(style='plain', axis='x', useOffset=False)
     ax.ticklabel_format(style='plain', axis='y', useOffset=False)
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:,.0f}"))

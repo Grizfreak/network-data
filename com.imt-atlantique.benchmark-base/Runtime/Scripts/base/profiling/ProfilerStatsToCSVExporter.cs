@@ -12,10 +12,10 @@ using UnityEngine;
 	public class ProfilerStatsToCsvExporter : MonoBehaviour
 	{
 		public string outputName = $"profiler_stats";
-		#if UNITY_STANDALONE
-		private const char OutputSeparator = ',';
 		[SerializeField] [Tooltip("Input values found via ProfilerRecorderHandle.GetAvailable")]
 		private ProfilerStats profilerStatsFile;
+		#if UNITY_STANDALONE
+		private const char OutputSeparator = ',';
 		private ProfilerStatsEntry[] profilerStats = { 
 			new ("GC", "GC.Collect"),
 			new ("Internal", "Main Thread"),
@@ -56,7 +56,6 @@ using UnityEngine;
 			{
 				profilerStats = profilerStatsFile.Entries;
 			}
-			
 			
 			// if data is passed from BaseLoader, get them
 			if (BaseLoader.Instance != null && BaseLoader.Instance.ResourceStats != null)

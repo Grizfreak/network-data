@@ -1,21 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 
-
-def _format_bytes(value, _):
-    units = ["B", "KB", "MB", "GB", "TB"]
-    size = float(value)
-    unit_index = 0
-
-    while abs(size) >= 1024 and unit_index < len(units) - 1:
-        size /= 1024.0
-        unit_index += 1
-
-    if unit_index == 0:
-        return f"{int(size):,} {units[unit_index]}"
-
-    return f"{size:,.1f} {units[unit_index]}"
-
 def _maximize_figure(fig):
     manager = plt.get_current_fig_manager()
     try:
@@ -36,24 +21,12 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
         print("Plotting...")
     # plot stats
     ax = fig.add_subplot(111)
-    metrics = [
-        "Total Bytes Received (bytes)",
-        "Total Bytes Sent (bytes)",
-        "Object Spawned Bytes Received (bytes)",
-        "Object Spawned Bytes Sent (bytes)",
-        "Rpc Bytes Received (bytes)",
-        "Rpc Bytes Sent (bytes)"
-    ]
-
-    for metric in metrics:
-        if metric in data.columns:
-            ax.plot(data["Frame"], data[metric], label=metric)
+    ax.plot(data["Frame"], data["Ping (ns)"], label="Ping")
     ax.set_xlabel("Frame")
-    ax.set_ylabel("Data Size")
-    fig.suptitle("RPC and Object Spawn Data over Frames")
+    ax.set_ylabel("Ping (ns)")
+    fig.suptitle("Ping over Frames")
     ax.ticklabel_format(style='plain', axis='x')
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(_format_bytes))
 
     # Draw vertical lines for each event occurrence, grouped by event type.
     if {"Frame", "Event"}.issubset(events.columns):

@@ -25,7 +25,7 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
     ax.plot(data["Frame"], memory_mb, label="Total Used Memory (MB)")
     ax.set_xlabel("Frame")
     ax.set_ylabel("Total Used Memory (MB)")
-    ax.set_title("Total Used Memory over Frames (MB)")
+    fig.suptitle("Total Used Memory over Frames (MB)")
     ax.ticklabel_format(style='plain', axis='x')
     ax.ticklabel_format(style='plain', axis='y', useOffset=False)
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))

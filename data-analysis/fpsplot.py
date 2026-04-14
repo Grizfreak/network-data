@@ -24,7 +24,7 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
     ax.plot(data["Frame"], data["FPS"], label="FPS")
     ax.set_xlabel("Frame")
     ax.set_ylabel("FPS")
-    ax.set_title("FPS over Frames")
+    fig.suptitle("FPS over Frames")
     ax.ticklabel_format(style='plain', axis='x')
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
 

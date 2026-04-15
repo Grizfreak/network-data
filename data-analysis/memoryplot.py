@@ -70,3 +70,24 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
     if debug:
         plt.show()
     return fig
+
+def plot_quest(data, events, debug=False, fig_size=(24, 8)):
+    def numeric_col(col_name, default=0.0):
+        if col_name not in data.columns:
+            return pd.Series(default, index=data.index, dtype="float64")
+        return pd.to_numeric(data[col_name], errors="coerce")
+
+    memory_mb = numeric_col("app_rss_MB")
+    if memory_mb.isna().all():
+        memory_mb = numeric_col("app_pss_MB")
+    if memory_mb.isna().all():
+        memory_mb = numeric_col("app_uss_MB")
+
+    quest_data = pd.DataFrame(
+        {
+            "Frame": numeric_col("Time Stamp"),
+            "Total Used Memory (bytes)": memory_mb * 1024.0 * 1024.0,
+        }
+    )
+
+    return plot(quest_data, events, debug, fig_size)

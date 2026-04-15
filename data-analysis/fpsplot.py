@@ -87,3 +87,11 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
     if debug:
         plt.show()
     return fig
+
+def plot_quest(data, events, debug=False, fig_size=(24, 8)):
+    quest_data = data[["Time Stamp", "average_frame_rate"]].copy()
+    quest_data.columns = ["Frame", "FPS"]
+    quest_data["Frame"] = pd.to_numeric(quest_data["Frame"], errors="coerce")
+    quest_data["FPS"] = pd.to_numeric(quest_data["FPS"], errors="coerce")
+    quest_data = quest_data.dropna(subset=["Frame", "FPS"])
+    return plot(quest_data, events, debug, fig_size)

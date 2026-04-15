@@ -95,3 +95,27 @@ def plot(data, events, debug=False, clamp_max_ms=None, fig_size=(24, 8)):
     if debug:
         plt.show()
     return fig
+
+def plot_quest(data, events, debug=False, clamp_max_ms=None, fig_size=(24, 8)):
+    def numeric_col(col_name, default=0.0):
+        if col_name not in data.columns:
+            return pd.Series(default, index=data.index, dtype="float64")
+        return pd.to_numeric(data[col_name], errors="coerce")
+
+    fps = numeric_col("average_frame_rate")
+    frame_time_ms = 1000.0 / fps.where(fps > 0)
+    frame_time_ns = frame_time_ms * 1_000_000
+
+    quest_data = pd.DataFrame(
+        {
+            "Frame": numeric_col("Time Stamp"),
+            "FrameTimeMs": frame_time_ms,
+            "Main Thread (ns)": frame_time_ns,
+            "CPU Main Thread Frame Time (ns)": frame_time_ns,
+            "CPU Render Thread Frame Time (ns)": numeric_col("timewarp_gpu_time_microseconds") * 1000.0,
+            "CPU Total Frame Time (ns)": frame_time_ns,
+            "GPU Frame Time (ns)": numeric_col("app_gpu_time_microseconds") * 1000.0,
+        }
+    )
+
+    return plot(quest_data, events, debug, clamp_max_ms, fig_size)

@@ -162,3 +162,19 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
 	if debug:
 		plt.show()
 	return fig
+
+def plot_quest(data, events, debug=False, fig_size=(24, 8)):
+	def numeric_col(col_name, default=0.0):
+		if col_name not in data.columns:
+			return pd.Series(default, index=data.index, dtype="float64")
+		return pd.to_numeric(data[col_name], errors="coerce")
+
+	quest_data = pd.DataFrame({
+		"Frame": numeric_col("Time Stamp"),
+		"FPS": numeric_col("average_frame_rate"),
+	})
+
+	if "Object Spawned Received" in data.columns:
+		quest_data["Object Spawned Received"] = numeric_col("Object Spawned Received")
+
+	return plot(quest_data, events, debug, fig_size)

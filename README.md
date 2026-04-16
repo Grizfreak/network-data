@@ -1,95 +1,90 @@
-# Unity Network Benchmark Base
+# Unity Network Benchmark
 
-This repository contains a Unity benchmark project built around a simple three-phase workload:
+This repository contains Unity benchmark projects centered on a three-phase workload:
 
-1. wait for the scene to initialize and the network layer to be ready,
-2. spawn a configurable number of cubes, either all at once or in waves,
-3. progressively switch cubes into a moving state while recording timing and profiler data.
+1. wait for initialization and network readiness,
+2. spawn a configurable number of cubes (single batch or waves),
+3. progressively switch cubes to moving while recording events and profiler metrics.
 
-The project is split into a local package and a Unity project:
+The repository is organized around:
 
-- `com.imt-atlantique.benchmark-base/` contains the runtime package code, scenes, and sample JSON configurations.
-- `base/` is the Unity project that consumes that package and contains the generated project files.
-    - every network engine used will be based on this project
-- `data-analysis/` contains Python scripts for plotting the collected CSV data.
+- `com.imt-atlantique.benchmark-base/` for shared runtime package code, scenes, and sample configs.
+- `base/` for the base Unity project.
+- `ngo/` for the NGO Unity project.
+- `data-analysis/` for CSV collection and plotting scripts.
 
 ## Architecture
 
-The runtime code is organized into three layers:
+Core runtime layers:
 
-- `base.model` defines the data containers used by the benchmark, including `BaseResource`, `ProfilerStats`, and `ProfilerStatsEntry`.
-- `base.core` contains the benchmark flow and scene logic:
-	- `BaseLauncher` loads the benchmark scene and kicks off phase 1.
-	- `PhaseManager` coordinates the three benchmark phases and handles automatic phase chaining.
-	- `InstantiateManager` spawns the benchmark objects either all at once or per wave.
-	- `MoveManager` gradually marks spawned cubes as moving.
-	- `ObjectBehaviour` applies the movement, jump, and rotation behaviour to cubes.
-	- `CameraRotate` adjusts the camera orientation on Android.
-- `base.profiling` contains logging and profiler export code:
-	- `LogsManager` writes phase and spawn/move events to CSV.
-	- `ProfilerStatsToCSVExporter` records selected Unity profiler metrics to CSV.
-	- `ProfilerManagement` can export the list of available profiler recorder handles for debugging.
+- `base.model` provides benchmark data containers (`BaseResource`, `ProfilerStats`, `ProfilerStatsEntry`) and JSON loading (`BaseLoader`).
+- `base.core` contains benchmark flow and scene logic (`BaseLauncher`, `PhaseManager`, `InstantiateManager`, `MoveManager`, `ObjectBehaviour`).
+- `base.profiling` handles CSV and profiler export (`LogsManager`, `ProfilerStatsToCsvExporter`, `ProfilerManagement`).
 
-The package metadata is defined in `com.imt-atlantique.benchmark-base/package.json`, which declares the package name, Unity version, and sample content.
+`BaseLoader` supports both standalone and Android configuration loading.
 
 ## Benchmark Flow
 
-The benchmark scene is driven by `PhaseManager` and follows this sequence:
+The benchmark scene flow is:
 
 1. `BaseLauncher` loads `Packages/com.imt-atlantique.benchmark-base/Runtime/Scenes/Benchmark.unity`.
-2. `PhaseManager` starts phase 1 after the initial delay.
-3. Phase 1 acts as the connection/setup window.
-4. Phase 2 calls `InstantiateManager.StartSpawning()`.
-5. Phase 3 calls `MoveManager.StartMovingCubes()`.
-6. Once the final phase finishes, the app waits briefly and exits.
-
-The phase timing values can come from the inspector or from JSON configuration loaded by `BaseLoader`.
+2. `PhaseManager` starts phase 1 (setup/connect window).
+3. Phase 2 triggers spawning via `InstantiateManager.StartSpawning()`.
+4. Phase 3 triggers movement via `MoveManager.StartMovingCubes()`.
+5. After the final phase, the application exits after the configured delay.
 
 ## Configuration
 
-`BaseLoader` clones the editable ScriptableObjects at runtime and overwrites them from JSON so the original assets stay unchanged.
+`BaseLoader` clones scriptable objects at runtime, then applies JSON overrides.
 
-On standalone builds, configuration is passed with command-line arguments:
+Standalone arguments:
 
-- `--conf-file <path>` loads `Base.json` into `BaseResource`.
-- `--conf-profiler <path>` loads `ProfilerStats.json` into `ProfilerStats`.
+- `--conf-file <path>` loads `Base.json`.
+- `--conf-profiler <path>` loads `ProfilerStats.json` (optional).
 
-On Android, the loader looks for the same files in `Application.persistentDataPath/conf_resources/`.
+Android loading path:
 
-The sample files in `com.imt-atlantique.benchmark-base/Samples~/` show the expected JSON shape.
+- `Application.persistentDataPath/conf_resources/Base.json`
+- `Application.persistentDataPath/conf_resources/ProfilerStats.json`
 
-### Base.json
+Sample JSON files are available under `com.imt-atlantique.benchmark-base/Samples~/`.
 
-These fields control the benchmark workload:
+## Build
 
-- `mAmount`: total number of cubes to spawn.
-- `mSpawnOnce`: if `true`, spawn all cubes in a single batch; otherwise spawn by wave.
-- `mTimeBeforeEachSpawn`: delay before each spawn step.
-- `mNumberPerWave`: number of cubes to spawn per wave.
-- `mPercentageMovingCubesPerWave`: percentage of currently static cubes that should start moving each wave.
-- `mTimeBeforeMovingCubes`: delay between movement waves.
-- `mWaitingPhase1Time`: time spent in phase 1.
-- `mWaitBetweenPhases`: delay between phases.
-- `mWaitBeforeQuittingApp`: delay before exiting once the test is finished.
+Use the root script to build both Unity projects for Windows and Android:
 
-### ProfilerStats.json
+```powershell
+.\build_all_versions.ps1
+```
 
-This file lists the profiler recorder handles that `ProfilerStatsToCSVExporter` should record. Each entry contains:
+The script builds `base` and `ngo`, then moves outputs to:
 
-- `category`
-- `name`
+- `builds/base/` (Windows exe)
+- `builds/base_android/` (APK)
+- `builds/ngo/` (Windows exe)
+- `builds/ngo_android/` (APK)
 
-The exporter writes the selected values to CSV once per frame.
+## Running NGO Benchmark
 
-## Outputs
+Runner scripts are in `ngo/Assets/Runners/`.
 
-At runtime, the project writes benchmark data to `Application.persistentDataPath`.
+Run local server + local client:
 
-- `LogsManager` creates an event log CSV with columns `Frame,Time,Event,Value`.
-- `ProfilerStatsToCSVExporter` creates a profiler CSV with frame time, FPS, and the selected profiler metrics.
-- `ProfilerManagement` can export `profiler_handles.json` for discovering available profiler recorder names.
+```powershell
+.\ngo\Assets\Runners\run-ngo-benchmark.ps1
+```
 
-The event names used by the benchmark are:
+Both scripts pass `--conf-file` with `ngo/Assets/Resources/NgoResource.json` for the server instance.
+
+## Runtime Outputs
+
+Runtime CSV outputs are written under `Application.persistentDataPath`.
+
+- Event CSV from `LogsManager` with columns `Frame,Time,Event,Value`.
+- Profiler CSV from `ProfilerStatsToCsvExporter`.
+- Optional `profiler_handles.json` export from `ProfilerManagement`.
+
+Main benchmark events:
 
 - `PhaseStarted`
 - `PhaseFinished`
@@ -100,37 +95,33 @@ The event names used by the benchmark are:
 
 ## Data Analysis
 
-The `data-analysis/` folder contains Python scripts for plotting benchmark results:
+The Python workflow is in `data-analysis/`.
 
-- `plot.py` is geared toward the desktop CSV format.
-- `quest_plot.py` is geared toward Quest-style exports.
+1. Create/activate the virtual environment.
+2. Install dependencies:
 
-Install the Python dependencies listed in `data-analysis/requirements.txt`:
-
-```bash
-pip install -r data-analysis/requirements.txt
+```powershell
+pip install -r .\data-analysis\requirements.txt
 ```
 
-Then place the exported CSV files in `data-analysis/results/` and run one of the scripts:
+3. Collect latest local/Quest CSV files into `data-analysis/data/<timestamp>/`:
 
-```bash
-python plot.py
-python quest_plot.py
+```powershell
+python .\data-analysis\extract_data.py
 ```
 
-Generated charts are written to `data-analysis/plot_output/`.
+4. Generate plots from the latest folder in `data-analysis/data/`:
+
+```powershell
+python .\data-analysis\plot.py
+```
+
+Plots are saved to `data-analysis/results/<timestamp>/`.
 
 ## Project Layout
 
-- `base/` - Unity project root.
-- `base/Assets/` - project assets and editor-side Unity content.
-- `base/Packages/` - package manifest and lock file.
-- `com.imt-atlantique.benchmark-base/Runtime/Scenes/` - benchmark scenes.
-- `com.imt-atlantique.benchmark-base/Runtime/Scripts/` - runtime code.
-- `com.imt-atlantique.benchmark-base/Samples~/` - sample JSON configuration files.
-- `data-analysis/` - plotting and post-processing scripts.
-
-## Notes
-
-- The project is designed to benchmark networked or VR-heavy workloads by measuring how the scene behaves across spawning, movement, and profiler capture.
-- The current flow is intentionally event-driven so additional systems can subscribe to phase, spawn, and movement events without changing the core managers.
+- `base/`: base Unity project.
+- `ngo/`: NGO Unity project.
+- `com.imt-atlantique.benchmark-base/`: shared package (runtime scripts, scenes, samples).
+- `builds/`: consolidated build outputs.
+- `data-analysis/`: extraction and plotting scripts.

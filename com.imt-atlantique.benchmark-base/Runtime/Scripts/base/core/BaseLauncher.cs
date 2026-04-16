@@ -7,24 +7,28 @@ using UnityEngine.SceneManagement;
     public class BaseLauncher : MonoBehaviour
     {
         private bool searchingForPhaseManager;
+        public bool startAutoPhase1 = true;
         private PhaseManager phaseManager;
         // Start is called once before the first execution of Update after the MonoBehaviour is created
         private void Start()
         {
             SceneManager.activeSceneChanged += OnSceneChanged;
-            SceneManager.LoadScene("Packages/com.imt-atlantique.benchmark-base/Runtime/Scenes/Benchmark.unity");
         }
 
         private void Update()
         {
             if (searchingForPhaseManager)
             {
-                phaseManager = FindAnyObjectByType<PhaseManager>();
+                phaseManager = PhaseManager.Instance;
                 if (phaseManager != null)
                 {
                     searchingForPhaseManager = false;
-                    phaseManager.AskPhase1Start.Invoke();
                 }
+            }
+            if (phaseManager != null && startAutoPhase1)
+            {
+                phaseManager.AskPhase1Start.Invoke();
+                startAutoPhase1 = false;
             }
         }
     

@@ -1,0 +1,16 @@
+{
+    "name": "ngo.model",
+    "rootNamespace": "",
+    "references": [
+        "GUID:a5008a88d60da4d4c983e0d1dfab136b"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

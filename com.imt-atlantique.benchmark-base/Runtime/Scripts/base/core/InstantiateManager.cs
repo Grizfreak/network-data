@@ -39,7 +39,7 @@ using Random = UnityEngine.Random;
 
         
         // Start is called once before the first execution of Update after the MonoBehaviour is created
-        private void Start()
+        protected virtual void Start()
         {
             if (BaseLoader.Instance == null) return;
             objectToSpawn = BaseLoader.Instance.Resource.mPrefab;
@@ -55,7 +55,7 @@ using Random = UnityEngine.Random;
         }
 
 
-        private IEnumerator SpawnObjects()
+        protected virtual IEnumerator SpawnObjects()
         {
             yield return new WaitForSeconds(timeBeforeSpawn);
             StartingInstantiation.Invoke("StartedInstantiation");
@@ -71,7 +71,7 @@ using Random = UnityEngine.Random;
             PhaseManager.Instance.PhaseFinished.Invoke("PhaseFinished");
         }
 
-        private IEnumerator SpawnObjectsByGroup()
+        protected virtual IEnumerator SpawnObjectsByGroup()
         {
             while (_spawnedInstances < numberToSpawn)
             {

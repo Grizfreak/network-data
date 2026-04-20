@@ -34,7 +34,7 @@ using UnityEngine.Serialization;
             }
         }
         // Start is called once before the first execution of Update after the MonoBehaviour is created
-        private void Start()
+        protected virtual void Start()
         {
             if (BaseLoader.Instance != null)
             {
@@ -66,7 +66,7 @@ using UnityEngine.Serialization;
             staticCubes.Add(go);
         }
 
-        public void StartMovingCubes()
+        public virtual void StartMovingCubes()
         {
             StartCoroutine(MoveCubesAfterDelay());
         }
@@ -79,7 +79,7 @@ using UnityEngine.Serialization;
             }
         }
 
-        private IEnumerator MoveCubesAfterDelay()
+        protected virtual IEnumerator MoveCubesAfterDelay()
         {
             int numberOfCubes = staticCubes.Count +  movingCubes.Count;
             int numberOfCubesToMove = (int) (numberOfCubes * percentageOfMovingCubes / 100);

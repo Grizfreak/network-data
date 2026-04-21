@@ -36,7 +36,7 @@ using UnityEngine;
             }
         }
 
-        private void Start()
+        protected virtual void Start()
         {
             if (BaseLoader.Instance != null)
             {
@@ -48,7 +48,7 @@ using UnityEngine;
             PhaseFinished += OnPhaseFinished;
         }
 
-        private void Update()
+        protected virtual void Update()
         {
             if (startPhase1)
             {
@@ -100,7 +100,7 @@ using UnityEngine;
             StartCoroutine(WaitAndStartPhase1());
         }
 
-        private void StartPhase2()
+        protected virtual void StartPhase2()
         {
             Debug.Log("Phase 2 starting...");
             Debug.Log("Phase 2 intends for objects to instantiate via InstantiateManager per wave defined in the manager");
@@ -108,7 +108,7 @@ using UnityEngine;
             StartCoroutine(WaitAndStartPhase2());
         }
 
-        private void StartPhase3()
+        protected virtual void StartPhase3()
         {
             Debug.Log("Phase 3 starting...");
             Debug.Log("Phase 3 intends for objects instantiated to move one by one, everything is defined in MoveManager");
@@ -126,27 +126,27 @@ using UnityEngine;
             }
         }
 
-        private IEnumerator WaitAndStartPhase1()
+        protected virtual IEnumerator WaitAndStartPhase1()
         {
             yield return new WaitForSeconds(waitingPhase1Time);
             PhaseFinished.Invoke("PhaseFinished");
         }
 
-        private IEnumerator WaitAndStartPhase2()
+        protected virtual IEnumerator WaitAndStartPhase2()
         {
             yield return new WaitForSeconds(waitBetweenPhases);
             InstantiateManager.Instance.StartSpawning();
             yield return null;
         }
 
-        private IEnumerator WaitAndStartPhase3()
+        protected virtual IEnumerator WaitAndStartPhase3()
         {
             yield return new WaitForSeconds(waitBetweenPhases);
             MoveManager.Instance.StartMovingCubes();
             yield return null;
         }
 
-        public IEnumerator WaitAndQuit()
+        private IEnumerator WaitAndQuit()
         {
             yield return new WaitForSeconds(waitBeforeQuittingApp);
 #if UNITY_EDITOR

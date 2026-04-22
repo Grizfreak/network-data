@@ -7,7 +7,9 @@ public class ECSPhaseManager : PhaseManager
         
         private EntityManager _em;
         private Entity _configEntity;
+        private EntityQuery _configQuery;
         private EntityQuery _numberOfStaticInstances;
+        private bool initialized = false;
 
         private int lastRecordedEntityCount = 0;
         
@@ -17,15 +19,22 @@ public class ECSPhaseManager : PhaseManager
 
                 _em = World.DefaultGameObjectInjectionWorld.EntityManager;
 
-                _configEntity =
-                        _em.CreateEntityQuery(typeof(BenchmarkConfig))
-                                .GetSingletonEntity();
+                _configQuery = _em.CreateEntityQuery(typeof(BenchmarkConfig));
                 _numberOfStaticInstances = _em.CreateEntityQuery(typeof(StaticTag));
         }
         protected override void Update()
         {
+                if (!initialized)
+                {
+                        if (!_configQuery.HasSingleton<BenchmarkConfig>())
+                                return;
+                        _configEntity = _configQuery.GetSingletonEntity();
+                        initialized = true;
+                        Debug.Log("Phase Manager initialized and ready to manage phases.");
+                }
+                
                 base.Update();
-
+                
                 var config =
                         _em.GetComponentData<BenchmarkConfig>(_configEntity);
 

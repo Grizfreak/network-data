@@ -464,7 +464,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1ab7e59ebfa0efd4e8a90b103d812c04, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
-  startPhase1: 1
+  startPhase1: 0
   startPhase2: 0
   startPhase3: 0
   autoLinkingPhase: 1

@@ -388,6 +388,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bc451c0a757cfee41a4c388bd62001fd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: base::BaseLauncher
+  startAutoPhase1: 1
 --- !u!4 &1140055518
 Transform:
   m_ObjectHideFlags: 0
@@ -428,7 +429,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 43b0a3e38359505469a6418466cd30df, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: '::'
+  m_EditorClassIdentifier: base.core::BaseStart
 --- !u!1 &1741215255
 GameObject:
   m_ObjectHideFlags: 0

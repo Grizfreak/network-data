@@ -417,6 +417,7 @@ GameObject:
   - component: {fileID: 580922103}
   - component: {fileID: 580922104}
   - component: {fileID: 580922105}
+  - component: {fileID: 580922106}
   m_Layer: 0
   m_Name: Manager
   m_TagString: Untagged
@@ -526,13 +527,25 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e95cab53e8b345d6af962b75807af34f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ECSPhaseManager
-  startPhase1: 1
+  startPhase1: 0
   startPhase2: 0
   startPhase3: 0
   autoLinkingPhase: 1
   waitingPhase1Time: 10
   waitBetweenPhases: 10
   waitBeforeQuittingApp: 10
+--- !u!114 &580922106
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 580922095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 21abe7ca77125f34cb4321828acf131b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ECSConfigBootstrap
 --- !u!1 &909386170
 GameObject:
   m_ObjectHideFlags: 0

@@ -7,7 +7,9 @@ _siblings = {
     "ngo_server_profiler_stats-" : "ngo_server_events_",
     "ngo_client_profiler_stats-" : "ngo_client_events_",
     "com.IMT_Atlantique.BenchmarkBase" : "events_",
-    "com.IMT_Atlantique.BenchmarkNGO" : "ngo_client_events_"
+    "com.IMT_Atlantique.BenchmarkNGO" : "ngo_client_events_",
+    "dots_profiler_stats-" : "dots_events_",
+    "gpu_profiler_stats-" : "gpu_events_",
 }
 
 _TIMESTAMP_PATTERNS = (

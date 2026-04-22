@@ -1,4 +1,4 @@
-$project_folders = @("base", "ngo", "base_GPU")
+$project_folders = @("base", "ngo", "base_GPU", "base_DOTS")
 
 $unity_path = "C:\Program Files\Unity\Hub\Editor\6000.3.7f1\Editor\Unity.exe"
 $build_path_output = Join-Path $PSScriptRoot "builds"

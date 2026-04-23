@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+from xaxis_utils import event_frames_to_x, get_x_axis_info
 
 def _maximize_figure(fig):
     manager = plt.get_current_fig_manager()
@@ -20,7 +21,7 @@ def plot(data, events, debug=False, clamp_max_ms=None, fig_size=(24, 8)):
     if debug:
         print("Plotting...")
     ax = fig.add_subplot(111)
-    x_col = "Frame"
+    x_col, x_label, is_time_axis = get_x_axis_info(data)
     y_cols = [
         "FrameTimeMs",
         "Main Thread (ns)",
@@ -54,22 +55,25 @@ def plot(data, events, debug=False, clamp_max_ms=None, fig_size=(24, 8)):
         label = col.replace(" (ns)", " (ms)")
         ax.plot(plot_data[x_col], plot_data[col], label=label)
 
-    ax.set_xlabel("Frame")
+    ax.set_xlabel(x_label)
     ax.set_ylabel("Time (ms)")
-    title = "Thread and GPU Frame Times (ms)"
+    title = "Thread and GPU Frame Times over Time (ms)" if is_time_axis else "Thread and GPU Frame Times (ms)"
     if clamp_max_ms is not None:
         title += f" - Clamped at {clamp_max_ms} ms"
 
     fig.suptitle(title)
     ax.ticklabel_format(style='plain', axis='x', useOffset=False)
     ax.ticklabel_format(style='plain', axis='y', useOffset=False)
-    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:,.0f}"))
+    if is_time_axis:
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:,.1f}"))
+    else:
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:,.0f}"))
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f"{y:,.0f}"))
 
     # Draw vertical lines for each event occurrence, grouped by event type.
     if {"Frame", "Event"}.issubset(events.columns):
         event_data = events[["Frame", "Event"]].copy()
-        event_data["Frame"] = pd.to_numeric(event_data["Frame"], errors="coerce")
+        event_data["Frame"] = event_frames_to_x(event_data["Frame"], data, x_col)
         event_data = event_data.dropna(subset=["Frame", "Event"])
 
         unique_events = event_data["Event"].dropna().unique()

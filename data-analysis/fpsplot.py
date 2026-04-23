@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+from xaxis_utils import event_frames_to_x, get_x_axis_info
 
 def _maximize_figure(fig):
     manager = plt.get_current_fig_manager()
@@ -21,12 +22,19 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
         print("Plotting...")
     # plot stats
     ax = fig.add_subplot(111)
-    ax.plot(data["Frame"], data["FPS"], label="FPS")
-    ax.set_xlabel("Frame")
+    x_col, x_label, is_time_axis = get_x_axis_info(data)
+    x_values = pd.to_numeric(data[x_col], errors="coerce")
+    fps_values = pd.to_numeric(data["FPS"], errors="coerce")
+    plot_data = pd.DataFrame({"x": x_values, "FPS": fps_values}).dropna(subset=["x", "FPS"])
+    ax.plot(plot_data["x"], plot_data["FPS"], label="FPS")
+    ax.set_xlabel(x_label)
     ax.set_ylabel("FPS")
-    fig.suptitle("FPS over Frames")
+    fig.suptitle("FPS over Time" if is_time_axis else "FPS over Frames")
     ax.ticklabel_format(style='plain', axis='x')
-    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
+    if is_time_axis:
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:,.1f}"))
+    else:
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x):,}"))
 
     # Draw vertical lines for each event occurrence, grouped by event type.
     if {"Frame", "Event"}.issubset(events.columns):
@@ -35,11 +43,12 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
         y_min, y_max = ax.get_ylim()
 
         for idx, event_name in enumerate(unique_events):
-            event_frames = events.loc[events["Event"] == event_name, "Frame"].dropna()
-            if event_frames.empty:
+            event_frames = events.loc[events["Event"] == event_name, "Frame"]
+            event_x = event_frames_to_x(event_frames, data, x_col)
+            if event_x.empty:
                 continue
             ax.vlines(
-                event_frames,
+                event_x,
                 ymin=y_min,
                 ymax=y_max,
                 colors=[colors[idx]],
@@ -52,7 +61,7 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
             finished_rows = events.loc[
                 events["Event"] == "FinishedInstantiation", ["Frame", "Value"]
             ].copy()
-            finished_rows["Frame"] = pd.to_numeric(finished_rows["Frame"], errors="coerce")
+            finished_rows["Frame"] = event_frames_to_x(finished_rows["Frame"], data, x_col)
             finished_rows["Value"] = pd.to_numeric(finished_rows["Value"], errors="coerce")
             finished_rows = finished_rows.dropna().sort_values("Frame")
 

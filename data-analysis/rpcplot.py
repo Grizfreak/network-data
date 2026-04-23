@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+from xaxis_utils import event_frames_to_x, get_x_axis_info
 
 def _maximize_figure(fig):
     manager = plt.get_current_fig_manager()
@@ -27,15 +28,22 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
         "Object Spawned Received",
         "Object Spawned Sent",
     ]
+    x_col, x_label, is_time_axis = get_x_axis_info(data)
+    x_values = pd.to_numeric(data[x_col], errors="coerce")
 
     for metric in metrics:
         if metric in data.columns:
-            ax.plot(data["Frame"], data[metric], label=metric)
-    ax.set_xlabel("Frame")
+            metric_values = pd.to_numeric(data[metric], errors="coerce")
+            metric_data = pd.DataFrame({"x": x_values, "y": metric_values}).dropna(subset=["x", "y"])
+            ax.plot(metric_data["x"], metric_data["y"], label=metric)
+    ax.set_xlabel(x_label)
     ax.set_ylabel("Count")
-    fig.suptitle("RPC and Object Spawn Events over Frames")
+    fig.suptitle("RPC and Object Spawn Events over Time" if is_time_axis else "RPC and Object Spawn Events over Frames")
     ax.ticklabel_format(style='plain', axis='x')
-    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
+    if is_time_axis:
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:,.1f}"))
+    else:
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x):,}"))
 
     # Draw vertical lines for each event occurrence, grouped by event type.
     if {"Frame", "Event"}.issubset(events.columns):
@@ -44,11 +52,12 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
         y_min, y_max = ax.get_ylim()
 
         for idx, event_name in enumerate(unique_events):
-            event_frames = events.loc[events["Event"] == event_name, "Frame"].dropna()
-            if event_frames.empty:
+            event_frames = events.loc[events["Event"] == event_name, "Frame"]
+            event_x = event_frames_to_x(event_frames, data, x_col)
+            if event_x.empty:
                 continue
             ax.vlines(
-                event_frames,
+                event_x,
                 ymin=y_min,
                 ymax=y_max,
                 colors=[colors[idx]],
@@ -61,7 +70,7 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
             finished_rows = events.loc[
                 events["Event"] == "FinishedInstantiation", ["Frame", "Value"]
             ].copy()
-            finished_rows["Frame"] = pd.to_numeric(finished_rows["Frame"], errors="coerce")
+            finished_rows["Frame"] = event_frames_to_x(finished_rows["Frame"], data, x_col)
             finished_rows["Value"] = pd.to_numeric(finished_rows["Value"], errors="coerce")
             finished_rows = finished_rows.dropna().sort_values("Frame")
 

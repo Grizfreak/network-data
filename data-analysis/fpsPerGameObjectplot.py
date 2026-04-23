@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+from xaxis_utils import event_frames_to_x, get_x_axis_info
 
 
 def _maximize_figure(fig):
@@ -23,6 +24,7 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
 		print("Plotting...")
 
 	ax = fig.add_subplot(111)
+	x_col, x_label, is_time_axis = get_x_axis_info(data)
 
 	required_cols = ["Frame", "FPS"]
 	missing_cols = [col for col in required_cols if col not in data.columns]
@@ -73,12 +75,18 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
 		fig.suptitle("Average FPS per GameObject over FinishedInstantiation Events")
 		ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
 	else:
-		ax.plot(plot_data["Frame"], plot_data["FPS"], label="FPS")
-		ax.set_xlabel("Frame")
+		x_values = pd.to_numeric(data[x_col], errors="coerce")
+		fps_values = pd.to_numeric(data["FPS"], errors="coerce")
+		raw_plot_data = pd.DataFrame({"x": x_values, "FPS": fps_values}).dropna(subset=["x", "FPS"])
+		ax.plot(raw_plot_data["x"], raw_plot_data["FPS"], label="FPS")
+		ax.set_xlabel(x_label)
 		ax.set_ylabel("FPS")
-		fig.suptitle("FPS per GameObject over Frames")
+		fig.suptitle("FPS per GameObject over Time" if is_time_axis else "FPS per GameObject over Frames")
 		ax.ticklabel_format(style='plain', axis='x')
-		ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
+		if is_time_axis:
+			ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:,.1f}"))
+		else:
+			ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x):,}"))
 
 	if not segment_points:
 		if "Object Spawned Received" in data.columns:
@@ -97,7 +105,8 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
 			if not changed_rows.empty:
 				top_ax = ax.secondary_xaxis("top")
 				top_ax.set_xlabel("Cumulative GameObjects Spawned")
-				top_ax.set_xticks(changed_rows["Frame"].tolist())
+				spawn_ticks = event_frames_to_x(changed_rows["Frame"], data, x_col)
+				top_ax.set_xticks(spawn_ticks.tolist())
 				top_ax.set_xticklabels(
 					[f"{int(v):,}" for v in changed_rows["Cumulative GameObjects"]],
 					rotation=45,
@@ -111,11 +120,12 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
 		y_min, y_max = ax.get_ylim()
 
 		for idx, event_name in enumerate(unique_events):
-			event_frames = events.loc[events["Event"] == event_name, "Frame"].dropna()
-			if event_frames.empty:
+			event_frames = events.loc[events["Event"] == event_name, "Frame"]
+			event_x = event_frames_to_x(event_frames, data, x_col)
+			if event_x.empty:
 				continue
 			ax.vlines(
-				event_frames,
+				event_x,
 				ymin=y_min,
 				ymax=y_max,
 				colors=[colors[idx]],
@@ -128,7 +138,7 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
 			finished_rows = events.loc[
 				events["Event"] == "FinishedInstantiation", ["Frame", "Value"]
 			].copy()
-			finished_rows["Frame"] = pd.to_numeric(finished_rows["Frame"], errors="coerce")
+			finished_rows["Frame"] = event_frames_to_x(finished_rows["Frame"], data, x_col)
 			finished_rows["Value"] = pd.to_numeric(finished_rows["Value"], errors="coerce")
 			finished_rows = finished_rows.dropna().sort_values("Frame")
 

@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+from xaxis_utils import event_frames_to_x, get_x_axis_info
 
 def _maximize_figure(fig):
     manager = plt.get_current_fig_manager()
@@ -21,14 +22,21 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
         print("Plotting...")
     # plot stats
     ax = fig.add_subplot(111)
+    x_col, x_label, is_time_axis = get_x_axis_info(data)
+    x_values = pd.to_numeric(data[x_col], errors="coerce")
     memory_mb = data["Total Used Memory (bytes)"] / (1024 * 1024)
-    ax.plot(data["Frame"], memory_mb, label="Total Used Memory (MB)")
-    ax.set_xlabel("Frame")
+    plot_data = pd.DataFrame({"x": x_values, "MemoryMB": pd.to_numeric(memory_mb, errors="coerce")})
+    plot_data = plot_data.dropna(subset=["x", "MemoryMB"])
+    ax.plot(plot_data["x"], plot_data["MemoryMB"], label="Total Used Memory (MB)")
+    ax.set_xlabel(x_label)
     ax.set_ylabel("Total Used Memory (MB)")
-    fig.suptitle("Total Used Memory over Frames (MB)")
+    fig.suptitle("Total Used Memory over Time (MB)" if is_time_axis else "Total Used Memory over Frames (MB)")
     ax.ticklabel_format(style='plain', axis='x')
     ax.ticklabel_format(style='plain', axis='y', useOffset=False)
-    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
+    if is_time_axis:
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:,.1f}"))
+    else:
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x):,}"))
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f'{y:,.0f}'))
 
     # Draw vertical lines for each event occurrence, grouped by event type.
@@ -38,11 +46,12 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
         y_min, y_max = ax.get_ylim()
 
         for idx, event_name in enumerate(unique_events):
-            event_frames = events.loc[events["Event"] == event_name, "Frame"].dropna()
-            if event_frames.empty:
+            event_frames = events.loc[events["Event"] == event_name, "Frame"]
+            event_x = event_frames_to_x(event_frames, data, x_col)
+            if event_x.empty:
                 continue
             ax.vlines(
-                event_frames,
+                event_x,
                 ymin=y_min,
                 ymax=y_max,
                 colors=[colors[idx]],
@@ -53,6 +62,7 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
 
             if event_name == "FinishedInstantiation" and "Value" in events.columns:
                 finished_rows = events.loc[events["Event"] == event_name, ["Frame", "Value"]].dropna()
+                finished_rows["Frame"] = event_frames_to_x(finished_rows["Frame"], data, x_col)
                 for _, row in finished_rows.iterrows():
                     ax.text(
                         row["Frame"],

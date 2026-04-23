@@ -328,7 +328,11 @@ def plot(couple_of_files, debug=False) -> FigsAndName:
         else :
             figs.name = base_name + "_" + os.path.basename(couple_of_files.stat_file).split("_")[1]
     # parse events
-    events = pd.read_csv(couple_of_files.event_file)
+    try:
+        events = pd.read_csv(couple_of_files.event_file)
+    except pd.errors.EmptyDataError:
+        print(f"Event file is empty or malformed: {couple_of_files.event_file}")
+        events = pd.DataFrame(columns=["Frame", "Event", "Value"])
     # parse stats
     if "com.IMT" not in couple_of_files.stat_file:
         data = pd.read_csv(couple_of_files.stat_file)

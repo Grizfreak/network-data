@@ -14,7 +14,7 @@ using Random = UnityEngine.Random;
         public bool spawnInstantly = true;
         public float timeBeforeSpawn;
         public int numberPerWave;
-        private int _spawnedInstances;
+        protected int SpawnedInstances;
 
         public Action<string> StartingInstantiation;
         public Action<string, int> FinishedInstantiation;
@@ -73,7 +73,7 @@ using Random = UnityEngine.Random;
 
         protected virtual IEnumerator SpawnObjectsByGroup()
         {
-            while (_spawnedInstances < numberToSpawn)
+            while (SpawnedInstances < numberToSpawn)
             {
                 yield return new WaitForSeconds(timeBeforeSpawn);
                 StartingInstantiation.Invoke("StartedInstantiation");
@@ -85,8 +85,8 @@ using Random = UnityEngine.Random;
                     var go = Instantiate(objectToSpawn, spawnPos, transform.rotation);
                     OnInstanceCreated.Invoke(go);
                 }
-                _spawnedInstances+= numberPerWave;
-                FinishedInstantiation.Invoke("FinishedInstantiation", _spawnedInstances);
+                SpawnedInstances+= numberPerWave;
+                FinishedInstantiation.Invoke("FinishedInstantiation", SpawnedInstances);
             }
             PhaseManager.Instance.PhaseFinished.Invoke("PhaseFinished");
         }

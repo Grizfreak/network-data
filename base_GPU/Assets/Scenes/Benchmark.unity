@@ -411,12 +411,12 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 580922097}
-  - component: {fileID: 580922105}
-  - component: {fileID: 580922106}
+  - component: {fileID: 580922107}
   - component: {fileID: 580922099}
   - component: {fileID: 580922101}
   - component: {fileID: 580922103}
   - component: {fileID: 580922104}
+  - component: {fileID: 580922108}
   m_Layer: 0
   m_Name: Manager
   m_TagString: Untagged
@@ -464,7 +464,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1ab7e59ebfa0efd4e8a90b103d812c04, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
-  startPhase1: 0
+  startPhase1: 1
   startPhase2: 0
   startPhase3: 0
   autoLinkingPhase: 1
@@ -484,6 +484,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Unity.Profiling.ProfilerStatsToCSVExporter
   outputName: gpu_profiler_stats
+  bucketDuration: 0.5
   profilerStatsFile: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
 --- !u!114 &580922104
 MonoBehaviour:
@@ -497,7 +498,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ff66e5bd1c044dc4e96086e1de1490ac, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
---- !u!114 &580922105
+--- !u!114 &580922107
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -506,18 +507,19 @@ MonoBehaviour:
   m_GameObject: {fileID: 580922095}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f4140c38d1e77e44b8339c8b040083ac, type: 3}
+  m_Script: {fileID: 11500000, guid: d8a6d83f890b4830a9606d338502c6e9, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GPUInstantiateManager
-  objectToSpawn: {fileID: 0}
-  numberToSpawn: 20000
+  m_EditorClassIdentifier: Assembly-CSharp::GPUIndirectInstantiateManager
+  objectToSpawn: {fileID: 295692051021194745, guid: f08f5136baba1b941a3459f9db5b1478, type: 3}
+  numberToSpawn: 1000000
   spawnInstantly: 1
   timeBeforeSpawn: 1
   numberPerWave: 400
   spawnZone: {fileID: 1946087857}
-  instanceMesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
-  instanceMaterial: {fileID: 2100000, guid: d82eb1cfc2eaaf345afda9436b9aaae6, type: 2}
---- !u!114 &580922106
+  mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+  material: {fileID: 2100000, guid: e9fb8927ac5d2d54485468ade0d392ec, type: 2}
+  computeShader: {fileID: 7200000, guid: b2e1358b9bdb40e5934cb8337fc30c8c, type: 3}
+--- !u!114 &580922108
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -526,9 +528,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 580922095}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f75198f11224329428cc5446753b13dd, type: 3}
+  m_Script: {fileID: 11500000, guid: 284b6f0059ab4647976d96a95b4fa2b8, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GPUMoveManager
+  m_EditorClassIdentifier: Assembly-CSharp::GPUIndirectMoveManager
   staticCubes: []
   movingCubes: []
   percentageOfMovingCubes: 100
@@ -593,7 +595,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1338800694}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ec60f39022af99942ae2d1eb28677dfc, type: 3}
   m_Name: 

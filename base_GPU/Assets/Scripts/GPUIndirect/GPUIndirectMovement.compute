@@ -1,0 +1,67 @@
+#pragma kernel CSMain
+
+struct GPUIndirectMovement
+{
+    float4 position_scale;
+
+    float yaw;
+
+    float isShown;
+    float isMoving;
+    float verticalVelocity;
+};
+
+RWStructuredBuffer<GPUIndirectMovement> _InstanceDataBuffer;
+
+float _DeltaTime;
+float _MoveSpeed;
+float _JumpForce;
+float _Gravity;
+float _RotationSpeed;
+
+[numthreads(64, 1, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+
+    GPUIndirectMovement data = _InstanceDataBuffer[i];
+    float3 position = data.position_scale.xyz;
+    float scale = data.position_scale.w;
+
+    if (data.isShown < 0.5 || data.isMoving < 0.5)
+        return;
+
+    float dt = _DeltaTime;
+
+    // -------------------------
+    // MOVE (matches transform.forward)
+    // -------------------------
+    float yawRad = radians(data.yaw);
+    float3 forward = float3(sin(yawRad), 0, cos(yawRad));
+
+    data.position_scale.xyz += forward * (_MoveSpeed * dt);
+
+    // -------------------------
+    // JUMP (identical CPU logic)
+    // -------------------------
+    if (data.position_scale.y <= 0.0)
+    {
+        data.verticalVelocity = _JumpForce;
+    }
+
+    data.verticalVelocity -= _Gravity * dt;
+    data.position_scale.y += data.verticalVelocity * dt;
+
+    if (data.position_scale.y <= 0.0)
+    {
+        data.position_scale.y = 0.0;
+        data.verticalVelocity = 0.0;
+    }
+
+    // -------------------------
+    // ROTATION (matches Transform.Rotate)
+    // -------------------------
+    data.yaw += 90.0 * dt;
+
+    _InstanceDataBuffer[i] = data;
+}

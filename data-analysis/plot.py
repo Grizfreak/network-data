@@ -55,7 +55,8 @@ def _frame_series(data):
 
 def _metric_series_from_stats(data, metric_key):
     frame = _frame_series(data)
-
+    segment_data["GameObjects"] = segment_data["GameObjects"] - segment_data["GameObjects"].iloc[0]
+    return segment_data.dropna(subset=["GameObjects", "AverageFPS"]).reset_index(drop=True)
     if metric_key == "cpu":
         candidates = [
             ("CPU Total Frame Time (ns)", 1_000_000.0),
@@ -104,6 +105,12 @@ def _fps_per_gameobject_series(data, events):
     finished_rows = finished_rows.dropna().sort_values("Frame").reset_index(drop=True)
 
     segment_points = []
+    if not finished_rows.empty:
+        first_frame = finished_rows.iloc[0]["Frame"]
+        initial_segment = plot_data.loc[plot_data["Frame"] <= first_frame, "FPS"]
+        if not initial_segment.empty:
+            segment_points.append((0, initial_segment.iloc[-1]))
+
     previous_frame = None
     for _, row in finished_rows.iterrows():
         current_frame = row["Frame"]
@@ -127,6 +134,35 @@ def _fps_per_gameobject_series(data, events):
     segment_data["GameObjects"] = pd.to_numeric(segment_data["GameObjects"], errors="coerce")
     segment_data["AverageFPS"] = pd.to_numeric(segment_data["AverageFPS"], errors="coerce")
     return segment_data.dropna(subset=["GameObjects", "AverageFPS"])
+
+
+def _quest_fps_per_gameobject_series(data, events):
+    quest_data = pd.DataFrame(
+        {
+            "Frame": pd.to_numeric(data.get("Time Stamp"), errors="coerce"),
+            "FPS": pd.to_numeric(data.get("average_frame_rate"), errors="coerce"),
+        }
+    ).dropna(subset=["Frame", "FPS"])
+
+    quest_events = events.copy()
+    if "Time" in quest_events.columns:
+        quest_events["Frame"] = pd.to_numeric(quest_events["Time"], errors="coerce") * 1000.0
+
+    return _fps_per_gameobject_series(quest_data, quest_events)
+
+
+def _normalize_series_to_first_value(plot_data, x_column="GameObjects", y_column="AverageFPS"):
+    normalized = plot_data[[x_column, y_column]].copy()
+    normalized[x_column] = pd.to_numeric(normalized[x_column], errors="coerce")
+    normalized[y_column] = pd.to_numeric(normalized[y_column], errors="coerce")
+    normalized = normalized.dropna(subset=[x_column, y_column]).sort_values(x_column).reset_index(drop=True)
+
+    if normalized.empty:
+        return normalized
+
+    first_value = normalized[x_column].iloc[0]
+    normalized[x_column] = normalized[x_column] - first_value
+    return normalized
 
 
 def _metric_per_gameobject_series(data, events, metric_key):
@@ -170,13 +206,24 @@ def _metric_per_gameobject_series(data, events, metric_key):
 
 def _comparison_label(stat_file):
     base_name = os.path.basename(stat_file)
+    print(f"Determining label for file: {base_name}")
+    # Check quest-specific patterns FIRST before generic BenchmarkBase
+    if "com.IMT_Atlantique.base_DOTS" in base_name:
+        return "dots_quest"
+    if "com.IMT_Atlantique.base_GPU" in base_name:
+        return "gpu_quest"
+    if "com.IMT_Atlantique.BenchmarkBase" in base_name:
+        return "base_quest"
+    if "com.IMT_Atlantique.BenchmarkNGO" in base_name:
+        return "ngo_quest"
+    # Desktop patterns
     if base_name.startswith("dots_profiler_stats-"):
         return "dots"
     if base_name.startswith("gpu_profiler_stats-"):
         return "gpu"
-    if base_name.startswith("profiler_stats-") or "BenchmarkBase" in base_name:
+    if base_name.startswith("profiler_stats-"):
         return "base"
-    if base_name.startswith("ngo_client_profiler_stats-") or "BenchmarkNGO" in base_name:
+    if base_name.startswith("ngo_client_profiler_stats-"):
         return "ngo"
     if base_name.startswith("ngo_server_profiler_stats-"):
         return "ngo_server"
@@ -196,9 +243,12 @@ def plot_fps_comparison(couple_of_files, debug=False, fig_size=FIGURE_SIZE):
 
     ax = fig.add_subplot(111)
     styles = {
-        "base": {"color": "#1f77b4", "marker": "o"},
-        "dots": {"color": "#2ca02c", "marker": "s"},
-        "gpu": {"color": "#d62728", "marker": "^"},
+        "base": {"color": "#1f77b4", "marker": "o", "linestyle": "-"},
+        "dots": {"color": "#2ca02c", "marker": "s", "linestyle": "-"},
+        "gpu": {"color": "#d62728", "marker": "^", "linestyle": "-"},
+        "base_quest": {"color": "#1f77b4", "marker": "o", "linestyle": "--"},
+        "dots_quest": {"color": "#2ca02c", "marker": "s", "linestyle": "--"},
+        "gpu_quest": {"color": "#d62728", "marker": "^", "linestyle": "--"},
         "ngo": {"color": "#9467bd", "marker": "D"},
         "ngo_server": {"color": "#ff7f0e", "marker": "v"},
     }
@@ -209,12 +259,17 @@ def plot_fps_comparison(couple_of_files, debug=False, fig_size=FIGURE_SIZE):
             continue
 
         label = _comparison_label(couple.stat_file)
-        if label not in {"base", "dots", "gpu"}:
+        if label not in {"base", "dots", "gpu", "base_quest", "dots_quest", "gpu_quest"}:
             continue
 
         data = pd.read_csv(couple.stat_file, low_memory=False)
         events = pd.read_csv(couple.event_file, low_memory=False)
-        plot_data = _fps_per_gameobject_series(data, events)
+        if label.endswith("_quest"):
+            plot_data = _quest_fps_per_gameobject_series(data, events)
+        else:
+            plot_data = _fps_per_gameobject_series(data, events)
+
+        plot_data = _normalize_series_to_first_value(plot_data)
         style = styles.get(label, {})
         markevery = max(len(plot_data) // 25, 1)
 
@@ -225,13 +280,15 @@ def plot_fps_comparison(couple_of_files, debug=False, fig_size=FIGURE_SIZE):
             linewidth=2,
             markersize=4,
             markevery=markevery,
-            **style,
+            **{k: v for k, v in style.items() if k != "linestyle"},
+            linestyle=style.get("linestyle", "-"),
         )
         plotted_labels.append(label)
 
     if not plotted_labels:
         raise ValueError("No compatible FPS series found for comparison plot")
 
+    ax.axhline(y=72, color="red", linestyle="--", linewidth=1.2, label="72 FPS limit")
     ax.set_xlabel("GameObjects")
     ax.set_ylabel("FPS")
     fig.suptitle("FPS comparison across systems per GameObject")
@@ -323,8 +380,13 @@ def plot(couple_of_files, debug=False) -> FigsAndName:
         if "com.IMT_Atlantique.Benchmark" in couple_of_files.stat_file:
             figs.name = "base_quest"
     else:
+        print(f"Using base name for labeling: {couple_of_files.stat_file}")
         if "com.IMT_Atlantique.Benchmark" in couple_of_files.stat_file:
             figs.name = base_name + "_quest"
+        elif "com.IMT_Atlantique.base_DOTS" in couple_of_files.stat_file:
+            figs.name = "dots_quest"
+        elif "com.IMT_Atlantique.base_GPU" in couple_of_files.stat_file:
+            figs.name = "gpu_quest"
         else :
             figs.name = base_name + "_" + os.path.basename(couple_of_files.stat_file).split("_")[1]
     # parse events
@@ -367,6 +429,23 @@ def save_figs(figs_and_name, folder_path):
         fig.savefig(f"{folder_path}/{figs_and_name.name}_{fig.get_suptitle().replace(' ', '_')}.png", dpi=SAVE_DPI)
         plt.close(fig)
 
+
+def _resolve_data_folder(data_folder):
+    if data_folder is None:
+        data_folder = "./data"
+
+    if not os.path.isdir(data_folder):
+        raise FileNotFoundError(f"Data folder does not exist: {data_folder}")
+
+    direct_files = [name for name in os.listdir(data_folder) if os.path.isfile(os.path.join(data_folder, name))]
+    if direct_files:
+        return data_folder
+
+    latest_folder = assemble.get_latest_folder(data_folder)
+    if latest_folder is None:
+        raise FileNotFoundError(f"No data files or subfolders found in: {data_folder}")
+    return latest_folder
+
 def main():
     parser = argparse.ArgumentParser(description="Generate benchmark plots")
     parser.add_argument(
@@ -384,9 +463,14 @@ def main():
         action="store_true",
         help="Add CPU and GPU comparison graphs that overlay base, dots, and gpu per GameObject",
     )
+    parser.add_argument(
+        "--data-folder",
+        default="./data",
+        help="Folder containing benchmark data, or a folder with dated subfolders to pick the latest from",
+    )
     args = parser.parse_args()
 
-    latest_folder = assemble.get_latest_folder("./data")
+    latest_folder = _resolve_data_folder(args.data_folder)
     files = assemble.get_files_from_folder(latest_folder)
     path = "./results"
     timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
@@ -397,7 +481,10 @@ def main():
         print(couple_of_files)
         figs_and_name = plot(couple_of_files, args.debug)
         if not args.debug:
-            save_figs(figs_and_name, folder_path)
+            # Create a subfolder for this couple
+            couple_folder = os.path.join(folder_path, figs_and_name.name)
+            os.makedirs(couple_folder, exist_ok=True)
+            save_figs(figs_and_name, couple_folder)
 
     if args.compare_fps:
         comparison_fig = plot_fps_comparison(files, args.debug, FIGURE_SIZE)

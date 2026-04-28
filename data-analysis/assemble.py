@@ -10,6 +10,8 @@ _siblings = {
     "com.IMT_Atlantique.BenchmarkNGO" : "ngo_client_events_",
     "dots_profiler_stats-" : "dots_events_",
     "gpu_profiler_stats-" : "gpu_events_",
+    "com.IMT_Atlantique.base_DOTS" : "dots_events_",
+    "com.IMT_Atlantique.base_GPU" : "gpu_events_",
 }
 
 _TIMESTAMP_PATTERNS = (

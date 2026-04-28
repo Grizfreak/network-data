@@ -3,36 +3,10 @@ using System.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
-public class GPUIndirectInstantiateManager : InstantiateManager
+public class GPUIndirectInstantiateDrawManager : GPUIndirectInstantiateManager
 {
-
-    [SerializeField] protected Mesh mesh;
-    [SerializeField] protected Material material;
-    [SerializeField] protected ComputeShader computeShader;
-    protected ComputeBuffer instanceDataBuffer;
-    private GraphicsBuffer argsBuffer;
-    private GraphicsBuffer.IndirectDrawIndexedArgs[] commandData;
-    protected InstanceData[] instanceArray;
-    protected RenderParams rp;
-    protected bool buffersInitialized = false;
-    protected int kernel;
-    
-    protected struct InstanceData {
-        public Vector4 position_scale;
-        public float yaw;
-        public float isShown;
-        public float isMoving;
-        public float verticalVelocity;
-        
-        public static int Size()
-        {
-            return sizeof(float) * 4 +
-                   sizeof(float) +
-                   sizeof(float) +
-                   sizeof(float) +
-                   sizeof(float);
-        }
-    }
+    private ComputeBuffer argsBuffer;
+    private uint[] args = new uint[5];
 
     protected override void Start()
     {
@@ -54,8 +28,11 @@ public class GPUIndirectInstantiateManager : InstantiateManager
             instanceArray[i].isShown = 1f;
         }
         
+        args[1] = (uint)numberToSpawn;
+        argsBuffer.SetData(args);
         instanceDataBuffer.SetData(instanceArray);
         FinishedInstantiation.Invoke("FinishedInstantiation", numberToSpawn);
+        buffersInitialized = true;
         PhaseManager.Instance.PhaseFinished.Invoke("PhaseFinished");
     }
 
@@ -80,9 +57,11 @@ public class GPUIndirectInstantiateManager : InstantiateManager
             }
 
             SpawnedInstances = end;
-
+            args[1] = (uint)SpawnedInstances;
+            argsBuffer.SetData(args);
             instanceDataBuffer.SetData(instanceArray);
             FinishedInstantiation.Invoke("FinishedInstantiation", SpawnedInstances);
+            buffersInitialized = true;
         }
         PhaseManager.Instance.PhaseFinished.Invoke("PhaseFinished");
     }
@@ -133,22 +112,24 @@ public class GPUIndirectInstantiateManager : InstantiateManager
         material.SetBuffer("_InstanceDataBuffer", instanceDataBuffer);
         
         // arguments used by RenderMeshIndirect
-        argsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, 1, GraphicsBuffer.IndirectDrawIndexedArgs.size);
-        commandData = new GraphicsBuffer.IndirectDrawIndexedArgs[1];
-        commandData[0].indexCountPerInstance = mesh.GetIndexCount(0);
-        commandData[0].instanceCount = (uint)numberToSpawn;
-        commandData[0].startIndex = 0;
-        commandData[0].baseVertexIndex = 0;
-        commandData[0].startInstance = 0;
-        
-        argsBuffer.SetData(commandData);
+        argsBuffer = new ComputeBuffer(
+            1,
+            args.Length * sizeof(uint),
+            ComputeBufferType.IndirectArguments
+        );
+        args[0] = (uint)mesh.GetIndexCount(0);
+        args[1] = 0; // IMPORTANT: start hidden
+        args[2] = (uint)mesh.GetIndexStart(0);
+        args[3] = (uint)mesh.GetBaseVertex(0);
+        args[4] = 0;
+
+        argsBuffer.SetData(args);
         computeShader.SetBuffer(kernel, "_InstanceDataBuffer", instanceDataBuffer);
         rp = new RenderParams(material);
         rp.worldBounds = new Bounds(spawnZone.transform.position, new Vector3(500, 500, 500));
-        buffersInitialized = true;
     }
 
-    public virtual void SetMovingRange(int start, int end)
+    public override void SetMovingRange(int start, int end)
     {
         end = Mathf.Min(end, numberToSpawn);
 
@@ -160,7 +141,7 @@ public class GPUIndirectInstantiateManager : InstantiateManager
         instanceDataBuffer.SetData(instanceArray);
     }
 
-    protected virtual void Update()
+    protected override void Update()
     {
         if (!buffersInitialized)
             return;
@@ -168,7 +149,14 @@ public class GPUIndirectInstantiateManager : InstantiateManager
         int groups = Mathf.CeilToInt(numberToSpawn / 64f);
 
         computeShader.Dispatch(kernel, groups, 1, 1);
-        Graphics.RenderMeshIndirect(rp, mesh, argsBuffer, 1);
+        
+        Graphics.DrawMeshInstancedIndirect(
+            mesh,
+            0,
+            material,
+            rp.worldBounds,
+            argsBuffer
+        );
     }
 
     private void OnDestroy()

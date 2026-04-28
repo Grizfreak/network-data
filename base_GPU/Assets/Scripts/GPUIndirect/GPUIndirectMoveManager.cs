@@ -39,7 +39,9 @@ public class GPUIndirectMoveManager : MoveManager
             yield return new WaitForSeconds(
                 timeBeforeMovingCubes
             );
-
+            StartMovingEntities.Invoke(
+                "StartedMovingLocally"
+            );
             int start = movedCount;
             int end = movedCount + movePerWave;
 
@@ -47,11 +49,14 @@ public class GPUIndirectMoveManager : MoveManager
                 start,
                 end
             );
-
+            EndMovingEntities.Invoke(
+                "EndedMovingLocally"
+            );
             movedCount = Mathf.Min(
                 end,
                 totalToMove
             );
         }
+        PhaseManager.Instance.PhaseFinished.Invoke("PhaseFinished");
     }
 }

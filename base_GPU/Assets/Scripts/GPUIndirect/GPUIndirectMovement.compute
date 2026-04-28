@@ -24,12 +24,20 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 {
     uint i = id.x;
 
+    uint count;
+    uint stride;
+    _InstanceDataBuffer.GetDimensions(count, stride);
+
+    if (i >= count)
+        return;
+
     GPUIndirectMovement data = _InstanceDataBuffer[i];
-    float3 position = data.position_scale.xyz;
-    float scale = data.position_scale.w;
 
     if (data.isShown < 0.5 || data.isMoving < 0.5)
         return;
+    
+    float3 position = data.position_scale.xyz;
+    float scale = data.position_scale.w;
 
     float dt = _DeltaTime;
 

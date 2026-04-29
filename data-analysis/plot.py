@@ -55,8 +55,6 @@ def _frame_series(data):
 
 def _metric_series_from_stats(data, metric_key):
     frame = _frame_series(data)
-    segment_data["GameObjects"] = segment_data["GameObjects"] - segment_data["GameObjects"].iloc[0]
-    return segment_data.dropna(subset=["GameObjects", "AverageFPS"]).reset_index(drop=True)
     if metric_key == "cpu":
         candidates = [
             ("CPU Total Frame Time (ns)", 1_000_000.0),
@@ -89,6 +87,20 @@ def _metric_series_from_stats(data, metric_key):
 
     plot_data = pd.DataFrame({"Frame": frame, output_column: metric_series})
     return plot_data.dropna(subset=["Frame", output_column]), output_column
+
+
+def _normalize_series_to_first_value(plot_data, x_column="GameObjects", y_column="AverageFPS"):
+    normalized = plot_data[[x_column, y_column]].copy()
+    normalized[x_column] = pd.to_numeric(normalized[x_column], errors="coerce")
+    normalized[y_column] = pd.to_numeric(normalized[y_column], errors="coerce")
+    normalized = normalized.dropna(subset=[x_column, y_column]).sort_values(x_column).reset_index(drop=True)
+
+    if normalized.empty:
+        return normalized
+
+    first_value = normalized[x_column].iloc[0]
+    normalized[x_column] = normalized[x_column] - first_value
+    return normalized
 
 
 def _fps_per_gameobject_series(data, events):
@@ -151,18 +163,67 @@ def _quest_fps_per_gameobject_series(data, events):
     return _fps_per_gameobject_series(quest_data, quest_events)
 
 
-def _normalize_series_to_first_value(plot_data, x_column="GameObjects", y_column="AverageFPS"):
-    normalized = plot_data[[x_column, y_column]].copy()
-    normalized[x_column] = pd.to_numeric(normalized[x_column], errors="coerce")
-    normalized[y_column] = pd.to_numeric(normalized[y_column], errors="coerce")
-    normalized = normalized.dropna(subset=[x_column, y_column]).sort_values(x_column).reset_index(drop=True)
+def _memory_mb_series_from_stats(data):
+    frame = _frame_series(data)
 
-    if normalized.empty:
-        return normalized
+    if "Total Used Memory (bytes)" in data.columns:
+        memory_mb = pd.to_numeric(data["Total Used Memory (bytes)"], errors="coerce") / (1024.0 * 1024.0)
+    elif "app_rss_MB" in data.columns:
+        memory_mb = pd.to_numeric(data["app_rss_MB"], errors="coerce")
+    elif "app_pss_MB" in data.columns:
+        memory_mb = pd.to_numeric(data["app_pss_MB"], errors="coerce")
+    elif "app_uss_MB" in data.columns:
+        memory_mb = pd.to_numeric(data["app_uss_MB"], errors="coerce")
+    else:
+        raise ValueError("Missing memory columns for memory comparison")
 
-    first_value = normalized[x_column].iloc[0]
-    normalized[x_column] = normalized[x_column] - first_value
-    return normalized
+    plot_data = pd.DataFrame({"Frame": frame, "MemoryMB": memory_mb})
+    return plot_data.dropna(subset=["Frame", "MemoryMB"])
+
+
+def _memory_per_gameobject_series(data, events):
+    memory_data = _memory_mb_series_from_stats(data)
+
+    if not {"Frame", "Event", "Value"}.issubset(events.columns):
+        raise ValueError("Missing event columns needed for GameObject comparison")
+
+    finished_rows = events.loc[
+        events["Event"] == "FinishedInstantiation", ["Frame", "Value"]
+    ].copy()
+    finished_rows["Frame"] = pd.to_numeric(finished_rows["Frame"], errors="coerce")
+    finished_rows["Value"] = pd.to_numeric(finished_rows["Value"], errors="coerce")
+    finished_rows = finished_rows.dropna().sort_values("Frame").reset_index(drop=True)
+
+    segment_points = []
+    if not finished_rows.empty:
+        first_frame = finished_rows.iloc[0]["Frame"]
+        initial_segment = memory_data.loc[memory_data["Frame"] <= first_frame, "MemoryMB"]
+        if not initial_segment.empty:
+            segment_points.append((0, initial_segment.iloc[-1]))
+
+    previous_frame = None
+    for _, row in finished_rows.iterrows():
+        current_frame = row["Frame"]
+        current_value = row["Value"]
+        if previous_frame is None:
+            segment = memory_data.loc[memory_data["Frame"] <= current_frame, "MemoryMB"]
+        else:
+            segment = memory_data.loc[
+                (memory_data["Frame"] > previous_frame) & (memory_data["Frame"] <= current_frame),
+                "MemoryMB",
+            ]
+
+        if not segment.empty:
+            segment_points.append((current_value, segment.mean()))
+        previous_frame = current_frame
+
+    if not segment_points:
+        raise ValueError("No FinishedInstantiation segments found for memory comparison")
+
+    segment_data = pd.DataFrame(segment_points, columns=["GameObjects", "AverageMemoryMB"])
+    segment_data["GameObjects"] = pd.to_numeric(segment_data["GameObjects"], errors="coerce")
+    segment_data["AverageMemoryMB"] = pd.to_numeric(segment_data["AverageMemoryMB"], errors="coerce")
+    return segment_data.dropna(subset=["GameObjects", "AverageMemoryMB"]).reset_index(drop=True)
 
 
 def _metric_per_gameobject_series(data, events, metric_key):
@@ -294,6 +355,90 @@ def plot_fps_comparison(couple_of_files, debug=False, fig_size=FIGURE_SIZE):
     fig.suptitle("FPS comparison across systems per GameObject")
     ax.ticklabel_format(style='plain', axis='x')
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
+    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
+
+    if debug:
+        plt.show()
+    return fig
+
+
+def plot_memory_comparison(couple_of_files, debug=False, fig_size=FIGURE_SIZE):
+    fig = plt.figure(figsize=fig_size)
+    manager = plt.get_current_fig_manager()
+    try:
+        manager.window.state("zoomed")
+    except Exception:
+        try:
+            manager.full_screen_toggle()
+        except Exception:
+            pass
+
+    ax = fig.add_subplot(111)
+    styles = {
+        "base": {"color": "#1f77b4", "marker": "o", "linestyle": "-"},
+        "dots": {"color": "#2ca02c", "marker": "s", "linestyle": "-"},
+        "gpu": {"color": "#d62728", "marker": "^", "linestyle": "-"},
+        "base_quest": {"color": "#1f77b4", "marker": "o", "linestyle": "--"},
+        "dots_quest": {"color": "#2ca02c", "marker": "s", "linestyle": "--"},
+        "gpu_quest": {"color": "#d62728", "marker": "^", "linestyle": "--"},
+        "ngo": {"color": "#9467bd", "marker": "D", "linestyle": "-"},
+        "ngo_quest": {"color": "#9467bd", "marker": "D", "linestyle": "--"},
+        "ngo_server": {"color": "#ff7f0e", "marker": "v", "linestyle": "-"},
+    }
+
+    plotted_labels = []
+    supported_labels = {
+        "base",
+        "dots",
+        "gpu",
+        "base_quest",
+        "dots_quest",
+        "gpu_quest",
+        "ngo",
+        "ngo_quest",
+        "ngo_server",
+    }
+    for couple in couple_of_files:
+        if couple.stat_file is None:
+            continue
+
+        label = _comparison_label(couple.stat_file)
+        if label not in supported_labels:
+            continue
+
+        try:
+            data = pd.read_csv(couple.stat_file, low_memory=False)
+            plot_data = _memory_mb_series_from_stats(data)
+            plot_data = plot_data.sort_values("Frame").reset_index(drop=True)
+            if plot_data.empty:
+                continue
+
+            first_frame = plot_data["Frame"].iloc[0]
+            plot_data["RelativeFrame"] = plot_data["Frame"] - first_frame
+            style = styles.get(label, {})
+            markevery = max(len(plot_data) // 200, 1)
+
+            ax.plot(
+                plot_data["RelativeFrame"],
+                plot_data["MemoryMB"],
+                label=label,
+                linewidth=1.8,
+                **{k: v for k, v in style.items() if k != "linestyle"},
+                linestyle=style.get("linestyle", "-"),
+            )
+            plotted_labels.append(label)
+        except Exception as e:
+            print(f"Skipping memory comparison for {label}: {e}")
+
+    if not plotted_labels:
+        raise ValueError("No compatible memory series found for comparison plot")
+
+    ax.set_xlabel("Frame offset from first sample")
+    ax.set_ylabel("Memory Used (MB)")
+    fig.suptitle("Memory used comparison across systems per frame")
+    ax.ticklabel_format(style='plain', axis='x')
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f'{y:,.0f}'))
     ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
 
     if debug:
@@ -464,6 +609,11 @@ def main():
         help="Add CPU and GPU comparison graphs that overlay base, dots, and gpu per GameObject",
     )
     parser.add_argument(
+        "--compare-memory",
+        action="store_true",
+        help="Add one memory comparison graph that overlays all compatible systems per GameObject",
+    )
+    parser.add_argument(
         "--data-folder",
         default="./data",
         help="Folder containing benchmark data, or a folder with dated subfolders to pick the latest from",
@@ -509,6 +659,15 @@ def main():
             )
             plt.close(cpu_fig)
             plt.close(gpu_fig)
+
+    if args.compare_memory:
+        memory_fig = plot_memory_comparison(files, args.debug, FIGURE_SIZE)
+        if not args.debug:
+            memory_fig.savefig(
+                f"{folder_path}/memory_comparison_Memory_used_comparison_across_systems_per_GameObject.png",
+                dpi=SAVE_DPI,
+            )
+            plt.close(memory_fig)
 
 if __name__ == "__main__":
     main()

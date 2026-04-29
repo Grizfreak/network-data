@@ -417,6 +417,7 @@ GameObject:
   - component: {fileID: 580922103}
   - component: {fileID: 580922104}
   - component: {fileID: 580922108}
+  - component: {fileID: 580922109}
   m_Layer: 0
   m_Name: Manager
   m_TagString: Untagged
@@ -537,6 +538,18 @@ MonoBehaviour:
   timeBeforeMovingCubes: 10
   startMoving: 0
   stopMoving: 0
+--- !u!114 &580922109
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 580922095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb364c3857c7ee542aeb97ceb53908a2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: '::'
 --- !u!1 &1338800694
 GameObject:
   m_ObjectHideFlags: 0

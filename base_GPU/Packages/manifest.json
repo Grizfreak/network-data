@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "com.imt-atlantique.benchmark-base": "file:D:/Lab/unity-network-benchmark/com.imt-atlantique.benchmark-base",
+    "com.imt-atlantique.benchmark-base": "file:../../com.imt-atlantique.benchmark-base",
     "com.unity.ai.navigation": "2.0.9",
     "com.unity.collab-proxy": "2.11.3",
     "com.unity.ide.rider": "3.0.39",

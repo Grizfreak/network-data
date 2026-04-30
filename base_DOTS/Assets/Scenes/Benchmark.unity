@@ -418,6 +418,7 @@ GameObject:
   - component: {fileID: 580922104}
   - component: {fileID: 580922105}
   - component: {fileID: 580922106}
+  - component: {fileID: 580922107}
   m_Layer: 0
   m_Name: Manager
   m_TagString: Untagged
@@ -502,6 +503,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Unity.Profiling.ProfilerStatsToCSVExporter
   outputName: dots_profiler_stats
+  bucketDuration: 0.5
   profilerStatsFile: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
 --- !u!114 &580922104
 MonoBehaviour:
@@ -546,6 +548,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 21abe7ca77125f34cb4321828acf131b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ECSConfigBootstrap
+--- !u!114 &580922107
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 580922095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ab4c9e99f8866014283b6adf9c52318b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionBypass
 --- !u!1 &909386170
 GameObject:
   m_ObjectHideFlags: 0

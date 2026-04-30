@@ -11,6 +11,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Benchmark.unity
     guid: 2f15a821935f3d24dbbe1ba2249f49bd
+  - enabled: 1
+    path: Assets/Scenes/Interaction.unity
+    guid: 7f591fffcea021a4886c8aeaa6699365
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 1e0184eaa65fda64aaeefdec3a720a48, type: 2}

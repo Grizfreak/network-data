@@ -41,6 +41,7 @@ public class BenchmarkBaker : Baker<BenchmarkAuthoring>
             Min = area.Min,
             Max = area.Max
         });
+
     }
     
 }

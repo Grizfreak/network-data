@@ -10,6 +10,8 @@ public class InteractionManager : MonoBehaviour
     [Header("UI Elements")]
     [SerializeField] protected Button spawnButton;
     [SerializeField] protected Button despawnButton;
+    [SerializeField] protected TMP_InputField spawnCountInput;
+    [SerializeField] protected TMP_Text FPS_Text;
 
     [Header("Spawn Settings")]
     [SerializeField] protected Mesh mesh;
@@ -81,6 +83,15 @@ public class InteractionManager : MonoBehaviour
         public static int Size()
         {
             return sizeof(float) * 7 + sizeof(int);
+        }
+    }
+
+    public void Start()
+    {
+        if (spawnCountInput != null)
+        {
+            spawnCountInput.text = numberToSpawn.ToString();
+            spawnCountInput.onValueChanged.AddListener(OnInstanceValueChanged);
         }
     }
 
@@ -795,6 +806,7 @@ public class InteractionManager : MonoBehaviour
 
     protected virtual void Update()
     {
+        FPS_Text.text = "FPS: " + (1f / Time.deltaTime).ToString("F2");
         if (!buffersInitialized)
             return;
 
@@ -819,5 +831,13 @@ public class InteractionManager : MonoBehaviour
 
         Gizmos.color = debugSphereColor;
         Gizmos.DrawSphere(debugHitPoint, debugSphereRadius);
+    }
+
+    public void OnInstanceValueChanged(string input)
+    {
+        if (int.TryParse(input, out int newValue))
+        {
+            numberToSpawn = newValue;
+        }
     }
 }

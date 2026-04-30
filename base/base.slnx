@@ -1,0 +1,6 @@
+﻿<Solution>
+  <Project Path="base.core.csproj" />
+  <Project Path="base.model.csproj" />
+  <Project Path="base.profiling.csproj" />
+  <Project Path="Assembly-CSharp-Editor.csproj" />
+</Solution>

@@ -10,7 +10,7 @@ using UnityEngine.UI;
 public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 {
     public static NetworkLauncher Instance;
-    private NetworkRunner _runner;
+    public NetworkRunner Runner;
     [SerializeField] private TMP_Text guidelinesText;
     [SerializeField] private Button hostButton;
     [SerializeField] private Button serverButton;
@@ -19,7 +19,6 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private Button startButton;
     private BaseLauncher baseLauncher;
     public bool isLaunchedHeadless = false;
-    private bool searchForPhaseManager = false;
     
     private void Awake()
     {
@@ -42,8 +41,8 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         try
         {
-            _runner = Instantiate(new GameObject()).AddComponent<NetworkRunner>();
-        
+            Runner = Instantiate(new GameObject()).AddComponent<NetworkRunner>();
+            Runner.AddCallbacks(this);
             var scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
             var sceneInfo = new NetworkSceneInfo();
             if (scene.IsValid)
@@ -51,7 +50,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
                 sceneInfo.AddSceneRef(scene, LoadSceneMode.Additive);
             }
 
-            await _runner.StartGame(new StartGameArgs()
+            await Runner.StartGame(new StartGameArgs()
             {
                 GameMode = mode,
                 SessionName = "Test",
@@ -59,7 +58,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
                 SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
             });
 
-            if (_runner.IsServer)
+            if (Runner.IsServer)
             {
                 Debug.Log("Server started !");
                 hostButton.gameObject.SetActive(false);
@@ -69,7 +68,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
                 startButton.gameObject.SetActive(true);
                 guidelinesText.text = "Server started ! Waiting for client...";
             }
-            else if (_runner.IsClient)
+            else if (Runner.IsClient)
             {
                 guidelinesText.text = "Connected to server ! Waiting for the test to start...";
                 hostButton.gameObject.SetActive(false);
@@ -98,10 +97,10 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     
     public void Disconnect()
     {
-        if (_runner != null)
+        if (Runner != null)
         {
-            _runner.Shutdown();
-            _runner = null;
+            Runner.Shutdown();
+            Runner = null;
         }
         hostButton.gameObject.SetActive(true);
         serverButton.gameObject.SetActive(true);
@@ -130,21 +129,40 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     
     public void StartTest()
     {
-        if (_runner != null && _runner.IsServer)
+        if (Runner != null && Runner.IsServer)
         {
-            _runner.LoadScene(SceneRef.FromIndex(SceneUtility.GetBuildIndexByScenePath("Assets/Scenes/Benchmark.unity")));
+            Runner.LoadScene(SceneRef.FromIndex(1), LoadSceneMode.Single);
         }
     }
 
-    void INetworkRunnerCallbacks.OnPlayerJoined(NetworkRunner runner, PlayerRef player) { }
+    void INetworkRunnerCallbacks.OnPlayerJoined(NetworkRunner runner, PlayerRef player)
+    {
+        if (runner.IsServer && isLaunchedHeadless)
+        {
+            StartTest();
+        }
+    }
     void INetworkRunnerCallbacks.OnPlayerLeft(NetworkRunner runner, PlayerRef player) { }
     void INetworkRunnerCallbacks.OnInput(NetworkRunner runner, NetworkInput input) { }
     void INetworkRunnerCallbacks.OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
-    void INetworkRunnerCallbacks.OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
+    void INetworkRunnerCallbacks.OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
+    {
+        Debug.Log($"[FUSION] Shutdown reason: {shutdownReason}");
+        guidelinesText.text = $"Did not connect to server: {shutdownReason}, Try again.";
+        Runner.Shutdown();
+    }
     void INetworkRunnerCallbacks.OnConnectedToServer(NetworkRunner runner) { }
-    void INetworkRunnerCallbacks.OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
+    void INetworkRunnerCallbacks.OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) {
+        Debug.LogError($"Disconnected from server: {reason}");
+        guidelinesText.text = $"Disconnected from server: {reason}";
+    }
     void INetworkRunnerCallbacks.OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
-    void INetworkRunnerCallbacks.OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
+    void INetworkRunnerCallbacks.OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason)
+    {
+        Debug.LogError($"Failed to connect to server at {remoteAddress}: {reason}");
+        guidelinesText.text = $"Failed to connect to server at {remoteAddress}: {reason}";
+        Disconnect();
+    }
     void INetworkRunnerCallbacks.OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
     void INetworkRunnerCallbacks.OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList) { }
     void INetworkRunnerCallbacks.OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }

@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: Base
   m_EditorClassIdentifier: base.model::BaseResource
   mPrefab: {fileID: 295692051021194745, guid: fb6bcde0cba22d54689d47e9bf88bd5b, type: 3}
-  mAmount: 20000
-  mSpawnOnce: 0
+  mAmount: 400
+  mSpawnOnce: 1
   mTimeBeforeEachSpawn: 2
   mNumberPerWave: 400
   mPercentageMovingCubesPerWave: 10

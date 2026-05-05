@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "com.imt-atlantique.benchmark-base": {
-      "version": "file:D:../../com.imt-atlantique.benchmark-base",
+      "version": "file:../../com.imt-atlantique.benchmark-base",
       "depth": 0,
       "source": "local",
       "dependencies": {

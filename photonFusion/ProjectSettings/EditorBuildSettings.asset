@@ -12,5 +12,6 @@ EditorBuildSettings:
     path: Assets/Scenes/Benchmark.unity
     guid: 7483479e39aaa7b459975bd816d7e314
   m_configObjects:
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 0ca778bac4b09344f9ee52af7cf4918f, type: 2}
     com.unity.xr.openxr.settings4: {fileID: 11400000, guid: 3e21fde362d00064d96535d7040fbca9, type: 2}
   m_UseUCBPForAssetBundles: 0

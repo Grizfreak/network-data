@@ -20,13 +20,6 @@ public class NetworkLogs : NetworkBehaviour
 
         if (_runner.IsServer)
         {
-            //TODO
-            InstantiateManager.Instance.StartingInstantiation += SendClientEventSiRpc;
-            InstantiateManager.Instance.FinishedInstantiation += SendClientEventFiRpc;
-            PhaseManager.Instance.PhaseStarted += SendClientEventPSRpc;
-            PhaseManager.Instance.PhaseFinished += SendClientEventPfRpc;
-            MoveManager.Instance.StartMovingEntities += SendClientEventSmeRpc;
-            MoveManager.Instance.EndMovingEntities += SendClientEventEmeRpc;
             // SEND Client RPCS
             manager.eventsFileName = "photon_server_" + manager.eventsFileName;
             exporter.outputName = "photon_server_" + exporter.outputName;
@@ -36,6 +29,19 @@ public class NetworkLogs : NetworkBehaviour
             PhaseManager.Instance.autoLinkingPhase = false;
             manager.eventsFileName = "photon_client_" + manager.eventsFileName;
             exporter.outputName = "photon_client_" + exporter.outputName;
+        }
+    }
+
+    public override void Spawned()
+    {
+        if (_runner.IsServer)
+        {
+            InstantiateManager.Instance.StartingInstantiation += SendClientEventSiRpc;
+            InstantiateManager.Instance.FinishedInstantiation += SendClientEventFiRpc;
+            PhaseManager.Instance.PhaseStarted += SendClientEventPSRpc;
+            PhaseManager.Instance.PhaseFinished += SendClientEventPfRpc;
+            MoveManager.Instance.StartMovingEntities += SendClientEventSmeRpc;
+            MoveManager.Instance.EndMovingEntities += SendClientEventEmeRpc;
         }
     }
 

@@ -6,6 +6,8 @@ using Fusion.Sockets;
 using TMPro;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using Unity.VisualScripting;
+using Fusion.Statistics;
 
 public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 {
@@ -76,6 +78,22 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
                 quitButton.gameObject.SetActive(true);
                 clientButton.gameObject.SetActive(false);
                 startButton.gameObject.SetActive(false);
+            }
+
+            Runner.SetupStatistics();
+            if (Runner.TryGetFusionStatistics(out var statisticsManager))
+            {
+                Debug.Log("Successfully obtained statistics manager from NetworkRunner.");
+                var obj = FindAnyObjectByType(typeof(FusionStatisticsRoot));
+                if (obj != null)
+                {
+                    var statsRoot = obj as FusionStatisticsRoot;
+                    statsRoot.ToggleCollapse();
+                }
+                else
+                {
+                    Debug.LogError("Failed to find an object of type FusionStatisticsRoot in the scene.");
+                }
             }
         }
         catch (Exception e)
@@ -171,6 +189,6 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     void INetworkRunnerCallbacks.OnSceneLoadStart(NetworkRunner runner) { }
     void INetworkRunnerCallbacks.OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
     void INetworkRunnerCallbacks.OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
-    void INetworkRunnerCallbacks.OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data) { }
+    void INetworkRunnerCallbacks.OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ReadOnlySpan<byte> data) { }
     void INetworkRunnerCallbacks.OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
 }

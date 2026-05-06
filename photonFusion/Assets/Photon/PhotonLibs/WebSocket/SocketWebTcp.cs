@@ -11,7 +11,7 @@
 // --------------------------------------------------------------------------------------------------------------------
 
 
-namespace ExitGames.Client.Photon
+namespace Photon.Client
 {
     using System;
 
@@ -23,7 +23,7 @@ namespace ExitGames.Client.Photon
     /// Internal class to encapsulate the network i/o functionality for the realtime library.
     /// </summary>
     [Preserve]
-    public class SocketWebTcp : IPhotonSocket, IDisposable
+    public class SocketWebTcp : PhotonSocket, IDisposable
     {
         private WebSocket sock;
 
@@ -34,9 +34,9 @@ namespace ExitGames.Client.Photon
         {
             this.ServerAddress = npeer.ServerAddress;
             this.ProxyServerAddress = npeer.ProxyServerAddress;
-            if (this.ReportDebugOfLevel(DebugLevel.INFO))
+            if (this.ReportDebugOfLevel(LogLevel.Info))
             {
-                this.Listener.DebugReturn(DebugLevel.INFO, "SocketWebTcp() "+ WebSocket.Implementation+". Server: " + this.ServerAddress + (String.IsNullOrEmpty(this.ProxyServerAddress) ? "" : ", Proxy: " + this.ProxyServerAddress));
+                this.Listener.DebugReturn(LogLevel.Info, "SocketWebTcp() "+ WebSocket.Implementation+". Server: " + this.ServerAddress + (String.IsNullOrEmpty(this.ProxyServerAddress) ? "" : ", Proxy: " + this.ProxyServerAddress));
             }
 
             this.PollReceive = false;
@@ -57,7 +57,7 @@ namespace ExitGames.Client.Photon
                 }
                 catch (Exception ex)
                 {
-                    this.EnqueueDebugReturn(DebugLevel.INFO, "Exception in SocketWebTcp.Dispose(): " + ex);
+                    this.EnqueueDebugReturn(LogLevel.Info, "Exception in SocketWebTcp.Dispose(): " + ex);
                 }
             }
 
@@ -86,13 +86,14 @@ namespace ExitGames.Client.Photon
             string proxyServerAddress;
             if (!this.ReadProxyConfigScheme(this.ProxyServerAddress, this.ServerAddress, out proxyServerAddress))
             {
-                this.Listener.DebugReturn(DebugLevel.INFO, "ReadProxyConfigScheme() failed. Using no proxy.");
+                this.Listener.DebugReturn(LogLevel.Info, "ReadProxyConfigScheme() failed. Using no proxy.");
             }
 
+            this.ConnectAddress = this.ConnectAddress.Replace("//?", "/?");      // workaround for a bug in some versions of Photon .NET Client v4 and v5
             try
             {
                 this.sock = new WebSocket(new Uri(this.ConnectAddress), proxyServerAddress, this.OpenCallback, this.ReceiveCallback, this.ErrorCallback, this.CloseCallback, this.SerializationProtocol);
-                this.sock.DebugReturn = (DebugLevel l, string s) =>
+                this.sock.DebugReturn = (LogLevel l, string s) =>
                                         {
                                             if (this.State != PhotonSocketState.Disconnected)
                                             {
@@ -105,7 +106,7 @@ namespace ExitGames.Client.Photon
             }
             catch (Exception e)
             {
-                this.Listener.DebugReturn(DebugLevel.ERROR, "SocketWebTcp.Connect() caught exception: " + e);
+                this.Listener.DebugReturn(LogLevel.Error, "SocketWebTcp.Connect() caught exception: " + e);
                 return false;
             }
         }
@@ -121,7 +122,7 @@ namespace ExitGames.Client.Photon
             // passing-on close only if this socket is still used / expected to be connected
             if (this.State != PhotonSocketState.Disconnecting && this.State != PhotonSocketState.Disconnected)
             {
-                this.Listener.DebugReturn(DebugLevel.ERROR, "SocketWebTcp.CloseCallback(). Going to disconnect. Server: " + this.ServerAddress + " Error: " + code + " Reason: " + reason);
+                this.Listener.DebugReturn(LogLevel.Error, "SocketWebTcp.CloseCallback(). Going to disconnect. Server: " + this.ServerAddress + " Error: " + code + " Reason: " + reason);
                 this.HandleException(StatusCode.DisconnectByServerReasonUnknown); // sets state to Disconnecting
             }
         }
@@ -132,7 +133,7 @@ namespace ExitGames.Client.Photon
             // passing-on errors only if this socket is still used / expected to be connected
             if (this.State != PhotonSocketState.Disconnecting && this.State != PhotonSocketState.Disconnected)
             {
-                this.Listener.DebugReturn(DebugLevel.ERROR, "SocketWebTcp.ErrorCallback(). Going to disconnect. Server: " + this.ServerAddress + " Error: " + code + " Message: " + message);
+                this.Listener.DebugReturn(LogLevel.Error, "SocketWebTcp.ErrorCallback(). Going to disconnect. Server: " + this.ServerAddress + " Error: " + code + " Message: " + message);
                 this.HandleException(this.State != PhotonSocketState.Connected ? StatusCode.ExceptionOnConnect : StatusCode.ExceptionOnReceive); // sets state to Disconnecting
             }
         }
@@ -142,7 +143,6 @@ namespace ExitGames.Client.Photon
             if (State == PhotonSocketState.Connecting)
             {
                 this.State = PhotonSocketState.Connected;
-                this.peerBase.OnConnect();
             }
         }
 
@@ -170,7 +170,7 @@ namespace ExitGames.Client.Photon
             {
                 if (proxyAddress.StartsWith("auto:") || proxyAddress.StartsWith("pac:") || proxyAddress.StartsWith("system:"))
                 {
-                    this.Listener.DebugReturn(DebugLevel.WARNING, "Proxy configuration via auto, pac or system is only supported with the WEBSOCKET_PROXYCONFIG define. Using no proxy instead.");
+                    this.Listener.DebugReturn(LogLevel.Warning, "Proxy configuration via auto, pac or system is only supported with the WEBSOCKET_PROXYCONFIG define. Using no proxy instead.");
                     return true;
                 }
                 proxyUrl = proxyAddress;
@@ -200,25 +200,25 @@ namespace ExitGames.Client.Photon
 
                     string processTypeStr = auto ? "auto detect" : "pac url " + pacUrl;
 
-                    this.Listener.DebugReturn(DebugLevel.INFO, "WebSocket Proxy: " + url + " " + processTypeStr);
+                    this.Listener.DebugReturn(LogLevel.Info, "WebSocket Proxy: " + url + " " + processTypeStr);
 
                     string errDescr = "";
                     var err = ProxyAutoConfig.GetProxyForUrlUsingPac(httpUrl, pacUrl, out proxyUrl, out errDescr);
 
                     if (err != 0)
                     {
-                        this.Listener.DebugReturn(DebugLevel.ERROR, "WebSocket Proxy: " + url + " " + processTypeStr + " ProxyAutoConfig.GetProxyForUrlUsingPac() error: " + err + " (" + errDescr + ")");
+                        this.Listener.DebugReturn(LogLevel.Error, "WebSocket Proxy: " + url + " " + processTypeStr + " ProxyAutoConfig.GetProxyForUrlUsingPac() error: " + err + " (" + errDescr + ")");
                         return false;
                     }
                 }
                 else if (proxyAddress.StartsWith("system:", StringComparison.InvariantCultureIgnoreCase))
                 {
-                    this.Listener.DebugReturn(DebugLevel.INFO, "WebSocket Proxy: " + url + " system settings");
+                    this.Listener.DebugReturn(LogLevel.Info, "WebSocket Proxy: " + url + " system settings");
                     string proxyAutoConfigPacUrl;
                     var err = ProxySystemSettings.GetProxy(out proxyUrl, out proxyAutoConfigPacUrl);
                     if (err != 0)
                     {
-                        this.Listener.DebugReturn(DebugLevel.ERROR, "WebSocket Proxy: " + url + " system settings ProxySystemSettings.GetProxy() error: " + err);
+                        this.Listener.DebugReturn(LogLevel.Error, "WebSocket Proxy: " + url + " system settings ProxySystemSettings.GetProxy() error: " + err);
                         return false;
                     }
                     if (proxyAutoConfigPacUrl != null)
@@ -227,13 +227,13 @@ namespace ExitGames.Client.Photon
                         {
                             proxyAutoConfigPacUrl = "http://" + proxyAutoConfigPacUrl; //default to http
                         }
-                        this.Listener.DebugReturn(DebugLevel.INFO, "WebSocket Proxy: " + url + " system settings AutoConfigURL: " + proxyAutoConfigPacUrl);
+                        this.Listener.DebugReturn(LogLevel.Info, "WebSocket Proxy: " + url + " system settings AutoConfigURL: " + proxyAutoConfigPacUrl);
                         string errDescr = "";
                         err = ProxyAutoConfig.GetProxyForUrlUsingPac(httpUrl, proxyAutoConfigPacUrl, out proxyUrl, out errDescr);
 
                         if (err != 0)
                         {
-                            this.Listener.DebugReturn(DebugLevel.ERROR, "WebSocket Proxy: " + url + " system settings AutoConfigURLerror: " + err + " (" + errDescr + ")");
+                            this.Listener.DebugReturn(LogLevel.Error, "WebSocket Proxy: " + url + " system settings AutoConfigURLerror: " + err + " (" + errDescr + ")");
                             return false;
                         }
                     }
@@ -243,7 +243,7 @@ namespace ExitGames.Client.Photon
                     proxyUrl = proxyAddress;
                 }
 
-                this.Listener.DebugReturn(DebugLevel.INFO, "WebSocket Proxy: " + url + " -> " + (string.IsNullOrEmpty(proxyUrl) ? "DIRECT" : "PROXY " + proxyUrl));
+                this.Listener.DebugReturn(LogLevel.Info, "WebSocket Proxy: " + url + " -> " + (string.IsNullOrEmpty(proxyUrl) ? "DIRECT" : "PROXY " + proxyUrl));
             }
 
             return true;
@@ -253,9 +253,9 @@ namespace ExitGames.Client.Photon
 
         public override bool Disconnect()
         {
-            if (this.ReportDebugOfLevel(DebugLevel.INFO))
+            if (this.ReportDebugOfLevel(LogLevel.Info))
             {
-                this.Listener.DebugReturn(DebugLevel.INFO, "SocketWebTcp.Disconnect()");
+                this.Listener.DebugReturn(LogLevel.Info, "SocketWebTcp.Disconnect()");
             }
 
             this.State = PhotonSocketState.Disconnecting;
@@ -270,7 +270,7 @@ namespace ExitGames.Client.Photon
                     }
                     catch (Exception ex)
                     {
-                        this.Listener.DebugReturn(DebugLevel.ERROR, "Exception in SocketWebTcp.Disconnect(): " + ex);
+                        this.Listener.DebugReturn(LogLevel.Error, "Exception in SocketWebTcp.Disconnect(): " + ex);
                     }
 
                     this.sock = null;
@@ -305,7 +305,7 @@ namespace ExitGames.Client.Photon
             }
             catch (Exception e)
             {
-                this.Listener.DebugReturn(DebugLevel.ERROR, "Cannot send to: " + this.ServerAddress + ". " + e.Message);
+                this.Listener.DebugReturn(LogLevel.Error, "Cannot send to: " + this.ServerAddress + ". " + e.Message);
 
                 this.HandleException(StatusCode.Exception);
                 return PhotonSocketError.Exception;
@@ -337,9 +337,9 @@ namespace ExitGames.Client.Photon
             {
                 if (this.State != PhotonSocketState.Disconnecting && this.State != PhotonSocketState.Disconnected)
                 {
-                    if (this.ReportDebugOfLevel(DebugLevel.ERROR))
+                    if (this.ReportDebugOfLevel(LogLevel.Error))
                     {
-                        this.EnqueueDebugReturn(DebugLevel.ERROR, "SocketWebTcp.ReceiveCallback() caught exception. Going to disconnect. State: " + this.State + ". Server: '" + this.ServerAddress + "' Exception: " + e);
+                        this.EnqueueDebugReturn(LogLevel.Error, "SocketWebTcp.ReceiveCallback() caught exception. Going to disconnect. State: " + this.State + ". Server: '" + this.ServerAddress + "' Exception: " + e);
                     }
 
                     this.HandleException(StatusCode.ExceptionOnReceive);

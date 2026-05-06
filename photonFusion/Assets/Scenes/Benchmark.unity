@@ -448,8 +448,8 @@ GameObject:
   - component: {fileID: 580922099}
   - component: {fileID: 580922100}
   - component: {fileID: 580922101}
-  - component: {fileID: 580922103}
   - component: {fileID: 580922105}
+  - component: {fileID: 580922106}
   m_Layer: 0
   m_Name: Manager
   m_TagString: Untagged
@@ -522,21 +522,6 @@ MonoBehaviour:
   waitingPhase1Time: 10
   waitBetweenPhases: 10
   waitBeforeQuittingApp: 10
---- !u!114 &580922103
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 580922095}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bde5909b463ec724f860a9b51b57f5bb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Unity.Profiling.ProfilerStatsToCSVExporter
-  outputName: profiler_stats
-  bucketDuration: 0.5
-  profilerStatsFile: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
 --- !u!114 &580922105
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -555,6 +540,21 @@ MonoBehaviour:
   timeBeforeSpawn: 10
   numberPerWave: 400
   spawnZone: {fileID: 1946087857}
+--- !u!114 &580922106
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 580922095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 64a391d359b626140aa7beee55e570dd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PhotonProfilerStatsToCsvExporter
+  outputName: profiler_stats
+  bucketDuration: 0.5
+  profilerStatsFile: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
 --- !u!1 &691926608
 GameObject:
   m_ObjectHideFlags: 0
@@ -613,8 +613,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
   SortKey: 2926392150
-  ObjectInterest: 1
-  Flags: 262145
+  SendPriority: 1
+  Flags: 262146
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 691926609}
@@ -677,8 +677,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
   SortKey: 2819513322
-  ObjectInterest: 1
-  Flags: 262145
+  SendPriority: 1
+  Flags: 262146
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 1154599158}

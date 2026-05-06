@@ -50,7 +50,7 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
         new ("VSync", "WaitForTargetFPS")
     };
 
-    private TextWriter _textWriter;
+    protected TextWriter _textWriter;
     private ProfilerRecorder[] _profilerRecorders;
     private float _lastFlushTime;
 
@@ -63,7 +63,7 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
     private int _bucketProfilerSamples;   // number of samples accumulated
     private int _lastFrameNumber;         // frame number of the last frame in the bucket
 
-    private void Start()
+    protected virtual void Start()
     {
         // Apply new profiler data from file
         if (profilerStatsFile != null)
@@ -118,7 +118,7 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
         ResetBucket();
     }
 
-    private void OnDisable()
+    protected virtual void OnDisable()
     {
         // Flush any partial bucket so no data is lost on exit
         if (_bucketFrameCount > 0)
@@ -135,7 +135,7 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
         }
     }
 
-    private void Update()
+    protected virtual void Update()
     {
         float dt = Time.unscaledDeltaTime;
 
@@ -170,7 +170,7 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
     /// <summary>
     /// Writes one averaged row to the CSV representing the completed time bucket.
     /// </summary>
-    private void WriteBucketRow()
+    protected virtual void WriteBucketRow()
     {
         float avgFps       = _bucketFrameCount > 0 ? _bucketFpsSum      / _bucketFrameCount : 0f;
         float avgFrameTime = _bucketFrameCount > 0 ? _bucketFrameTimeSum / _bucketFrameCount : 0f;
@@ -202,7 +202,7 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
     /// <summary>
     /// Resets all bucket accumulators to start a new time window.
     /// </summary>
-    private void ResetBucket()
+    protected virtual void ResetBucket()
     {
         _bucketAccumulator  = 0f;
         _bucketFpsSum       = 0f;

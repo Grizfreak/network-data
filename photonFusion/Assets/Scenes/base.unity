@@ -488,7 +488,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: '::'
   originalResource: {fileID: 11400000, guid: 6093dc610e90fed47a5938174a79543d, type: 2}
-  originalStats: {fileID: 11400000, guid: 68e9e675a6c42fa488e2351cc93bc5c1, type: 2}
+  originalStats: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
 --- !u!114 &1140055521
 MonoBehaviour:
   m_ObjectHideFlags: 0

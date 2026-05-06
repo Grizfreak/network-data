@@ -181,7 +181,6 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         guidelinesText.text = $"Failed to connect to server at {remoteAddress}: {reason}";
         Disconnect();
     }
-    void INetworkRunnerCallbacks.OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
     void INetworkRunnerCallbacks.OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList) { }
     void INetworkRunnerCallbacks.OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
     void INetworkRunnerCallbacks.OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }

@@ -12,6 +12,8 @@ _siblings = {
     "gpu_profiler_stats-" : "gpu_events_",
     "com.IMT_Atlantique.base_DOTS" : "dots_events_",
     "com.IMT_Atlantique.base_GPU" : "gpu_events_",
+    "photon_client_profiler_stats-" : "photon_client_events_",
+    "photon_server_profiler_stats-" : "photon_server_events_",
 }
 
 _TIMESTAMP_PATTERNS = (

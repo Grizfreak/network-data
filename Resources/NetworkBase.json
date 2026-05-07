@@ -2,7 +2,7 @@
     "mAmount": 3000,
     "mSpawnOnce": 0,
     "mTimeBeforeEachSpawn": 5,
-    "mNumberPerWave": 4000,
+    "mNumberPerWave": 400,
     "mPercentageMovingCubesPerWave": 20,
     "mTimeBeforeMovingCubes": 5,
     "mWaitingPhase1Time": 5,

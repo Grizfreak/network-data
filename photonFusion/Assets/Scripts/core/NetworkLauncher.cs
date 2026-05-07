@@ -173,6 +173,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     void INetworkRunnerCallbacks.OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) {
         Debug.LogError($"Disconnected from server: {reason}");
         guidelinesText.text = $"Disconnected from server: {reason}";
+        if (PhaseManager.Instance != null)
+        {
+            Debug.LogError("Client disconnected in a non-good way.. exiting the app");
+            PhaseManager.Instance.FinishTest();
+        }
     }
     void INetworkRunnerCallbacks.OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
     void INetworkRunnerCallbacks.OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason)

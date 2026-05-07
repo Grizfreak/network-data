@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 706bd548179d0c541918f85c12761636, type: 3}
   m_Name: Base
   m_EditorClassIdentifier: base.model::BaseResource
-  mPrefab: {fileID: 295692051021194745, guid: fb6bcde0cba22d54689d47e9bf88bd5b, type: 3}
+  mPrefab: {fileID: 295692051021194745, guid: f08f5136baba1b941a3459f9db5b1478, type: 3}
   mAmount: 20000
   mSpawnOnce: 0
   mTimeBeforeEachSpawn: 2

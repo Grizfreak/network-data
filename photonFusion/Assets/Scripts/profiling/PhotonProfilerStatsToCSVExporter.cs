@@ -17,7 +17,7 @@ using UnityEngine;
 public class PhotonProfilerStatsToCsvExporter : ProfilerStatsToCsvExporter
 {
     private FusionStatisticsManager _statsManager;
-
+#if UNITY_STANDALONE
     protected override void Start()
     {
         base.Start();
@@ -163,4 +163,5 @@ public class PhotonProfilerStatsToCsvExporter : ProfilerStatsToCsvExporter
     {
         return stats != null && stats.TryGetValue(statType, out var value) ? value : 0f;
     }
+    #endif
 }

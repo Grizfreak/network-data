@@ -168,6 +168,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         Debug.Log($"[FUSION] Shutdown reason: {shutdownReason}");
         guidelinesText.text = $"Did not connect to server: {shutdownReason}, Try again.";
         Runner.Shutdown();
+        if (PhaseManager.Instance != null)
+        {
+            Debug.LogError("Client disconnected in a non-good way.. exiting the app");
+            PhaseManager.Instance.FinishTest();
+        }
     }
     void INetworkRunnerCallbacks.OnConnectedToServer(NetworkRunner runner) { }
     void INetworkRunnerCallbacks.OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) {

@@ -288,10 +288,54 @@ def _comparison_label(stat_file):
         return "ngo"
     if base_name.startswith("ngo_server_profiler_stats-"):
         return "ngo_server"
+    if base_name.startswith("photon_client_profiler_stats-"):
+        return "photon_client"
+    if base_name.startswith("photon_server_profiler_stats-"):
+        return "photon_server"
     return os.path.splitext(base_name)[0]
 
 
-def plot_fps_comparison(couple_of_files, debug=False, fig_size=FIGURE_SIZE):
+FPS_COMPARISON_GROUPS = [
+    (
+        "everything",
+        "FPS comparison across systems per GameObject",
+        {
+            "base",
+            "dots",
+            "gpu",
+            "base_quest",
+            "dots_quest",
+            "gpu_quest",
+            "ngo",
+            "ngo_server",
+            "photon_client",
+            "photon_server",
+        },
+    ),
+    (
+        "base_dots_gpu",
+        "FPS comparison: base, dots, gpu",
+        {"base", "dots", "gpu"},
+    ),
+    (
+        "ngo_photon_all",
+        "FPS comparison: ngo and photon systems",
+        {"ngo", "ngo_server", "photon_client", "photon_server"},
+    ),
+    (
+        "ngo_photon_client",
+        "FPS comparison: ngo and photon_client",
+        {"ngo", "photon_client"},
+    ),
+    (
+        "ngo_server_photon_server",
+        "FPS comparison: ngo_server and photon_server",
+        {"ngo_server", "photon_server"},
+    ),
+]
+
+
+def plot_fps_comparison(couple_of_files, debug=False, fig_size=FIGURE_SIZE, allowed_labels=None, title=None):
     fig = plt.figure(figsize=fig_size)
     manager = plt.get_current_fig_manager()
     try:
@@ -312,7 +356,23 @@ def plot_fps_comparison(couple_of_files, debug=False, fig_size=FIGURE_SIZE):
         "gpu_quest": {"color": "#d62728", "marker": "^", "linestyle": "--"},
         "ngo": {"color": "#9467bd", "marker": "D"},
         "ngo_server": {"color": "#ff7f0e", "marker": "v"},
+        "photon_client": {"color": "#8c564b", "marker": "P"},
+        "photon_server": {"color": "#17becf", "marker": "X"},
     }
+
+    if allowed_labels is None:
+        allowed_labels = {
+            "base",
+            "dots",
+            "gpu",
+            "base_quest",
+            "dots_quest",
+            "gpu_quest",
+            "ngo",
+            "ngo_server",
+            "photon_client",
+            "photon_server",
+        }
 
     plotted_labels = []
     for couple in couple_of_files:
@@ -320,7 +380,7 @@ def plot_fps_comparison(couple_of_files, debug=False, fig_size=FIGURE_SIZE):
             continue
 
         label = _comparison_label(couple.stat_file)
-        if label not in {"base", "dots", "gpu", "base_quest", "dots_quest", "gpu_quest"}:
+        if label not in allowed_labels:
             continue
 
         data = pd.read_csv(couple.stat_file, low_memory=False)
@@ -352,7 +412,7 @@ def plot_fps_comparison(couple_of_files, debug=False, fig_size=FIGURE_SIZE):
     ax.axhline(y=72, color="red", linestyle="--", linewidth=1.2, label="72 FPS limit")
     ax.set_xlabel("GameObjects")
     ax.set_ylabel("FPS")
-    fig.suptitle("FPS comparison across systems per GameObject")
+    fig.suptitle(title or "FPS comparison across systems per GameObject")
     ax.ticklabel_format(style='plain', axis='x')
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
     ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
@@ -637,13 +697,20 @@ def main():
             save_figs(figs_and_name, couple_folder)
 
     if args.compare_fps:
-        comparison_fig = plot_fps_comparison(files, args.debug, FIGURE_SIZE)
-        if not args.debug:
-            comparison_fig.savefig(
-                f"{folder_path}/fps_comparison_FPS_comparison_across_systems.png",
-                dpi=SAVE_DPI,
+        for comparison_name, comparison_title, allowed_labels in FPS_COMPARISON_GROUPS:
+            comparison_fig = plot_fps_comparison(
+                files,
+                args.debug,
+                FIGURE_SIZE,
+                allowed_labels=allowed_labels,
+                title=comparison_title,
             )
-            plt.close(comparison_fig)
+            if not args.debug:
+                comparison_fig.savefig(
+                    f"{folder_path}/fps_comparison_{comparison_name}.png",
+                    dpi=SAVE_DPI,
+                )
+                plt.close(comparison_fig)
 
     if args.compare_cpu_gpu:
         cpu_fig = plot_metric_comparison(files, "cpu", args.debug, FIGURE_SIZE)

@@ -520,6 +520,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Unity.Profiling.ProfilerStatsToCSVExporter
   outputName: profiler_stats
+  bucketDuration: 0.5
   profilerStatsFile: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
 --- !u!114 &580922104
 MonoBehaviour:
@@ -591,7 +592,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1338800694}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ec60f39022af99942ae2d1eb28677dfc, type: 3}
   m_Name: 

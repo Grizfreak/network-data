@@ -1,0 +1,53 @@
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+
+from metrics_engine import metric_series_from_stats, _extract_finished_rows
+
+
+def metric_per_gameobject_series(
+    stats_df: pd.DataFrame,
+    events_df: pd.DataFrame,
+    metric_key: str,
+    stat_name: str | None = None,
+):
+    plot_data, metric_col = metric_series_from_stats(stats_df, metric_key, stat_name)
+    if plot_data is None or metric_col is None:
+        return None, None
+
+    finished_rows = _extract_finished_rows(events_df)
+    if finished_rows is None or finished_rows.empty:
+        return None, None
+
+    sample_frames = pd.to_numeric(plot_data["Frame"], errors="coerce")
+    sample_values = pd.to_numeric(plot_data[metric_col], errors="coerce")
+    valid_samples = pd.DataFrame({"Frame": sample_frames, metric_col: sample_values}).dropna().sort_values("Frame")
+    if valid_samples.empty:
+        return None, None
+
+    sample_x = valid_samples["Frame"].to_numpy(dtype=float)
+    sample_y = valid_samples[metric_col].to_numpy(dtype=float)
+
+    segment_points = []
+    first_frame = finished_rows.iloc[0]["Frame"]
+    if pd.notna(first_frame):
+        first_value = float(np.interp(float(first_frame), sample_x, sample_y))
+        segment_points.append((0, first_value))
+
+    for _, row in finished_rows.iterrows():
+        current_frame = row.get("Frame")
+        current_value = row.get("Value")
+        if pd.isna(current_frame) or pd.isna(current_value):
+            continue
+        interpolated_value = float(np.interp(float(current_frame), sample_x, sample_y))
+        segment_points.append((float(current_value), interpolated_value))
+
+    if not segment_points:
+        return None, None
+
+    out_col = f"Average{metric_col}"
+    segment_data = pd.DataFrame(segment_points, columns=["GameObjects", out_col])
+    segment_data["GameObjects"] = pd.to_numeric(segment_data["GameObjects"], errors="coerce")
+    segment_data[out_col] = pd.to_numeric(segment_data[out_col], errors="coerce")
+    return segment_data.dropna(subset=["GameObjects", out_col]).reset_index(drop=True), out_col

@@ -128,7 +128,6 @@ if stats_files or events_files:
                 st.write(f"  {ename} → raw: {ts_str}, normalized: {norm_ts}")
 
 per_gameobject = st.checkbox("Aggregate per GameObject using events (FinishedInstantiation)", value=True)
-norm_option = st.checkbox("Normalize metric to first sample (per series)", value=False)
 
 # Show pairing UI if per-GameObject is enabled
 if per_gameobject and stats_files and events_files:
@@ -172,69 +171,387 @@ metric_options = {
     "Memory (MB)": "memory",
     "CPU (ms)": "cpu",
     "GPU (ms)": "gpu",
+    "Network - Ping (ms)": "network_ping",
+    "Network - Bytes Received": "network_bytes_recv",
+    "Network - Bytes Sent": "network_bytes_sent",
+    "Network - Messages Received": "network_rpc_recv",
+    "Network - Messages Sent": "network_rpc_sent",
 }
-selected_metric_label = st.selectbox("Metric", list(metric_options.keys()), index=0)
-selected_metric_key = metric_options[selected_metric_label]
 
-datasets, metric_warnings = build_datasets(
-    stats_files=stats_files,
-    events_files=events_files,
-    user_pairings=user_pairings,
-    selected_metric_key=selected_metric_key,
-    selected_metric_label=selected_metric_label,
-    per_gameobject=per_gameobject,
-)
+# Detect which metrics are actually available in the loaded data
+def get_available_metrics(stats_files, metric_options):
+    """Scan loaded files and return only metrics that have data."""
+    available = set()
+    network_cols_present = False
+    
+    for _, df in stats_files:
+        # Check for network columns
+        if any(col in df.columns for col in ["Ping (ns)", "Ping_ms", "Total Bytes Received (bytes)", 
+                                              "TotalBytesReceived", "Rpc Received", "PacketsIn"]):
+            network_cols_present = True
+        
+        # Check for performance metrics (always available if we have stats files)
+        if any(col in df.columns for col in ["FPS", "average_frame_rate", "FrameTimeMs"]):
+            available.add("FPS")
+        if any(col in df.columns for col in ["Total Used Memory (bytes)", "app_rss_MB", "app_pss_MB", "app_uss_MB"]):
+            available.add("Memory (MB)")
+        if any(col in df.columns for col in ["CPU Total Frame Time (ns)", "CPU Main Thread Frame Time (ns)", 
+                                              "Main Thread (ns)", "FrameTimeMs", "cpu_utilization_percentage"]):
+            available.add("CPU (ms)")
+        if any(col in df.columns for col in ["GPU Frame Time (ns)", "app_gpu_time_microseconds"]):
+            available.add("GPU (ms)")
+    
+    # Add network metrics only if network columns exist
+    if network_cols_present:
+        available.update(["Network - Ping (ms)", "Network - Bytes Received", "Network - Bytes Sent", 
+                         "Network - Messages Received", "Network - Messages Sent"])
+    
+    return sorted(available)
 
-for warning in metric_warnings:
-    st.warning(warning)
+available_metrics = get_available_metrics(stats_files, metric_options)
+unavailable_metrics = [m for m in metric_options.keys() if m not in available_metrics]
 
-if not datasets:
-    st.info("No compatible datasets found after parsing.")
-else:
-    labels = [t[0] for t in datasets]
-    selected = st.multiselect("Select series to show", labels, default=labels)
+st.subheader("Select Metrics to Display")
+col1, col2 = st.columns([3, 1])
+with col1:
+    selected_metrics = st.multiselect(
+        "Choose metrics to display (empty = show all)",
+        list(metric_options.keys()),
+        default=["FPS"],
+        disabled=False
+    )
+    if unavailable_metrics:
+        st.info(f"Note: {', '.join(unavailable_metrics)} are not available in your data")
+with col2:
+    columns_count = st.selectbox("Columns", [1, 2, 3, 4], index=1)
 
+if not selected_metrics:
+    selected_metrics = list(available_metrics)
+
+# Convert to metric keys
+selected_metric_keys = [metric_options[label] for label in selected_metrics]
+
+# Global line filter controls
+line_filter_candidates = set()
+for metric_key in selected_metric_keys:
+    metric_label = [k for k, v in metric_options.items() if v == metric_key][0]
+    preview_datasets, _ = build_datasets(
+        stats_files=stats_files,
+        events_files=events_files,
+        user_pairings=user_pairings,
+        selected_metric_key=metric_key,
+        selected_metric_label=metric_label,
+        per_gameobject=per_gameobject,
+        x_axis_mode="frame",
+    )
+    line_filter_candidates.update([label for label, _ in preview_datasets])
+
+line_filter_options = sorted(line_filter_candidates)
+if "line_filter_choices" not in st.session_state:
+    st.session_state.line_filter_choices = []
+if "active_line_filters" not in st.session_state:
+    st.session_state.active_line_filters = []
+
+# Keep stored selections valid when metric selection changes.
+st.session_state.line_filter_choices = [
+    label for label in st.session_state.line_filter_choices if label in line_filter_options
+]
+st.session_state.active_line_filters = [
+    label for label in st.session_state.active_line_filters if label in line_filter_options
+]
+
+st.subheader("Line Filter")
+filter_col1, filter_col2, filter_col3 = st.columns([3, 1, 1])
+with filter_col1:
+    selected_line_filters = st.multiselect(
+        "Choose lines to display on all plots",
+        options=line_filter_options,
+        default=st.session_state.line_filter_choices,
+    )
+    st.session_state.line_filter_choices = selected_line_filters
+with filter_col2:
+    if st.button("Apply"):
+        st.session_state.active_line_filters = list(st.session_state.line_filter_choices)
+with filter_col3:
+    if st.button("Clear"):
+        st.session_state.active_line_filters = []
+        st.session_state.line_filter_choices = []
+
+active_line_filters = set(st.session_state.active_line_filters)
+if active_line_filters:
+    st.info(f"Line filter active: {len(active_line_filters)} selected")
+
+# Import required plotting utilities
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+
+
+def create_network_plot(net_datasets, selected_labels, per_gameobject, xcol):
+    """Create the network subplots figure."""
+    fig = make_subplots(
+        rows=3, cols=1,
+        subplot_titles=("Ping (ms)", "Bandwidth (Bytes)", "Messages (RPCs/Packets)"),
+        shared_xaxes=True,
+        vertical_spacing=0.1
+    )
+    
+    colors = px.colors.qualitative.Plotly
+    
+    for i, label in enumerate(selected_labels):
+        color = colors[i % len(colors)]
+        
+        # Ping
+        if "network_ping" in net_datasets:
+            series_list = [d for d in net_datasets["network_ping"] if d[0] == label]
+            if series_list:
+                df = series_list[0][1]
+                y_col = df["_ycol"].iloc[0]
+                fig.add_trace(go.Scatter(x=df[xcol], y=df[y_col], line=dict(color=color), name=f"{label} Ping", legendgroup=label), row=1, col=1)
+        
+        # Bandwidth
+        for k, l_suffix, l_dash in [("network_bytes_recv", "Recv", "solid"), ("network_bytes_sent", "Sent", "dash")]:
+            if k in net_datasets:
+                series_list = [d for d in net_datasets[k] if d[0] == label]
+                if series_list:
+                    df = series_list[0][1]
+                    y_col = df["_ycol"].iloc[0]
+                    fig.add_trace(go.Scatter(x=df[xcol], y=df[y_col], line=dict(color=color, dash=l_dash), name=f"{label} Bytes {l_suffix}", legendgroup=label), row=2, col=1)
+        
+        # Messages
+        for k, l_suffix, l_dash in [("network_rpc_recv", "Recv", "solid"), ("network_rpc_sent", "Sent", "dash")]:
+            if k in net_datasets:
+                series_list = [d for d in net_datasets[k] if d[0] == label]
+                if series_list:
+                    df = series_list[0][1]
+                    y_col = df["_ycol"].iloc[0]
+                    fig.add_trace(go.Scatter(x=df[xcol], y=df[y_col], line=dict(color=color, dash=l_dash), name=f"{label} Msgs {l_suffix}", legendgroup=label), row=3, col=1)
+    
+    fig.update_layout(height=600, showlegend=True)
+    fig.update_yaxes(title_text="Ping (ms)", row=1, col=1)
+    fig.update_yaxes(title_text="Bytes", row=2, col=1)
+    fig.update_yaxes(title_text="Count", row=3, col=1)
+    fig.update_xaxes(title_text=xcol, row=3, col=1)
+    return fig
+
+
+def create_standard_plot(datasets, selected_labels, metric_label, metric_key, per_gameobject, xcol, phase_label=None):
+    """Create a standard line plot for non-network metrics."""
     combined = []
     plot_ycol = None
+
+    def _trim_leading_zero_ping(frame: pd.DataFrame, y_column: str):
+        if metric_key != "network_ping" or phase_label != "Movement Phase":
+            return frame
+        if y_column not in frame.columns or frame.empty:
+            return frame
+
+        values = pd.to_numeric(frame[y_column], errors="coerce")
+        nonzero = values.ne(0) & values.notna()
+        
+        # If all values are zero (legitimate for localhost/same-machine benchmarks),
+        # keep the data instead of removing it
+        if not nonzero.any():
+            return frame
+        
+        # If there are non-zero values, skip leading zeros before the first non-zero
+        first_nonzero_idx = nonzero.idxmax()
+        if first_nonzero_idx == 0:
+            return frame
+        return frame.loc[first_nonzero_idx:].copy()
+    
     for label, df in datasets:
-        if label not in selected:
+        if label not in selected_labels:
             continue
         temp = df.copy()
-        if norm_option:
-            ycol = temp["_ycol"].iloc[0]
-            if not temp[ycol].empty:
-                first = pd.to_numeric(temp[ycol].iloc[0], errors="coerce")
-                if pd.notna(first) and first != 0:
-                    temp[ycol] = temp[ycol] / first
-        if plot_ycol is None:
+        if temp.empty:
+            continue
+        if plot_ycol is None and "_ycol" in temp.columns:
             plot_ycol = temp["_ycol"].iloc[0]
         temp["label"] = label
         combined.append(temp)
+    
+    if not combined:
+        return None
 
-    if combined:
-        all_df = pd.concat(combined, ignore_index=True)
-        all_df = all_df.drop(columns=["_ycol"], errors="ignore")
-        # choose axes depending on whether per-GameObject was used
-        if per_gameobject:
-            xcol = "GameObjects"
+    def _uniform_time_bins(frame: pd.DataFrame, x_column: str, y_column: str, target_points: int = 120):
+        if x_column != "Time" or len(frame) <= target_points:
+            return frame
+
+        # Safety check: if y_column doesn't exist, try to find it from _ycol metadata
+        if y_column not in frame.columns:
+            if "_ycol" in frame.columns and len(frame) > 0:
+                y_column = frame["_ycol"].iloc[0]
+            else:
+                # No valid metric column found, return frame unchanged
+                return frame
+
+        cols_to_keep = [x_column, y_column, "label"]
+        if "_ycol" in frame.columns:
+            cols_to_keep.append("_ycol")
+        uniform = frame[cols_to_keep].copy()
+        uniform[x_column] = pd.to_numeric(uniform[x_column], errors="coerce")
+        uniform[y_column] = pd.to_numeric(uniform[y_column], errors="coerce")
+        uniform = uniform.dropna(subset=[x_column, y_column]).sort_values(x_column)
+        if uniform.empty:
+            return frame
+
+        x_min = float(uniform[x_column].min())
+        x_max = float(uniform[x_column].max())
+        if x_max <= x_min:
+            return uniform
+
+        bin_width = max((x_max - x_min) / target_points, 0.5)
+        uniform["_bin"] = ((uniform[x_column] - x_min) / bin_width).floordiv(1).astype(int)
+        agg_dict = {x_column: "mean", y_column: "mean"}
+        if "_ycol" in uniform.columns:
+            agg_dict["_ycol"] = "first"
+        uniform = uniform.groupby(["label", "_bin"], as_index=False).agg(agg_dict)
+        return uniform.sort_values(x_column).reset_index(drop=True)
+    
+    if phase_label == "Movement Phase" and xcol == "Time":
+        resampled = []
+        for temp in combined:
+            # Always try to get the correct y_col from the dataframe metadata first
+            y_col = None
+            if "_ycol" in temp.columns and len(temp) > 0:
+                y_col = temp["_ycol"].iloc[0]
+            # Fall back to plot_ycol if available and matches columns
+            if y_col is None:
+                y_col = plot_ycol
+            # Skip if no valid metric column found
+            if y_col is None or y_col not in temp.columns:
+                continue
+            trimmed = _trim_leading_zero_ping(temp, y_col)
+            if not trimmed.empty:
+                resampled.append(_uniform_time_bins(trimmed, xcol, y_col))
+        combined = resampled
+
+    if not combined:
+        return None
+
+    all_df = pd.concat(combined, ignore_index=True)
+    
+    # Normalize y-column names: if Quest and PC have different column names for the same metric,
+    # rename Quest's column to match PC's (e.g., "CPU Utilization (%)" -> "CPU (ms)")
+    # This allows both platforms to render on the same plot
+    if "_ycol" in all_df.columns:
+        # Get all unique y-column names used in this dataset
+        unique_ycols = set(all_df["_ycol"].dropna().unique())
+        # If there are multiple column names for the same metric, pick the first one and rename all to it
+        if len(unique_ycols) > 1:
+            canonical_ycol = list(unique_ycols)[0]
+            for alt_ycol in unique_ycols:
+                if alt_ycol in all_df.columns and alt_ycol != canonical_ycol:
+                    # Rename the alternative column to the canonical name
+                    all_df[canonical_ycol] = all_df[canonical_ycol].fillna(all_df[alt_ycol])
+                    all_df = all_df.drop(columns=[alt_ycol], errors="ignore")
+            ycol = canonical_ycol
         else:
-            xcol = "Frame"
-
-        ycol = plot_ycol if plot_ycol is not None else "FPS"
-
-        fig = px.line(all_df, x=xcol, y=ycol, color="label", markers=True)
-        if selected_metric_key == "fps" and not norm_option:
-            fig.add_hline(
-                y=72,
-                line_dash="dash",
-                line_color="gray",
-                annotation_text="72 FPS",
-                annotation_position="top left",
-            )
-        figure_title = f"{selected_metric_label} per GameObject" if per_gameobject else f"{selected_metric_label} vs Frame"
-        yaxis_title = f"Normalized {selected_metric_label}" if norm_option else selected_metric_label
-        fig.update_layout(title=figure_title, xaxis_title=xcol, yaxis_title=yaxis_title, legend_title="Series")
-        st.plotly_chart(fig, use_container_width=True)
-
+            ycol = plot_ycol if plot_ycol is not None else "FPS"
     else:
-        st.info("No series selected.")
+        ycol = plot_ycol if plot_ycol is not None else "FPS"
+    
+    all_df = all_df.drop(columns=["_ycol"], errors="ignore")
+    
+    fig = px.line(all_df, x=xcol, y=ycol, color="label", markers=(phase_label is None))
+    if phase_label == "Movement Phase":
+        fig.update_traces(line=dict(width=2))
+    
+    if metric_key == "fps":
+        fig.add_hline(
+            y=72,
+            line_dash="dash",
+            line_color="gray",
+            annotation_text="72 FPS",
+            annotation_position="top left",
+        )
+    
+    phase_suffix = f" - {phase_label}" if phase_label else ""
+    # Use the actual y-column name for the y-axis label (in case Quest/PC differ)
+    y_axis_label = ycol if ycol not in ("FPS", metric_label) else metric_label
+    figure_title = f"{metric_label}{phase_suffix} per GameObject" if per_gameobject else f"{metric_label}{phase_suffix} vs {xcol}"
+    fig.update_layout(title=figure_title, xaxis_title=xcol, yaxis_title=y_axis_label, height=600)
+    return fig
+
+
+def build_metric_figures(phase_filter=None, phase_label=None, per_gameobject_override=None, x_axis_mode="frame"):
+    metric_figures = {}
+    for metric_key in selected_metric_keys:
+        metric_label = [k for k, v in metric_options.items() if v == metric_key][0]
+        use_per_gameobject = per_gameobject if per_gameobject_override is None else per_gameobject_override
+        datasets, _ = build_datasets(
+            stats_files=stats_files,
+            events_files=events_files,
+            user_pairings=user_pairings,
+            selected_metric_key=metric_key,
+            selected_metric_label=metric_label,
+            per_gameobject=use_per_gameobject,
+            phase_filter=phase_filter,
+            x_axis_mode=x_axis_mode,
+        )
+
+        if datasets:
+            labels = [t[0] for t in datasets]
+            if active_line_filters:
+                labels = [label for label in labels if label in active_line_filters]
+            if not labels:
+                continue
+            fig = create_standard_plot(
+                datasets,
+                labels,
+                metric_label,
+                metric_key,
+                use_per_gameobject,
+                "GameObjects" if use_per_gameobject else ("Time" if x_axis_mode == "time" else "Frame"),
+                phase_label=phase_label,
+            )
+            if fig:
+                metric_figures[metric_label] = fig
+
+    return metric_figures
+
+
+def render_dashboard(metric_figures, title):
+    if not metric_figures:
+        st.info(f"No compatible datasets found for {title.lower()}.")
+        return
+
+    st.subheader(title)
+
+    metrics_list = list(metric_figures.items())
+    num_plots = len(metrics_list)
+    num_rows = (num_plots + columns_count - 1) // columns_count
+
+    for row_idx in range(num_rows):
+        cols = st.columns(columns_count)
+        for col_idx in range(columns_count):
+            plot_idx = row_idx * columns_count + col_idx
+            if plot_idx < num_plots:
+                _, fig = metrics_list[plot_idx]
+                with cols[col_idx]:
+                    st.plotly_chart(fig, use_container_width=True)
+
+
+# Generate and display the full dashboard
+metric_figures = build_metric_figures()
+render_dashboard(metric_figures, "Metrics Dashboard")
+
+# Generate and display the movement-phase dashboard below the main one
+movement_metric_figures = build_metric_figures(
+    phase_filter="movement",
+    phase_label="Movement Phase",
+    per_gameobject_override=False,
+    x_axis_mode="time",
+)
+
+if not movement_metric_figures:
+    st.warning(
+        "No compatible datasets found for Movement Phase Dashboard. "
+        "This typically occurs when:\n"
+        "• Your data lacks event files (needed for phase detection)\n"
+        "• Selected metrics are not available in your data (e.g., Network metrics require network data)\n"
+        "• All datasets were filtered out during phase extraction\n\n"
+        "Try displaying metrics from the main dashboard instead, or ensure you have event files paired with stats files."
+    )
+else:
+    render_dashboard(movement_metric_figures, "Movement Phase Dashboard")

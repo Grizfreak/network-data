@@ -550,7 +550,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 240cf7c6d971f3044b27da7c6c791293, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LogsManager
-  eventsFileName: events_20260409_093416.csv
+  eventsFileName: events_
 --- !u!114 &580922100
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -600,7 +600,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bde5909b463ec724f860a9b51b57f5bb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Unity.Profiling.ProfilerStatsToCSVExporter
-  outputName: profiler_stats-2026.04.09-10.56.csv
+  outputName: profiler_stats
+  bucketDuration: 0.5
   profilerStatsFile: {fileID: 11400000, guid: 4bfa3d190b988b14e8fa2c404f5d6b08, type: 2}
 --- !u!114 &580922104
 MonoBehaviour:

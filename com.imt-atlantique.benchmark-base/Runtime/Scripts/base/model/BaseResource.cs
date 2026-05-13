@@ -31,6 +31,9 @@ using UnityEngine.Serialization;
         [FormerlySerializedAs("m_WaitBeforeQuittingApp")]
         public float mWaitBeforeQuittingApp;
 
+        [Header("Move and spawn")]
+        public bool moveAndSpawn;
+
         public void ParseConfiguration(string fileContent)
         {
             // JsonUtility.FromJsonOverwrite takes the JSON string and 

@@ -65,6 +65,10 @@ using Random = UnityEngine.Random;
                 float z = Random.Range(spawnZone.GetComponent<Renderer>().bounds.min.z, spawnZone.GetComponent<Renderer>().bounds.max.z);
                 Vector3 spawnPos = new Vector3(x, 0, z);
                 var go = Instantiate(objectToSpawn, spawnPos, transform.rotation);
+                if (PhaseManager.Instance.moveAndSpawn)
+                {
+                    go.GetComponent<ObjectBehaviour>().isMoving = true;
+                }
                 OnInstanceCreated.Invoke(go);
             }
             FinishedInstantiation.Invoke("FinishedInstantiation", numberToSpawn);
@@ -83,6 +87,10 @@ using Random = UnityEngine.Random;
                     float z = Random.Range(spawnZone.GetComponent<Renderer>().bounds.min.z, spawnZone.GetComponent<Renderer>().bounds.max.z);
                     Vector3 spawnPos = new Vector3(x, 0, z);
                     var go = Instantiate(objectToSpawn, spawnPos, transform.rotation);
+                    if (PhaseManager.Instance.moveAndSpawn)
+                    {
+                    go.GetComponent<ObjectBehaviour>().isMoving = true;
+                    }
                     OnInstanceCreated.Invoke(go);
                 }
                 SpawnedInstances+= numberPerWave;

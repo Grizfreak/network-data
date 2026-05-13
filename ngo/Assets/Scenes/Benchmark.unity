@@ -533,7 +533,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InstantiateManager
   objectToSpawn: {fileID: 295692051021194745, guid: 0a0ce30b602932547a835cac017dc6a5, type: 3}
-  numberToSpawn: 20000
+  numberToSpawn: 1200
   spawnInstantly: 0
   timeBeforeSpawn: 10
   numberPerWave: 400
@@ -588,6 +588,7 @@ MonoBehaviour:
   waitingPhase1Time: 10
   waitBetweenPhases: 10
   waitBeforeQuittingApp: 10
+  moveAndSpawn: 0
 --- !u!114 &580922103
 MonoBehaviour:
   m_ObjectHideFlags: 0

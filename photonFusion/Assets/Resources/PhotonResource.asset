@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: PhotonResource
   m_EditorClassIdentifier: PhotonResource
   mPrefab: {fileID: 295692051021194745, guid: fb6bcde0cba22d54689d47e9bf88bd5b, type: 3}
-  mAmount: 20000
+  mAmount: 1200
   mSpawnOnce: 0
   mTimeBeforeEachSpawn: 5
   mNumberPerWave: 400
@@ -22,4 +22,5 @@ MonoBehaviour:
   mWaitingPhase1Time: 5
   mWaitBetweenPhases: 10
   mWaitBeforeQuittingApp: 5
+  moveAndSpawn: 1
   syncInterval: 0

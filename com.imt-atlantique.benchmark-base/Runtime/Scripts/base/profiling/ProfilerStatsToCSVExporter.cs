@@ -133,6 +133,7 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
         {
             profilerRecorder.Dispose();
         }
+        Debug.Log("Disabling ProfilerStatsToCsvExporter and disposed recorders.");
     }
 
     protected virtual void Update()

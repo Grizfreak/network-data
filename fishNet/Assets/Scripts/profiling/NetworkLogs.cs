@@ -6,7 +6,30 @@ using UnityEngine;
 public class NetworkLogs : NetworkBehaviour
 {
     // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+
+    public override void OnStartServer()
+    {
+        LogsManager manager = this.gameObject.GetComponent<LogsManager>();
+        if (manager == null)
+        {
+            Debug.LogWarning("Manager not found");
+        }
+        ProfilerStatsToCsvExporter profiler = this.gameObject.GetComponent<ProfilerStatsToCsvExporter>();
+        if (profiler == null)
+        {
+            Debug.LogWarning("Profiler not found");
+        }
+        InstantiateManager.Instance.StartingInstantiation += SendClientEventSiRpc;
+        InstantiateManager.Instance.FinishedInstantiation += SendClientEventFiRpc;
+        PhaseManager.Instance.PhaseStarted += SendClientEventPSRpc;
+        PhaseManager.Instance.PhaseFinished += SendClientEventPfRpc;
+        MoveManager.Instance.StartMovingEntities += SendClientEventSmeRpc;
+        MoveManager.Instance.EndMovingEntities += SendClientEventEmeRpc;
+        manager.eventsFileName = "fishNet_server_"+ manager.eventsFileName;
+        profiler.outputName = "fishNet_server_" + profiler.outputName;
+    }
+
+    public override void OnStartClient()
     {
         LogsManager manager = this.gameObject.GetComponent<LogsManager>();
         if (manager == null)
@@ -19,22 +42,8 @@ public class NetworkLogs : NetworkBehaviour
             Debug.LogWarning("Profiler not found");
         }
 
-        if (NetworkManager.IsServerStarted)
-        {
-            InstantiateManager.Instance.StartingInstantiation += SendClientEventSiRpc;
-            InstantiateManager.Instance.FinishedInstantiation += SendClientEventFiRpc;
-            PhaseManager.Instance.PhaseStarted += SendClientEventPSRpc;
-            PhaseManager.Instance.PhaseFinished += SendClientEventPfRpc;
-            MoveManager.Instance.StartMovingEntities += SendClientEventSmeRpc;
-            MoveManager.Instance.EndMovingEntities += SendClientEventEmeRpc;
-            manager.eventsFileName = "fishNet_server_"+ manager.eventsFileName;
-            profiler.outputName = "fishNet_server_" + profiler.outputName;
-        }
-        else if (NetworkManager.IsClientStarted)
-        {
-            manager.eventsFileName = "fishNet_client_"+ manager.eventsFileName;
-            profiler.outputName = "fishNet_client_" + profiler.outputName;
-        }
+        manager.eventsFileName = "fishNet_client_"+ manager.eventsFileName;
+        profiler.outputName = "fishNet_client_" + profiler.outputName;
     }
 
     [ObserversRpc]

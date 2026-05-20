@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b8eb9152d6d7c184f9594b8a955fd0a8, type: 3}
   m_Name: FishNetResource
   m_EditorClassIdentifier: Assembly-CSharp::FishNetResource
-  mPrefab: {fileID: 295692051021194745, guid: f08f5136baba1b941a3459f9db5b1478, type: 3}
+  mPrefab: {fileID: 295692051021194745, guid: 4d71faa3a9055c54e8e60e046938502a, type: 3}
   mAmount: 1200
   mSpawnOnce: 0
   mTimeBeforeEachSpawn: 2

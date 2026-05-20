@@ -10,7 +10,10 @@
   <Project Path="Unity.XR.Interaction.Toolkit.Samples.SpatialKeyboard.csproj" />
   <Project Path="FishNet.Demos.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.Samples.StarterAssets.csproj" />
+  <Project Path="fishnet.profiling.csproj" />
+  <Project Path="fishnet.core.csproj" />
   <Project Path="base.model.csproj" />
+  <Project Path="fishnet.model.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.Samples.StarterAssets.Editor.csproj" />
   <Project Path="base.profiling.csproj" />
   <Project Path="Assembly-CSharp-Editor.csproj" />

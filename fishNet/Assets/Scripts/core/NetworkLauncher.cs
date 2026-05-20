@@ -194,9 +194,18 @@ public class NetworkLauncher : NetworkBehaviour
     {
         SceneLoadData sld = new SceneLoadData("Benchmark");
         sld.ReplaceScenes = ReplaceOption.All;
+
+        base.SceneManager.OnLoadEnd += OnLoadEnd;
         DisablePhaseManagerRpc();
-        BaseLoader.Instance.GetComponent<BaseLauncher>().startAutoPhase1 = true;
         base.SceneManager.LoadGlobalScenes(sld);
+    }
+
+    private void OnLoadEnd(SceneLoadEndEventArgs args)
+    {
+        base.SceneManager.OnLoadEnd -= OnLoadEnd;
+        BaseLoader.Instance
+            .GetComponent<BaseLauncher>()
+            .startAutoPhase1 = true;
     }
 
     [ObserversRpc]

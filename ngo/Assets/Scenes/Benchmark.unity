@@ -496,8 +496,8 @@ GameObject:
   - component: {fileID: 580922099}
   - component: {fileID: 580922100}
   - component: {fileID: 580922101}
-  - component: {fileID: 580922103}
   - component: {fileID: 580922106}
+  - component: {fileID: 580922108}
   m_Layer: 0
   m_Name: Manager
   m_TagString: Untagged
@@ -589,21 +589,6 @@ MonoBehaviour:
   waitBetweenPhases: 10
   waitBeforeQuittingApp: 10
   moveAndSpawn: 0
---- !u!114 &580922103
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 580922095}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bde5909b463ec724f860a9b51b57f5bb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Unity.Profiling.ProfilerStatsToCSVExporter
-  outputName: profiler_stats
-  bucketDuration: 0.5
-  profilerStatsFile: {fileID: 11400000, guid: 4bfa3d190b988b14e8fa2c404f5d6b08, type: 2}
 --- !u!114 &580922104
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -655,6 +640,21 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: ngo.core::NgoEndLogic
   ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &580922108
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 580922095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5e8362da707bf4d4da6e94ca66f07ebb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: ngo.profiling::NgoProfilerStatsToCSVExporter
+  outputName: profiler_stats
+  bucketDuration: 0.5
+  profilerStatsFile: {fileID: 11400000, guid: 4bfa3d190b988b14e8fa2c404f5d6b08, type: 2}
 --- !u!1 &1338800694
 GameObject:
   m_ObjectHideFlags: 0

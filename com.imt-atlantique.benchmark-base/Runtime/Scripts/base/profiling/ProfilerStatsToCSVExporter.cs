@@ -23,7 +23,7 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
     [Tooltip("Input values found via ProfilerRecorderHandle.GetAvailable")]
     private ProfilerStats profilerStatsFile;
 
-#if UNITY_STANDALONE
+
     private const char OutputSeparator = ',';
 
     private ProfilerStatsEntry[] profilerStats = {
@@ -293,5 +293,5 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
 
         return new ReadOnlySpan<char>(LongAsCharsBuffer).Slice(bufferIndex, length);
     }
-#endif
+
 }

@@ -19,14 +19,21 @@ public class NetworkLogs : NetworkBehaviour
         {
             Debug.LogWarning("Profiler not found");
         }
+        StartCoroutine(InitNextFrame());
+        manager.eventsFileName = "fishNet_server_"+ manager.eventsFileName;
+        profiler.outputName = "fishNet_server_" + profiler.outputName;
+    }
+
+    private IEnumerator InitNextFrame()
+    {
+        yield return null; // critical: wait 1 frame for scene sync
+
         InstantiateManager.Instance.StartingInstantiation += SendClientEventSiRpc;
         InstantiateManager.Instance.FinishedInstantiation += SendClientEventFiRpc;
         PhaseManager.Instance.PhaseStarted += SendClientEventPSRpc;
         PhaseManager.Instance.PhaseFinished += SendClientEventPfRpc;
         MoveManager.Instance.StartMovingEntities += SendClientEventSmeRpc;
         MoveManager.Instance.EndMovingEntities += SendClientEventEmeRpc;
-        manager.eventsFileName = "fishNet_server_"+ manager.eventsFileName;
-        profiler.outputName = "fishNet_server_" + profiler.outputName;
     }
 
     public override void OnStartClient()

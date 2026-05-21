@@ -10,7 +10,7 @@ using UnityEngine;
     public class LogsManager : MonoBehaviour
     {
         
-#if PLATFORM_STANDALONE
+#if UNITY_STANDALONE
         public string eventsFileName = "events_";
 #elif UNITY_ANDROID
         public string eventsFileName = "quest_events_";

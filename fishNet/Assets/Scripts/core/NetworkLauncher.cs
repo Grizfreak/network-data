@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Linq;
 using System.Net;
 using FishNet.Connection;
@@ -181,7 +182,7 @@ public class NetworkLauncher : NetworkBehaviour
             Debug.Log("Client has connected successfully to the server with connectionId: " + conn.ClientId);
             if (isLaunchedHeadless)
             {
-                StartTest();
+                StartCoroutine(DelayedStartTest());
             }
         }
         else
@@ -190,13 +191,18 @@ public class NetworkLauncher : NetworkBehaviour
         }
     }
 
+    IEnumerator DelayedStartTest()
+    {
+        yield return new WaitForSeconds(0.5f);
+        StartTest();
+    }
+
     public void StartTest()
     {
+        DisablePhaseManagerRpc();
         SceneLoadData sld = new SceneLoadData("Benchmark");
         sld.ReplaceScenes = ReplaceOption.All;
-
         base.SceneManager.OnLoadEnd += OnLoadEnd;
-        DisablePhaseManagerRpc();
         base.SceneManager.LoadGlobalScenes(sld);
     }
 
@@ -208,7 +214,7 @@ public class NetworkLauncher : NetworkBehaviour
             .startAutoPhase1 = true;
     }
 
-    [ObserversRpc]
+    [ObserversRpc(BufferLast = true)]
     private void DisablePhaseManagerRpc()
     {
         BaseLoader.Instance.GetComponent<DisablePhaseLinkingForClients>().setSearch(true);

@@ -2861,7 +2861,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 823987760}
-  - component: {fileID: 823987759}
   - component: {fileID: 823987762}
   - component: {fileID: 823987761}
   m_Layer: 0
@@ -2871,18 +2870,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &823987759
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 823987758}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3bb4af9fb9ffdcf4b895702a49e6e5f0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: '::'
 --- !u!4 &823987760
 Transform:
   m_ObjectHideFlags: 0
@@ -3318,6 +3305,7 @@ GameObject:
   - component: {fileID: 1140055517}
   - component: {fileID: 1140055519}
   - component: {fileID: 1140055520}
+  - component: {fileID: 1140055521}
   m_Layer: 0
   m_Name: Launcher
   m_TagString: Untagged
@@ -3379,6 +3367,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a4e1bf608641edf4a93db9379136f1fd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
+--- !u!114 &1140055521
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1140055516}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3bb4af9fb9ffdcf4b895702a49e6e5f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: fishnet.core::NetworkLoader
 --- !u!1 &1165884603
 GameObject:
   m_ObjectHideFlags: 0

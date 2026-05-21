@@ -705,6 +705,7 @@ GameObject:
   - component: {fileID: 2143935289}
   - component: {fileID: 2143935290}
   - component: {fileID: 2143935291}
+  - component: {fileID: 2143935292}
   m_Layer: 0
   m_Name: Logs
   m_TagString: Untagged
@@ -842,6 +843,22 @@ MonoBehaviour:
   outputName: profiler_stats
   bucketDuration: 0.5
   profilerStatsFile: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
+--- !u!114 &2143935292
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2143935284}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c71fd7f855ec523429999fc4e14a1928, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishNet.Runtime::FishNet.Observing.NetworkObserver
+  _overrideType: 3
+  _updateHostVisibility: 1
+  _observerConditions:
+  - {fileID: 11400000, guid: 2033f54fd2794464bae08fa5a55c8996, type: 2}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

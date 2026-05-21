@@ -15,10 +15,12 @@ public class DisablePhaseLinkingForClients : MonoBehaviour
     {
         if (searchForPhaseManager)
         {
+            Debug.Log("Trying to disable auto linking phase for clients");
             if (PhaseManager.Instance != null)
             {
                 searchForPhaseManager = false;
                 PhaseManager.Instance.autoLinkingPhase = false;
+                Debug.Log("Auto linking phase disabled for clients");
             }
         }
     }

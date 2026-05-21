@@ -125,13 +125,17 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
         {
             WriteBucketRow();
         }
-
-        _textWriter.Flush();
-        _textWriter.Dispose();
-
-        foreach (ProfilerRecorder profilerRecorder in _profilerRecorders)
+        if (_textWriter != null)
         {
-            profilerRecorder.Dispose();
+            _textWriter.Flush();
+            _textWriter.Dispose();
+        }
+        if (_profilerRecorders != null)
+        {
+            foreach (ProfilerRecorder profilerRecorder in _profilerRecorders)
+            {
+                profilerRecorder.Dispose();
+            }
         }
         Debug.Log("Disabling ProfilerStatsToCsvExporter and disposed recorders.");
     }

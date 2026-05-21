@@ -14,7 +14,6 @@ using UnityEngine;
 public class FishNetProfilerStatsToCsvExporter : ProfilerStatsToCsvExporter
 {
 #if UNITY_STANDALONE
-
     // ------------------------------------------------------------------------
     // FISHNET
     // ------------------------------------------------------------------------

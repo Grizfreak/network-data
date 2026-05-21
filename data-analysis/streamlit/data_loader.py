@@ -100,6 +100,31 @@ def _pairing_score(stat_name: str, event_name: str, stat_dt: datetime, event_dt:
             return float("-inf")
         score += 200.0
 
+    # Prefer exact semantic token matches from filenames (component and client/server).
+    # If stat and event explicitly disagree on client/server, treat as incompatible.
+    def _tokens(name: str):
+        s = name.lower()
+        s = re.sub(r"^\[pc\]\s*", "", s)
+        s = re.sub(r"^\[quest\]\s*", "", s)
+        return set(re.findall(r"[a-z0-9]+", s))
+
+    stat_tokens = _tokens(stat_name)
+    event_tokens = _tokens(event_name)
+
+    # If one is 'client' and the other is 'server', reject pairing
+    if ("client" in stat_tokens and "server" in event_tokens) or ("server" in stat_tokens and "client" in event_tokens):
+        return float("-inf")
+
+    # Strongly prefer when both share the same major token (ngo, photon, dots, gpu, fishnet, profiler)
+    common = stat_tokens.intersection(event_tokens)
+    major_tokens = {"ngo", "photon", "dots", "gpu", "fishnet", "profiler", "benchmarkbase"}
+    if common.intersection(major_tokens):
+        score += 300.0
+
+    # Boost if both explicitly mention client/server consistently
+    if ("client" in stat_tokens and "client" in event_tokens) or ("server" in stat_tokens and "server" in event_tokens):
+        score += 300.0
+
     # Prefer semantic filename matches first (server/client/framework).
     preferred_patterns = _preferred_event_patterns(stat_name)
     for idx, pattern in enumerate(preferred_patterns):
@@ -169,8 +194,25 @@ def load_csv_files_from_folder(folder_path: Path):
             df = pd.read_csv(csv_file)
             file_name = csv_file.name
             lower_name = file_name.lower()
+            # Normalize common column names to a canonical form so downstream
+            # code can rely on `Event`, `Value`, `Frame`, and `Time` column names.
+            col_map = {}
+            cols_lower = {c.lower(): c for c in df.columns}
+            if "frame" in cols_lower:
+                col_map[cols_lower["frame"]] = "Frame"
+            if "time stamp" in cols_lower or "timestamp" in cols_lower:
+                col_map[cols_lower.get("time stamp", cols_lower.get("timestamp"))] = "Time Stamp"
+            if "time" in cols_lower and "time stamp" not in cols_lower:
+                col_map[cols_lower["time"]] = "Time"
+            if "event" in cols_lower:
+                col_map[cols_lower["event"]] = "Event"
+            if "value" in cols_lower:
+                col_map[cols_lower["value"]] = "Value"
+            if col_map:
+                df = df.rename(columns=col_map)
 
-            if "event" in lower_name or "Event" in df.columns:
+            # Detect event files by filename or by presence of an `Event` column
+            if "event" in lower_name or "event" in (c.lower() for c in df.columns):
                 events_files.append((file_name, df))
             else:
                 _, fpscol = detect_columns(df)
@@ -182,7 +224,7 @@ def load_csv_files_from_folder(folder_path: Path):
     return stats_files, events_files, read_errors
 
 
-def auto_pair_files(stats_list, events_list):
+def auto_pair_files(stats_list, events_list, min_score: float = 50.0):
     """Match stat files to event files using semantic name matching and timestamp proximity."""
     pairings = {}
     debug_info = []
@@ -209,7 +251,7 @@ def auto_pair_files(stats_list, events_list):
                     best_delta = None
 
         # Keep low-confidence pairings as unmatched.
-        if best_score < 50.0:
+        if best_score < min_score:
             match = None
 
         if match is not None:

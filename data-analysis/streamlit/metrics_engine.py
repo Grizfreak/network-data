@@ -7,8 +7,11 @@ def _has_network_columns(df: pd.DataFrame) -> bool:
     """Check if the DataFrame has any network-related columns."""
     network_cols = {
         "Ping (ns)", "Ping_ms",
+        "RTT_ms",
         "Total Bytes Received (bytes)", "TotalBytesReceived",
+        "NetInBytesPerSec",
         "Total Bytes Sent (bytes)", "TotalBytesSent",
+        "NetOutBytesPerSec",
         "Rpc Received", "PacketsIn",
         "Rpc Sent", "PacketsOut",
         "Object Spawned Bytes Received (bytes)",
@@ -78,6 +81,12 @@ def _format_label(file_name: str):
             variant = " Client"
         elif "photon_server" in body:
             variant = " Server"
+    elif "fishnet" in body:
+        bench_type = "FishNet"
+        if "fishnet_client" in body:
+            variant = " Client"
+        elif "fishnet_server" in body:
+            variant = " Server"
     elif "benchmarkbase" in body:
         bench_type = "Base"
     elif "gpu" in body:
@@ -98,17 +107,26 @@ def _fps_series_from_stats(df: pd.DataFrame, stat_name: str | None = None, x_axi
         return None
 
     fps_series = None
-    # Prefer the reported average frame rate when it is available.
-    if "average_frame_rate" in df.columns:
-        fps_series = pd.to_numeric(df["average_frame_rate"], errors="coerce")
-    elif "FPS" in df.columns:
-        fps_series = pd.to_numeric(df["FPS"], errors="coerce")
-    elif "FrameTimeMs" in df.columns:
+    # Prefer computing from FrameTimeMs when available (more reliable than
+    # an exported FPS column which sometimes contains scaled values).
+    if "FrameTimeMs" in df.columns:
         frame_time_ms = pd.to_numeric(df["FrameTimeMs"], errors="coerce")
         frame_time_ms = frame_time_ms.where(frame_time_ms > 0)
         fps_series = 1000.0 / frame_time_ms
+    elif "average_frame_rate" in df.columns:
+        fps_series = pd.to_numeric(df["average_frame_rate"], errors="coerce")
+    elif "FPS" in df.columns:
+        fps_series = pd.to_numeric(df["FPS"], errors="coerce")
     else:
         return None
+
+    # Guard: if the FPS values look implausibly large (e.g., >1000), and a
+    # FrameTimeMs column exists, prefer that computed series instead.
+    if fps_series is not None and (fps_series.mean(skipna=True) > 1000 or fps_series.median(skipna=True) > 1000):
+        if "FrameTimeMs" in df.columns:
+            frame_time_ms = pd.to_numeric(df["FrameTimeMs"], errors="coerce")
+            frame_time_ms = frame_time_ms.where(frame_time_ms > 0)
+            fps_series = 1000.0 / frame_time_ms
 
     plot_data = df[[x_column]].copy()
     plot_data["FPS"] = fps_series
@@ -166,6 +184,8 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
             series = pd.to_numeric(df["Ping (ns)"], errors="coerce") / 1000000.0
         elif "Ping_ms" in df.columns:
             series = pd.to_numeric(df["Ping_ms"], errors="coerce")
+        elif "RTT_ms" in df.columns:
+            series = pd.to_numeric(df["RTT_ms"], errors="coerce")
         else:
             return None, None
         plot_data = pd.DataFrame({x_column: frame, "Ping (ms)": series})
@@ -178,6 +198,8 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
             series = pd.to_numeric(df["Total Bytes Received (bytes)"], errors="coerce")
         elif "TotalBytesReceived" in df.columns:
             series = pd.to_numeric(df["TotalBytesReceived"], errors="coerce")
+        elif "NetInBytesPerSec" in df.columns:
+            series = pd.to_numeric(df["NetInBytesPerSec"], errors="coerce")
         else:
             return None, None
         plot_data = pd.DataFrame({x_column: frame, "Bytes Received": series})
@@ -190,6 +212,8 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
             series = pd.to_numeric(df["Total Bytes Sent (bytes)"], errors="coerce")
         elif "TotalBytesSent" in df.columns:
             series = pd.to_numeric(df["TotalBytesSent"], errors="coerce")
+        elif "NetOutBytesPerSec" in df.columns:
+            series = pd.to_numeric(df["NetOutBytesPerSec"], errors="coerce")
         else:
             return None, None
         plot_data = pd.DataFrame({x_column: frame, "Bytes Sent": series})
@@ -245,6 +269,10 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
         candidate = pd.to_numeric(df[col], errors="coerce")
         if candidate.isna().all():
             continue
+        if col == "GPU Frame Time (ns)":
+            # Some exports contain clearly corrupt GPU samples (e.g. 1e16 ns);
+            # drop anything implausibly large before converting to ms.
+            candidate = candidate.where((candidate > 0) & (candidate <= 1_000_000_000.0))
         metric_series = candidate / divisor
         used_col = col
         break
@@ -286,91 +314,7 @@ def _phase_bound(row: pd.Series, column: str):
     return float(value)
 
 
-def extract_movement_phase_window(events_df: pd.DataFrame, event_name: str | None = None):
-    """Return the frame/time window for the movement phase.
 
-    Prefer the longest complete phase with meaningful duration (>1 second).
-    For NGO client captures, fall back to the last phase marker as the phase entry point 
-    when the phase marker is zero-duration, then extend the window to the end of the capture.
-    """
-    events = events_df.copy()
-    for column in ("Frame", "Time"):
-        if column in events.columns:
-            events[column] = pd.to_numeric(events[column], errors="coerce")
-
-    if "Event" not in events.columns:
-        return None
-
-    phase_events = events.loc[events["Event"].isin(["PhaseStarted", "PhaseFinished"]), ["Frame", "Time", "Event"]].copy()
-    if phase_events.empty:
-        return None
-
-    phase_events = phase_events.sort_values(by=["Time", "Frame"], na_position="last").reset_index(drop=True)
-    start_positions = phase_events.index[phase_events["Event"] == "PhaseStarted"].tolist()
-    if not start_positions:
-        return None
-
-    # NGO client captures expose the last phase marker as the point where the
-    # movement capture should begin, even if that marker is zero-duration.
-    if event_name is not None and "ngo_client" in event_name.lower():
-        last_start_row = phase_events.loc[phase_events["Event"] == "PhaseStarted"].iloc[-1]
-        last_event_row = events.sort_values(by=["Time", "Frame"], na_position="last").iloc[-1]
-        start_time = _phase_bound(last_start_row, "Time")
-        end_time = _phase_bound(last_event_row, "Time")
-        if start_time is not None and end_time is not None and end_time > start_time:
-            return {
-                "frame_start": _phase_bound(last_start_row, "Frame"),
-                "frame_end": _phase_bound(last_event_row, "Frame"),
-                "time_start": start_time,
-                "time_end": end_time,
-            }
-
-    # Find the longest complete phase with meaningful duration (>1 second, not zero-duration)
-    # This avoids selecting very short phases that may be noise/transitions
-    best_phase = None
-    max_duration = 0
-    
-    for start_pos in start_positions:
-        following_finished = phase_events.loc[(phase_events.index > start_pos) & (phase_events["Event"] == "PhaseFinished")]
-        if following_finished.empty:
-            continue
-
-        start_row = phase_events.iloc[start_pos]
-        end_row = following_finished.iloc[0]
-        time_start = _phase_bound(start_row, "Time")
-        time_end = _phase_bound(end_row, "Time")
-        
-        # Skip zero-duration phases (where start and end have the same timestamp)
-        # Also skip phases shorter than 1 second (likely noise/transitions)
-        if time_start is not None and time_end is not None:
-            duration = time_end - time_start
-            if duration > 1.0 and duration > max_duration:
-                max_duration = duration
-                best_phase = {
-                    "frame_start": _phase_bound(start_row, "Frame"),
-                    "frame_end": _phase_bound(end_row, "Frame"),
-                    "time_start": time_start,
-                    "time_end": time_end,
-                }
-    
-    return best_phase
-
-
-def _find_any_movement_phase_window(events_files: List[Tuple[str, pd.DataFrame]]):
-    """Find any movement phase window from available event files.
-    
-    This is used as a fallback for Quest stats files that have no associated event file.
-    Try each event file until we find one with a valid movement phase window.
-    """
-    if not events_files:
-        return None
-    
-    for event_name, events_df in events_files:
-        phase_window = extract_movement_phase_window(events_df, event_name)
-        if phase_window is not None:
-            return phase_window
-    
-    return None
 
 
 def _filter_dataframe_to_window(df: pd.DataFrame, window):
@@ -402,43 +346,7 @@ def _filter_dataframe_to_window(df: pd.DataFrame, window):
     return df.loc[mask].copy()
 
 
-def _normalize_time_to_phase_start(df: pd.DataFrame, window):
-    """Normalize time column to start at 0 from phase window start time.
-    
-    For movement phase visualization, convert absolute time to relative elapsed time
-    since the phase started. This aligns all benchmarks to start at x=0 on plots.
-    
-    Always outputs time in seconds for consistency across all data sources.
-    """
-    if window is None or df.empty:
-        return df.copy()
-    
-    df_out = df.copy()
-    column = _frame_column_name(df_out)
-    if column is None or column == "Frame":
-        return df_out
-    
-    start_time = window.get("time_start")
-    if start_time is None:
-        return df_out
-    
-    # Get the raw time values
-    values = pd.to_numeric(df_out[column], errors="coerce")
-    if not values.notna().any():
-        return df_out
-    
-    first_val = values.dropna().iloc[0]
-    
-    # Detect if input is in milliseconds (values > 1000 likely mean milliseconds)
-    if first_val > 1000:
-        # Input is in milliseconds, convert to seconds
-        values_normalized = (values - start_time * 1000.0) / 1000.0
-    else:
-        # Input is in seconds, subtract phase start (also in seconds)
-        values_normalized = values - start_time
-    
-    df_out[column] = values_normalized
-    return df_out
+
 
 
 def metric_per_gameobject_series(stats_df: pd.DataFrame, events_df: pd.DataFrame, metric_key: str, stat_name: str | None = None):
@@ -469,8 +377,8 @@ def build_datasets(
     selected_metric_key: str,
     selected_metric_label: str,
     per_gameobject: bool,
-    phase_filter: str | None = None,
     x_axis_mode: str = "frame",
+    include_unpaired: bool = False,
 ):
     """Build chart-ready datasets and warning messages from selected inputs."""
     datasets = []
@@ -481,8 +389,8 @@ def build_datasets(
         if per_gameobject:
             selected_event_name = user_pairings.get(sname)
             if selected_event_name is None:
-                if phase_filter == "movement":
-                    warnings.append(f"No event file selected for {sname}; cannot isolate the movement phase.")
+                if not include_unpaired:
+                    warnings.append(f"No event file selected for {sname}; skipping per-GameObject aggregation.")
                     continue
                 warnings.append(
                     f"No event file selected for {sname}; falling back to per-frame-to-GameObject conversion for this file."
@@ -503,16 +411,6 @@ def build_datasets(
                 if edf is None:
                     warnings.append(f"Event file {selected_event_name} not found for {sname}.")
                     continue
-
-                phase_window = None
-                if phase_filter == "movement":
-                    phase_window = extract_movement_phase_window(edf, selected_event_name)
-                    if phase_window is None:
-                        warnings.append(f"No movement phase found in {selected_event_name}; skipping {sname}.")
-                        continue
-                    sdf = _filter_dataframe_to_window(sdf, phase_window)
-                    edf = _filter_dataframe_to_window(edf, phase_window)
-
                 series, ycol = metric_per_gameobject_series(sdf, edf, selected_metric_key, sname)
                 if series is None or series.empty or ycol is None:
                     # Skip warning for network metrics on files without network data
@@ -526,53 +424,18 @@ def build_datasets(
                         if not (selected_metric_key.startswith("network_") and not _has_network_columns(sdf)):
                             warnings.append(f"Also could not parse {selected_metric_label} series from {sname}.")
                         continue
-                    
-                    # Normalize time if movement phase and time x-axis (in fallback path)
-                    if phase_filter == "movement" and phase_window is not None and x_axis_mode == "time":
-                        series = _normalize_time_to_phase_start(series, phase_window)
-                    
                     series = series.rename(columns={"Frame": "GameObjects", ycol: f"Average{ycol}"})
                     ycol = f"Average{ycol}"
                 series["label"] = label
                 series["_ycol"] = ycol
                 datasets.append((label, series))
         else:
-            phase_window = None
-            if phase_filter == "movement":
-                selected_event_name = user_pairings.get(sname)
-                
-                # Try to use paired event file first
-                if selected_event_name is not None:
-                    edf = _get_event_df(events_files, selected_event_name)
-                    if edf is not None:
-                        phase_window = extract_movement_phase_window(edf, selected_event_name)
-                
-                # Fallback to any available movement phase window (for Quest data without events)
-                if phase_window is None:
-                    phase_window = _find_any_movement_phase_window(events_files)
-                
-                # Skip only if we found no phase window at all
-                if phase_window is None:
-                    if selected_event_name is not None:
-                        warnings.append(f"No movement phase found in {selected_event_name}; skipping {sname}.")
-                    else:
-                        warnings.append(f"No event file selected for {sname} and no movement phase found in other event files; skipping.")
-                    continue
-                
-                sdf = _filter_dataframe_to_window(sdf, phase_window)
-
             series, ycol = metric_series_from_stats(sdf, selected_metric_key, sname, x_axis_mode=x_axis_mode)
             if series is None or ycol is None:
                 # Skip silently for network metrics on files without network data
                 if not (selected_metric_key.startswith("network_") and not _has_network_columns(sdf)):
                     warnings.append(f"Could not parse {selected_metric_label} series from {sname}.")
                 continue
-            
-            # Normalize time to start at 0 from phase window start (for time-based x-axis)
-            # Apply AFTER metric_series_from_stats so column names are finalized
-            if phase_filter == "movement" and phase_window is not None and x_axis_mode == "time":
-                series = _normalize_time_to_phase_start(series, phase_window)
-            
             series["label"] = label
             series["_ycol"] = ycol
             datasets.append((label, series))

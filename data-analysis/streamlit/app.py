@@ -11,7 +11,7 @@ from data_loader import (
     load_csv_files_from_folder,
     normalize_timestamp,
 )
-from metrics_engine import build_datasets
+from metrics_engine import build_datasets, metric_series_from_stats
 
 # allow importing project helpers (assemble.py)
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -99,7 +99,10 @@ if not stats_files and not events_files:
     st.stop()
 
 # Auto-pair files
-user_pairings, pairing_debug = auto_pair_files(stats_files, events_files)
+st.subheader("Auto-pairing options")
+use_strict_pairing = st.checkbox("Use stricter auto-pairing (require higher confidence)", value=False)
+min_pair_score = 150.0 if use_strict_pairing else 50.0
+user_pairings, pairing_debug = auto_pair_files(stats_files, events_files, min_score=min_pair_score)
 st.session_state.pairing_debug = pairing_debug
 
 # Show pairing results
@@ -126,8 +129,24 @@ if stats_files or events_files:
                 ts_str, dt = extract_timestamp(ename)
                 norm_ts = normalize_timestamp(ts_str) if ts_str else None
                 st.write(f"  {ename} → raw: {ts_str}, normalized: {norm_ts}")
+        # Diagnostic: report FPS computation stats per stat file
+        st.write("**Diagnostic: FPS computation per stat file**")
+        for sname, sdf in stats_files:
+            try:
+                series, ycol = metric_series_from_stats(sdf, "fps", sname, x_axis_mode="frame")
+                if series is None or ycol is None:
+                    st.write(f"{sname}: no FPS series parsed")
+                    continue
+                # compute simple stats
+                fps_vals = pd.to_numeric(series["FPS"], errors="coerce") if "FPS" in series.columns else pd.Series([], dtype=float)
+                mean = float(fps_vals.mean(skipna=True)) if not fps_vals.empty else None
+                med = float(fps_vals.median(skipna=True)) if not fps_vals.empty else None
+                count = int(fps_vals.count()) if not fps_vals.empty else 0
+                st.write(f"{sname}: ycol={ycol}, samples={count}, mean={mean}, median={med}")
+            except Exception as e:
+                st.write(f"{sname}: error computing FPS diagnostics: {e}")
 
-per_gameobject = st.checkbox("Aggregate per GameObject using events (FinishedInstantiation)", value=True)
+per_gameobject = st.checkbox("Aggregate per GameObject using events (FinishedInstantiation/StartedInstantiation)", value=True)
 
 # Show pairing UI if per-GameObject is enabled
 if per_gameobject and stats_files and events_files:
@@ -182,13 +201,24 @@ metric_options = {
 def get_available_metrics(stats_files, metric_options):
     """Scan loaded files and return only metrics that have data."""
     available = set()
-    network_cols_present = False
+    ping_cols_present = False
+    bytes_recv_cols_present = False
+    bytes_sent_cols_present = False
+    rpc_recv_cols_present = False
+    rpc_sent_cols_present = False
     
     for _, df in stats_files:
-        # Check for network columns
-        if any(col in df.columns for col in ["Ping (ns)", "Ping_ms", "Total Bytes Received (bytes)", 
-                                              "TotalBytesReceived", "Rpc Received", "PacketsIn"]):
-            network_cols_present = True
+        # Check for network columns by metric family.
+        if any(col in df.columns for col in ["Ping (ns)", "Ping_ms", "RTT_ms"]):
+            ping_cols_present = True
+        if any(col in df.columns for col in ["Total Bytes Received (bytes)", "TotalBytesReceived", "NetInBytesPerSec"]):
+            bytes_recv_cols_present = True
+        if any(col in df.columns for col in ["Total Bytes Sent (bytes)", "TotalBytesSent", "NetOutBytesPerSec"]):
+            bytes_sent_cols_present = True
+        if any(col in df.columns for col in ["Rpc Received", "PacketsIn"]):
+            rpc_recv_cols_present = True
+        if any(col in df.columns for col in ["Rpc Sent", "PacketsOut"]):
+            rpc_sent_cols_present = True
         
         # Check for performance metrics (always available if we have stats files)
         if any(col in df.columns for col in ["FPS", "average_frame_rate", "FrameTimeMs"]):
@@ -201,10 +231,17 @@ def get_available_metrics(stats_files, metric_options):
         if any(col in df.columns for col in ["GPU Frame Time (ns)", "app_gpu_time_microseconds"]):
             available.add("GPU (ms)")
     
-    # Add network metrics only if network columns exist
-    if network_cols_present:
-        available.update(["Network - Ping (ms)", "Network - Bytes Received", "Network - Bytes Sent", 
-                         "Network - Messages Received", "Network - Messages Sent"])
+    # Add network metrics only if the relevant columns exist.
+    if ping_cols_present:
+        available.add("Network - Ping (ms)")
+    if bytes_recv_cols_present:
+        available.add("Network - Bytes Received")
+    if bytes_sent_cols_present:
+        available.add("Network - Bytes Sent")
+    if rpc_recv_cols_present:
+        available.add("Network - Messages Received")
+    if rpc_sent_cols_present:
+        available.add("Network - Messages Sent")
     
     return sorted(available)
 
@@ -225,6 +262,9 @@ with col1:
 with col2:
     columns_count = st.selectbox("Columns", [1, 2, 3, 4], index=1)
 
+# Option: include unpaired stat files by falling back to per-frame conversion
+include_unpaired = st.checkbox("Include unpaired stat files (fallback to per-frame)", value=False)
+
 if not selected_metrics:
     selected_metrics = list(available_metrics)
 
@@ -243,6 +283,7 @@ for metric_key in selected_metric_keys:
         selected_metric_label=metric_label,
         per_gameobject=per_gameobject,
         x_axis_mode="frame",
+        include_unpaired=include_unpaired,
     )
     line_filter_candidates.update([label for label, _ in preview_datasets])
 
@@ -334,30 +375,12 @@ def create_network_plot(net_datasets, selected_labels, per_gameobject, xcol):
     return fig
 
 
-def create_standard_plot(datasets, selected_labels, metric_label, metric_key, per_gameobject, xcol, phase_label=None):
+def create_standard_plot(datasets, selected_labels, metric_label, metric_key, per_gameobject, xcol):
     """Create a standard line plot for non-network metrics."""
     combined = []
     plot_ycol = None
 
-    def _trim_leading_zero_ping(frame: pd.DataFrame, y_column: str):
-        if metric_key != "network_ping" or phase_label != "Movement Phase":
-            return frame
-        if y_column not in frame.columns or frame.empty:
-            return frame
-
-        values = pd.to_numeric(frame[y_column], errors="coerce")
-        nonzero = values.ne(0) & values.notna()
-        
-        # If all values are zero (legitimate for localhost/same-machine benchmarks),
-        # keep the data instead of removing it
-        if not nonzero.any():
-            return frame
-        
-        # If there are non-zero values, skip leading zeros before the first non-zero
-        first_nonzero_idx = nonzero.idxmax()
-        if first_nonzero_idx == 0:
-            return frame
-        return frame.loc[first_nonzero_idx:].copy()
+    # No movement-phase-specific trimming; keep series as-is
     
     for label, df in datasets:
         if label not in selected_labels:
@@ -408,23 +431,7 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
         uniform = uniform.groupby(["label", "_bin"], as_index=False).agg(agg_dict)
         return uniform.sort_values(x_column).reset_index(drop=True)
     
-    if phase_label == "Movement Phase" and xcol == "Time":
-        resampled = []
-        for temp in combined:
-            # Always try to get the correct y_col from the dataframe metadata first
-            y_col = None
-            if "_ycol" in temp.columns and len(temp) > 0:
-                y_col = temp["_ycol"].iloc[0]
-            # Fall back to plot_ycol if available and matches columns
-            if y_col is None:
-                y_col = plot_ycol
-            # Skip if no valid metric column found
-            if y_col is None or y_col not in temp.columns:
-                continue
-            trimmed = _trim_leading_zero_ping(temp, y_col)
-            if not trimmed.empty:
-                resampled.append(_uniform_time_bins(trimmed, xcol, y_col))
-        combined = resampled
+    # keep combined as-is; no movement-phase resampling
 
     if not combined:
         return None
@@ -453,9 +460,7 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
     
     all_df = all_df.drop(columns=["_ycol"], errors="ignore")
     
-    fig = px.line(all_df, x=xcol, y=ycol, color="label", markers=(phase_label is None))
-    if phase_label == "Movement Phase":
-        fig.update_traces(line=dict(width=2))
+    fig = px.line(all_df, x=xcol, y=ycol, color="label", markers=True)
     
     if metric_key == "fps":
         fig.add_hline(
@@ -466,7 +471,7 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
             annotation_position="top left",
         )
     
-    phase_suffix = f" - {phase_label}" if phase_label else ""
+    phase_suffix = ""
     # Use the actual y-column name for the y-axis label (in case Quest/PC differ)
     y_axis_label = ycol if ycol not in ("FPS", metric_label) else metric_label
     figure_title = f"{metric_label}{phase_suffix} per GameObject" if per_gameobject else f"{metric_label}{phase_suffix} vs {xcol}"
@@ -474,7 +479,7 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
     return fig
 
 
-def build_metric_figures(phase_filter=None, phase_label=None, per_gameobject_override=None, x_axis_mode="frame"):
+def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame"):
     metric_figures = {}
     for metric_key in selected_metric_keys:
         metric_label = [k for k, v in metric_options.items() if v == metric_key][0]
@@ -486,8 +491,8 @@ def build_metric_figures(phase_filter=None, phase_label=None, per_gameobject_ove
             selected_metric_key=metric_key,
             selected_metric_label=metric_label,
             per_gameobject=use_per_gameobject,
-            phase_filter=phase_filter,
             x_axis_mode=x_axis_mode,
+            include_unpaired=include_unpaired,
         )
 
         if datasets:
@@ -503,7 +508,6 @@ def build_metric_figures(phase_filter=None, phase_label=None, per_gameobject_ove
                 metric_key,
                 use_per_gameobject,
                 "GameObjects" if use_per_gameobject else ("Time" if x_axis_mode == "time" else "Frame"),
-                phase_label=phase_label,
             )
             if fig:
                 metric_figures[metric_label] = fig
@@ -537,21 +541,4 @@ metric_figures = build_metric_figures()
 render_dashboard(metric_figures, "Metrics Dashboard")
 
 # Generate and display the movement-phase dashboard below the main one
-movement_metric_figures = build_metric_figures(
-    phase_filter="movement",
-    phase_label="Movement Phase",
-    per_gameobject_override=False,
-    x_axis_mode="time",
-)
-
-if not movement_metric_figures:
-    st.warning(
-        "No compatible datasets found for Movement Phase Dashboard. "
-        "This typically occurs when:\n"
-        "• Your data lacks event files (needed for phase detection)\n"
-        "• Selected metrics are not available in your data (e.g., Network metrics require network data)\n"
-        "• All datasets were filtered out during phase extraction\n\n"
-        "Try displaying metrics from the main dashboard instead, or ensure you have event files paired with stats files."
-    )
-else:
-    render_dashboard(movement_metric_figures, "Movement Phase Dashboard")
+# movement-phase dashboard removed (data changed; movement phase logic deprecated)

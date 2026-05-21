@@ -1,4 +1,7 @@
-$project_folders = @("base","base_DOTS","base_GPU","photonFusion","ngo", "fishNet")
+param(
+    [string[]]$ProjectFolders = @("base","base_DOTS","base_GPU","photonFusion","ngo","fishNet")
+)
+
 $unity_path = "C:\Program Files\Unity\Hub\Editor\6000.3.7f1\Editor\Unity.exe"
 $build_path_output = Join-Path $PSScriptRoot "builds"
 
@@ -6,7 +9,7 @@ if (!(Test-Path $build_path_output)) {
     New-Item -ItemType Directory -Path $build_path_output | Out-Null
 }
 
-foreach ($folder in $project_folders) {
+foreach ($folder in $ProjectFolders) {
     $project_path = Join-Path $PSScriptRoot $folder
 
     # --- PC BUILD ---

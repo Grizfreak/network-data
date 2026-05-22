@@ -1,4 +1,5 @@
 ﻿<Solution>
+  <Project Path="base.profiling.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
   <Project Path="base.core.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.Samples.DeviceSimulator.csproj" />
@@ -11,5 +12,4 @@
   <Project Path="Unity.XR.Interaction.Toolkit.Samples.StarterAssets.Editor.csproj" />
   <Project Path="ngo.core.csproj" />
   <Project Path="ngo.model.csproj" />
-  <Project Path="base.profiling.csproj" />
 </Solution>

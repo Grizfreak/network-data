@@ -12,10 +12,10 @@ public class NetworkLogs : NetworkBehaviour
         {
             Debug.LogError("Failed to add LogsManager component to NetworkLogs.");
         }
-        PhotonProfilerStatsToCsvExporter exporter = PhaseManager.Instance.gameObject.GetComponent<PhotonProfilerStatsToCsvExporter>();
+        ProfilerStatsToCsvExporter exporter = PhaseManager.Instance.gameObject.GetComponent<ProfilerStatsToCsvExporter>();
         if (exporter == null)
         {
-            Debug.LogError("Failed to add PhotonProfilerStatsToCsvExporter component to NetworkLogs.");
+            Debug.LogError("Failed to add ProfilerStatsToCsvExporter component to NetworkLogs.");
         }
 
         if (_runner.IsServer)

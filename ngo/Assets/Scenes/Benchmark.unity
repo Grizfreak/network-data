@@ -497,7 +497,8 @@ GameObject:
   - component: {fileID: 580922100}
   - component: {fileID: 580922101}
   - component: {fileID: 580922106}
-  - component: {fileID: 580922108}
+  - component: {fileID: 580922109}
+  - component: {fileID: 580922110}
   m_Layer: 0
   m_Name: Manager
   m_TagString: Untagged
@@ -640,7 +641,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: ngo.core::NgoEndLogic
   ShowTopMostFoldoutHeaderGroup: 1
---- !u!114 &580922108
+--- !u!114 &580922109
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -649,12 +650,26 @@ MonoBehaviour:
   m_GameObject: {fileID: 580922095}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5e8362da707bf4d4da6e94ca66f07ebb, type: 3}
+  m_Script: {fileID: 11500000, guid: bde5909b463ec724f860a9b51b57f5bb, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: ngo.profiling::NgoProfilerStatsToCSVExporter
+  m_EditorClassIdentifier: base.profiling::ProfilerStatsToCsvExporter
   outputName: profiler_stats
   bucketDuration: 0.5
   profilerStatsFile: {fileID: 11400000, guid: 4bfa3d190b988b14e8fa2c404f5d6b08, type: 2}
+  includeNetworkStats: 1
+  networkBenchmarkProviderBehaviour: {fileID: 580922110}
+--- !u!114 &580922110
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 580922095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9f2bc0dcc276a974c98bf2ba2a012f49, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: ngo.profiling::NetworkBenchmarkNGO
 --- !u!1 &1338800694
 GameObject:
   m_ObjectHideFlags: 0

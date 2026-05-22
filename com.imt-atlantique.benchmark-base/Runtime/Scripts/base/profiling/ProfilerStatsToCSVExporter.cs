@@ -23,6 +23,26 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
     [Tooltip("Input values found via ProfilerRecorderHandle.GetAvailable")]
     private ProfilerStats profilerStatsFile;
 
+    [Header("Optional provider for network benchmarks (RTT, bytes sent/received)")]
+    [SerializeField]
+    private bool includeNetworkStats = false;
+    [SerializeField]
+    private MonoBehaviour networkBenchmarkProviderBehaviour;
+
+    private INetworkBenchmarkProvider _networkBenchmarkProvider;
+
+    // --- Network bucket state ---
+    private float _bucketRttSum;
+    private int _bucketRttSamples;
+
+    private long _lastBytesSent;
+    private long _lastBytesReceived;
+
+    private long _bucketBytesSentDelta;
+    private long _bucketBytesReceivedDelta;
+
+    private bool _networkBaselineInitialized;
+
 
     private const char OutputSeparator = ',';
 
@@ -65,6 +85,16 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
 
     protected virtual void Start()
     {
+        _networkBenchmarkProvider =
+            networkBenchmarkProviderBehaviour as INetworkBenchmarkProvider;
+
+        if (networkBenchmarkProviderBehaviour != null &&
+            _networkBenchmarkProvider == null)
+        {
+            Debug.LogError(
+                $"{networkBenchmarkProviderBehaviour.name} does not implement INetworkBenchmarkProvider");
+        }
+
         // Apply new profiler data from file
         if (profilerStatsFile != null)
         {
@@ -90,6 +120,14 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
         _textWriter.Write("FPS");                // Average FPS over the bucket
         _textWriter.Write(OutputSeparator);
         _textWriter.Write("FrameTimeMs");        // Average frame time over the bucket
+        _textWriter.Write(OutputSeparator);
+        _textWriter.Write("RTT (ms)");
+        _textWriter.Write(OutputSeparator);
+
+        _textWriter.Write("Upload (bytes/sec)");
+        _textWriter.Write(OutputSeparator);
+
+        _textWriter.Write("Download (bytes/sec)");
         _textWriter.Write(OutputSeparator);
 
         _profilerRecorders = new ProfilerRecorder[profilerStats.Length];
@@ -157,6 +195,31 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
         }
         _bucketProfilerSamples++;
 
+        //Network system
+        if (includeNetworkStats && _networkBenchmarkProvider != null)
+        {
+            _bucketRttSum += _networkBenchmarkProvider.GetRttMs();
+            _bucketRttSamples++;
+
+            long currentSent = _networkBenchmarkProvider.GetBytesSent();
+            long currentReceived = _networkBenchmarkProvider.GetBytesReceived();
+
+            if (!_networkBaselineInitialized)
+            {
+                _lastBytesSent = currentSent;
+                _lastBytesReceived = currentReceived;
+                _networkBaselineInitialized = true;
+            }
+            else
+            {
+                _bucketBytesSentDelta += currentSent - _lastBytesSent;
+                _bucketBytesReceivedDelta += currentReceived - _lastBytesReceived;
+
+                _lastBytesSent = currentSent;
+                _lastBytesReceived = currentReceived;
+            }
+        }
+
         // When bucket is full, write one row and reset
         if (_bucketAccumulator >= bucketDuration)
         {
@@ -192,7 +255,29 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
 
         _textWriter.Write(avgFrameTime.ToString("F3", CultureInfo.InvariantCulture));
         _textWriter.Write(OutputSeparator);
+        if (includeNetworkStats)
+        {
+            float avgRtt = _bucketRttSamples > 0
+                ? _bucketRttSum / _bucketRttSamples
+                : 0f;
 
+            float uploadRate = _bucketAccumulator > 0f
+                ? _bucketBytesSentDelta / _bucketAccumulator
+                : 0f;
+
+            float downloadRate = _bucketAccumulator > 0f
+                ? _bucketBytesReceivedDelta / _bucketAccumulator
+                : 0f;
+
+            _textWriter.Write(avgRtt.ToString("F2", CultureInfo.InvariantCulture));
+            _textWriter.Write(OutputSeparator);
+
+            _textWriter.Write(uploadRate.ToString("F0", CultureInfo.InvariantCulture));
+            _textWriter.Write(OutputSeparator);
+
+            _textWriter.Write(downloadRate.ToString("F0", CultureInfo.InvariantCulture));
+            _textWriter.Write(OutputSeparator);
+        }
         int samples = _bucketProfilerSamples > 0 ? _bucketProfilerSamples : 1;
         for (int i = 0; i < _profilerRecorders.Length; i++)
         {
@@ -214,6 +299,14 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
         _bucketFrameTimeSum = 0f;
         _bucketFrameCount   = 0;
         _bucketProfilerSamples = 0;
+
+        if (includeNetworkStats)
+        {
+            _bucketRttSum = 0f;
+            _bucketRttSamples = 0;
+            _bucketBytesSentDelta = 0;
+            _bucketBytesReceivedDelta = 0;
+        }
 
         for (int i = 0; i < _bucketProfilerSums.Length; i++)
         {

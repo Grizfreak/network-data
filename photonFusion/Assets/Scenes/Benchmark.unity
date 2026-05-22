@@ -449,7 +449,8 @@ GameObject:
   - component: {fileID: 580922100}
   - component: {fileID: 580922101}
   - component: {fileID: 580922105}
-  - component: {fileID: 580922106}
+  - component: {fileID: 580922107}
+  - component: {fileID: 580922108}
   m_Layer: 0
   m_Name: Manager
   m_TagString: Untagged
@@ -522,6 +523,7 @@ MonoBehaviour:
   waitingPhase1Time: 10
   waitBetweenPhases: 10
   waitBeforeQuittingApp: 10
+  moveAndSpawn: 0
 --- !u!114 &580922105
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -540,7 +542,7 @@ MonoBehaviour:
   timeBeforeSpawn: 10
   numberPerWave: 400
   spawnZone: {fileID: 1946087857}
---- !u!114 &580922106
+--- !u!114 &580922107
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -549,12 +551,26 @@ MonoBehaviour:
   m_GameObject: {fileID: 580922095}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 64a391d359b626140aa7beee55e570dd, type: 3}
+  m_Script: {fileID: 11500000, guid: bde5909b463ec724f860a9b51b57f5bb, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PhotonProfilerStatsToCsvExporter
+  m_EditorClassIdentifier: base.profiling::ProfilerStatsToCsvExporter
   outputName: profiler_stats
   bucketDuration: 0.5
   profilerStatsFile: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
+  includeNetworkStats: 1
+  networkBenchmarkProviderBehaviour: {fileID: 580922108}
+--- !u!114 &580922108
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 580922095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 594272359de07a2458ade29c240fdde8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NetworkBenchmarkPhoton
 --- !u!1 &691926608
 GameObject:
   m_ObjectHideFlags: 0

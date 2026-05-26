@@ -704,8 +704,9 @@ GameObject:
   - component: {fileID: 2143935285}
   - component: {fileID: 2143935289}
   - component: {fileID: 2143935290}
-  - component: {fileID: 2143935291}
   - component: {fileID: 2143935292}
+  - component: {fileID: 2143935294}
+  - component: {fileID: 2143935293}
   m_Layer: 0
   m_Name: Logs
   m_TagString: Untagged
@@ -828,21 +829,6 @@ MonoBehaviour:
   _componentIndexCache: 255
   _addedNetworkObject: {fileID: 2143935285}
   _networkObjectCache: {fileID: 0}
---- !u!114 &2143935291
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2143935284}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: abeda49d42e57844db4380028a4979c0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FishNetProfilerStatsToCsvExporter
-  outputName: profiler_stats
-  bucketDuration: 0.5
-  profilerStatsFile: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
 --- !u!114 &2143935292
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -859,6 +845,35 @@ MonoBehaviour:
   _updateHostVisibility: 1
   _observerConditions:
   - {fileID: 11400000, guid: 2033f54fd2794464bae08fa5a55c8996, type: 2}
+--- !u!114 &2143935293
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2143935284}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bde5909b463ec724f860a9b51b57f5bb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: base.profiling::ProfilerStatsToCsvExporter
+  outputName: profiler_stats
+  bucketDuration: 0.5
+  profilerStatsFile: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
+  includeNetworkStats: 1
+  networkBenchmarkProviderBehaviour: {fileID: 2143935294}
+--- !u!114 &2143935294
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2143935284}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 873c3f44686dc7a4a88b79b44a1e40e0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: '::'
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

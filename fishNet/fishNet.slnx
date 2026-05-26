@@ -2,6 +2,7 @@
   <Project Path="FishNet.Runtime.csproj" />
   <Project Path="FishNet.Codegen.Cecil.csproj" />
   <Project Path="SynapseSocket.csproj" />
+  <Project Path="base.profiling.csproj" />
   <Project Path="GameKit.Dependencies.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
   <Project Path="base.core.csproj" />
@@ -15,6 +16,5 @@
   <Project Path="base.model.csproj" />
   <Project Path="fishnet.model.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.Samples.StarterAssets.Editor.csproj" />
-  <Project Path="base.profiling.csproj" />
   <Project Path="Assembly-CSharp-Editor.csproj" />
 </Solution>

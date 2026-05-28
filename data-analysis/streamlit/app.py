@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from pathlib import Path
+from statistics import median
 import sys
 
 from data_loader import (
@@ -23,7 +24,7 @@ except Exception:
 st.set_page_config(page_title="Benchmark Metrics Viewer", layout="wide")
 
 st.title("Benchmark Metrics Viewer")
-st.markdown("Load PC and/or Quest benchmark data. Choose a metric (FPS, Memory, CPU, GPU) and the app will plot either per-frame or per-GameObject series.")
+st.markdown("Load PC and/or Quest benchmark data. Choose a metric (FPS, Memory, CPU, GPU, Network) and the app will plot either per-frame or per-GameObject series.")
 
 # Initialize session state for pairings
 if "pairings_state" not in st.session_state:
@@ -138,10 +139,10 @@ if stats_files or events_files:
                     st.write(f"{sname}: no FPS series parsed")
                     continue
                 # compute simple stats
-                fps_vals = pd.to_numeric(series["FPS"], errors="coerce") if "FPS" in series.columns else pd.Series([], dtype=float)
-                mean = float(fps_vals.mean(skipna=True)) if not fps_vals.empty else None
-                med = float(fps_vals.median(skipna=True)) if not fps_vals.empty else None
-                count = int(fps_vals.count()) if not fps_vals.empty else 0
+                fps_vals = pd.to_numeric(series["FPS"], errors="coerce").dropna().to_numpy(dtype=float) if "FPS" in series.columns else []
+                mean = float(sum(fps_vals) / len(fps_vals)) if len(fps_vals) else None
+                med = float(median(fps_vals)) if len(fps_vals) else None
+                count = int(len(fps_vals))
                 st.write(f"{sname}: ycol={ycol}, samples={count}, mean={mean}, median={med}")
             except Exception as e:
                 st.write(f"{sname}: error computing FPS diagnostics: {e}")
@@ -190,35 +191,27 @@ metric_options = {
     "Memory (MB)": "memory",
     "CPU (ms)": "cpu",
     "GPU (ms)": "gpu",
-    "Network - Ping (ms)": "network_ping",
-    "Network - Bytes Received": "network_bytes_recv",
-    "Network - Bytes Sent": "network_bytes_sent",
-    "Network - Messages Received": "network_rpc_recv",
-    "Network - Messages Sent": "network_rpc_sent",
+    "Network - RTT (ms)": "network_rtt",
+    "Network - Upload (bytes/sec)": "network_upload",
+    "Network - Download (bytes/sec)": "network_download",
 }
 
 # Detect which metrics are actually available in the loaded data
 def get_available_metrics(stats_files, metric_options):
     """Scan loaded files and return only metrics that have data."""
     available = set()
-    ping_cols_present = False
-    bytes_recv_cols_present = False
-    bytes_sent_cols_present = False
-    rpc_recv_cols_present = False
-    rpc_sent_cols_present = False
+    rtt_cols_present = False
+    upload_cols_present = False
+    download_cols_present = False
     
     for _, df in stats_files:
         # Check for network columns by metric family.
-        if any(col in df.columns for col in ["Ping (ns)", "Ping_ms", "RTT_ms"]):
-            ping_cols_present = True
-        if any(col in df.columns for col in ["Total Bytes Received (bytes)", "TotalBytesReceived", "NetInBytesPerSec"]):
-            bytes_recv_cols_present = True
-        if any(col in df.columns for col in ["Total Bytes Sent (bytes)", "TotalBytesSent", "NetOutBytesPerSec"]):
-            bytes_sent_cols_present = True
-        if any(col in df.columns for col in ["Rpc Received", "PacketsIn"]):
-            rpc_recv_cols_present = True
-        if any(col in df.columns for col in ["Rpc Sent", "PacketsOut"]):
-            rpc_sent_cols_present = True
+        if any(col in df.columns for col in ["RTT (ms)", "RTT_ms"]):
+            rtt_cols_present = True
+        if any(col in df.columns for col in ["Upload (bytes/sec)", "NetOutBytesPerSec"]):
+            upload_cols_present = True
+        if any(col in df.columns for col in ["Download (bytes/sec)", "NetInBytesPerSec"]):
+            download_cols_present = True
         
         # Check for performance metrics (always available if we have stats files)
         if any(col in df.columns for col in ["FPS", "average_frame_rate", "FrameTimeMs"]):
@@ -232,16 +225,12 @@ def get_available_metrics(stats_files, metric_options):
             available.add("GPU (ms)")
     
     # Add network metrics only if the relevant columns exist.
-    if ping_cols_present:
-        available.add("Network - Ping (ms)")
-    if bytes_recv_cols_present:
-        available.add("Network - Bytes Received")
-    if bytes_sent_cols_present:
-        available.add("Network - Bytes Sent")
-    if rpc_recv_cols_present:
-        available.add("Network - Messages Received")
-    if rpc_sent_cols_present:
-        available.add("Network - Messages Sent")
+    if rtt_cols_present:
+        available.add("Network - RTT (ms)")
+    if upload_cols_present:
+        available.add("Network - Upload (bytes/sec)")
+    if download_cols_present:
+        available.add("Network - Download (bytes/sec)")
     
     return sorted(available)
 
@@ -331,7 +320,7 @@ def create_network_plot(net_datasets, selected_labels, per_gameobject, xcol):
     """Create the network subplots figure."""
     fig = make_subplots(
         rows=3, cols=1,
-        subplot_titles=("Ping (ms)", "Bandwidth (Bytes)", "Messages (RPCs/Packets)"),
+        subplot_titles=("RTT (ms)", "Upload (bytes/sec)", "Download (bytes/sec)"),
         shared_xaxes=True,
         vertical_spacing=0.1
     )
@@ -341,36 +330,30 @@ def create_network_plot(net_datasets, selected_labels, per_gameobject, xcol):
     for i, label in enumerate(selected_labels):
         color = colors[i % len(colors)]
         
-        # Ping
-        if "network_ping" in net_datasets:
-            series_list = [d for d in net_datasets["network_ping"] if d[0] == label]
+        # RTT
+        if "network_rtt" in net_datasets:
+            series_list = [d for d in net_datasets["network_rtt"] if d[0] == label]
             if series_list:
                 df = series_list[0][1]
                 y_col = df["_ycol"].iloc[0]
-                fig.add_trace(go.Scatter(x=df[xcol], y=df[y_col], line=dict(color=color), name=f"{label} Ping", legendgroup=label), row=1, col=1)
+                fig.add_trace(go.Scatter(x=df[xcol], y=df[y_col], line=dict(color=color), name=f"{label} RTT", legendgroup=label), row=1, col=1)
         
-        # Bandwidth
-        for k, l_suffix, l_dash in [("network_bytes_recv", "Recv", "solid"), ("network_bytes_sent", "Sent", "dash")]:
+        # Upload / Download
+        for k, l_suffix, l_dash, row in [
+            ("network_upload", "Upload", "solid", 2),
+            ("network_download", "Download", "dash", 3),
+        ]:
             if k in net_datasets:
                 series_list = [d for d in net_datasets[k] if d[0] == label]
                 if series_list:
                     df = series_list[0][1]
                     y_col = df["_ycol"].iloc[0]
-                    fig.add_trace(go.Scatter(x=df[xcol], y=df[y_col], line=dict(color=color, dash=l_dash), name=f"{label} Bytes {l_suffix}", legendgroup=label), row=2, col=1)
+                    fig.add_trace(go.Scatter(x=df[xcol], y=df[y_col], line=dict(color=color, dash=l_dash), name=f"{label} {l_suffix}", legendgroup=label), row=row, col=1)
         
-        # Messages
-        for k, l_suffix, l_dash in [("network_rpc_recv", "Recv", "solid"), ("network_rpc_sent", "Sent", "dash")]:
-            if k in net_datasets:
-                series_list = [d for d in net_datasets[k] if d[0] == label]
-                if series_list:
-                    df = series_list[0][1]
-                    y_col = df["_ycol"].iloc[0]
-                    fig.add_trace(go.Scatter(x=df[xcol], y=df[y_col], line=dict(color=color, dash=l_dash), name=f"{label} Msgs {l_suffix}", legendgroup=label), row=3, col=1)
-    
     fig.update_layout(height=600, showlegend=True)
-    fig.update_yaxes(title_text="Ping (ms)", row=1, col=1)
-    fig.update_yaxes(title_text="Bytes", row=2, col=1)
-    fig.update_yaxes(title_text="Count", row=3, col=1)
+    fig.update_yaxes(title_text="RTT (ms)", row=1, col=1)
+    fig.update_yaxes(title_text="Upload (bytes/sec)", row=2, col=1)
+    fig.update_yaxes(title_text="Download (bytes/sec)", row=3, col=1)
     fig.update_xaxes(title_text=xcol, row=3, col=1)
     return fig
 
@@ -460,7 +443,9 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
     
     all_df = all_df.drop(columns=["_ycol"], errors="ignore")
     
-    fig = px.line(all_df, x=xcol, y=ycol, color="label", markers=True)
+    plot_xcol = xcol if xcol in all_df.columns else ("GameObjects" if "GameObjects" in all_df.columns else ("Frame" if "Frame" in all_df.columns else xcol))
+
+    fig = px.line(all_df, x=plot_xcol, y=ycol, color="label", markers=True)
     
     if metric_key == "fps":
         fig.add_hline(
@@ -474,8 +459,8 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
     phase_suffix = ""
     # Use the actual y-column name for the y-axis label (in case Quest/PC differ)
     y_axis_label = ycol if ycol not in ("FPS", metric_label) else metric_label
-    figure_title = f"{metric_label}{phase_suffix} per GameObject" if per_gameobject else f"{metric_label}{phase_suffix} vs {xcol}"
-    fig.update_layout(title=figure_title, xaxis_title=xcol, yaxis_title=y_axis_label, height=600)
+    figure_title = f"{metric_label}{phase_suffix} per GameObject" if per_gameobject and plot_xcol == "GameObjects" else f"{metric_label}{phase_suffix} vs {plot_xcol}"
+    fig.update_layout(title=figure_title, xaxis_title=plot_xcol, yaxis_title=y_axis_label, height=600)
     return fig
 
 

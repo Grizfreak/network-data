@@ -78,4 +78,9 @@ public class FishnetEndLogic : NetworkBehaviour
             PhaseManager.Instance.FinishTest();
         }
     }
+
+    void OnDestroy()
+    {
+        WiresharkManager.Instance.StopTracking();
+    }
 }

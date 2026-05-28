@@ -12,7 +12,7 @@ using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
 
-public class NetworkLauncher : NetworkBehaviour
+public class NetworkLauncher : NetworkBehaviour, IWiresharkTracking
 {
     public static NetworkLauncher Instance;
     [SerializeField] private TMP_InputField addressInputField;
@@ -41,6 +41,11 @@ public class NetworkLauncher : NetworkBehaviour
         }
     }
 
+    public void StartTracking(string filter, string filename)
+    {
+        WiresharkManager.Instance.StartTracking(filter, filename);
+    }
+
     public void StartHost()
     {
         StartServer();
@@ -53,6 +58,7 @@ public class NetworkLauncher : NetworkBehaviour
         _networkManager.ServerManager.OnServerConnectionState += OnServerStartStop;
         _networkManager.ServerManager.OnAuthenticationResult += OnClientConnection;
         _networkManager.ServerManager.StartConnection();
+        StartTracking("udp port 7777 or tcp port 7777", "fishnet_server_capture");
     }
 
     public void StartClient(string address)
@@ -65,8 +71,8 @@ public class NetworkLauncher : NetworkBehaviour
         var port = "";
         if (address.Contains(":"))
         {
-            address = address.Split(':')[0];
             port = address.Split(':')[1];
+            address = address.Split(':')[0];
         }
         _networkManager.TransportManager.Transport.SetClientAddress(address);
         try
@@ -88,6 +94,9 @@ public class NetworkLauncher : NetworkBehaviour
         addressInputField.gameObject.SetActive(false);
         guidelinesText.text = "Connecting...";
         _networkManager.ClientManager.StartConnection();
+        #if !PLATFORM_ANDROID
+        StartTracking("udp port 7777 or tcp port 7777", "fishnet_client_capture");
+        #endif
     }
 
     private static string GetLocalIPv4()
@@ -135,7 +144,7 @@ public class NetworkLauncher : NetworkBehaviour
     {
         if (args.ConnectionState == LocalConnectionState.Started)
         {
-            Debug.Log("Server started on address : " + GetLocalIPv4() +":7777");
+            Debug.Log("Server started on address : " + GetLocalIPv4() +":7770");
             hostButton.gameObject.SetActive(false);
             serverButton.gameObject.SetActive(false);
             quitButton.gameObject.SetActive(true);
@@ -146,7 +155,7 @@ public class NetworkLauncher : NetworkBehaviour
         }
         else if (args.ConnectionState == LocalConnectionState.Stopped)
         {
-            Debug.Log("Server stopped on address : " + GetLocalIPv4() +":7777");
+            Debug.Log("Server stopped on address : " + GetLocalIPv4() +":7770");
             hostButton.gameObject.SetActive(true);
             serverButton.gameObject.SetActive(true);
             quitButton.gameObject.SetActive(false);

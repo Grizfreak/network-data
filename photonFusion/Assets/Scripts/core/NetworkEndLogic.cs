@@ -40,4 +40,9 @@ public class NetworkEndLogic : NetworkBehaviour
             NetworkLauncher.Instance.Runner.Shutdown();
         }
     }
+
+    void OnDestroy()
+    {
+        WiresharkManager.Instance.StopTracking();
+    }
 }

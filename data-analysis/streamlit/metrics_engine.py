@@ -7,11 +7,11 @@ def _has_network_columns(df: pd.DataFrame) -> bool:
     """Check if the DataFrame has any network-related columns."""
     network_cols = {
         "Ping (ns)", "Ping_ms",
-        "RTT_ms",
+        "RTT_ms", "RTT (ms)",
         "Total Bytes Received (bytes)", "TotalBytesReceived",
-        "NetInBytesPerSec",
+        "NetInBytesPerSec", "Download (bytes/sec)",
         "Total Bytes Sent (bytes)", "TotalBytesSent",
-        "NetOutBytesPerSec",
+        "NetOutBytesPerSec", "Upload (bytes/sec)",
         "Rpc Received", "PacketsIn",
         "Rpc Sent", "PacketsOut",
         "Object Spawned Bytes Received (bytes)",
@@ -20,6 +20,10 @@ def _has_network_columns(df: pd.DataFrame) -> bool:
         "Rpc Bytes Sent (bytes)",
     }
     return any(col in df.columns for col in network_cols)
+
+
+def _supports_gameobject_aggregation(metric_key: str) -> bool:
+    return metric_key in {"fps", "memory", "cpu", "gpu"}
 
 
 def _source_from_name(file_name: str):
@@ -190,6 +194,46 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
             return None, None
         plot_data = pd.DataFrame({x_column: frame, "Ping (ms)": series})
         return plot_data.dropna().reset_index(drop=True), "Ping (ms)"
+
+    if metric_key == "network_rtt":
+        if not _has_network_columns(df):
+            return None, None
+        if "RTT (ms)" in df.columns:
+            series = pd.to_numeric(df["RTT (ms)"], errors="coerce")
+        elif "RTT_ms" in df.columns:
+            series = pd.to_numeric(df["RTT_ms"], errors="coerce")
+        else:
+            return None, None
+        plot_data = pd.DataFrame({x_column: frame, "RTT (ms)": series})
+        return plot_data.dropna().reset_index(drop=True), "RTT (ms)"
+
+    if metric_key == "network_upload":
+        if not _has_network_columns(df):
+            return None, None
+        if "Upload (bytes/sec)" in df.columns:
+            series = pd.to_numeric(df["Upload (bytes/sec)"], errors="coerce")
+        elif "NetOutBytesPerSec" in df.columns:
+            series = pd.to_numeric(df["NetOutBytesPerSec"], errors="coerce")
+        elif "Total Bytes Sent (bytes)" in df.columns:
+            series = pd.to_numeric(df["Total Bytes Sent (bytes)"], errors="coerce")
+        else:
+            return None, None
+        plot_data = pd.DataFrame({x_column: frame, "Upload (bytes/sec)": series})
+        return plot_data.dropna().reset_index(drop=True), "Upload (bytes/sec)"
+
+    if metric_key == "network_download":
+        if not _has_network_columns(df):
+            return None, None
+        if "Download (bytes/sec)" in df.columns:
+            series = pd.to_numeric(df["Download (bytes/sec)"], errors="coerce")
+        elif "NetInBytesPerSec" in df.columns:
+            series = pd.to_numeric(df["NetInBytesPerSec"], errors="coerce")
+        elif "Total Bytes Received (bytes)" in df.columns:
+            series = pd.to_numeric(df["Total Bytes Received (bytes)"], errors="coerce")
+        else:
+            return None, None
+        plot_data = pd.DataFrame({x_column: frame, "Download (bytes/sec)": series})
+        return plot_data.dropna().reset_index(drop=True), "Download (bytes/sec)"
         
     if metric_key == "network_bytes_recv":
         if not _has_network_columns(df):
@@ -387,6 +431,17 @@ def build_datasets(
     for sname, sdf in stats_files:
         label = _format_label(sname)
         if per_gameobject:
+            if not _supports_gameobject_aggregation(selected_metric_key):
+                series, ycol = metric_series_from_stats(sdf, selected_metric_key, sname, x_axis_mode=x_axis_mode)
+                if series is None or ycol is None:
+                    if not (selected_metric_key.startswith("network_") and not _has_network_columns(sdf)):
+                        warnings.append(f"Could not parse {selected_metric_label} series from {sname}.")
+                    continue
+                series["label"] = label
+                series["_ycol"] = ycol
+                datasets.append((label, series))
+                continue
+
             selected_event_name = user_pairings.get(sname)
             if selected_event_name is None:
                 if not include_unpaired:

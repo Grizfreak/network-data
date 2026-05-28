@@ -2,6 +2,7 @@ Shader "Unlit/FusionChartShader"
 {
     Properties
     {
+        _MainTex ("Texture", 2D) = "white" {}
         _FadeInHorizontal ("Fade Horizontal", Range(0.0, 0.4)) = 0.2
         _FadeInHorizontalOffset ("Fade Horizontal Offset", Range(0.0, 0.2)) = 0.1
         _FadeOutBottomOffset ("Fade Out Vertical At The Bottom", Range(0.0, 0.2)) = 0.1
@@ -36,6 +37,7 @@ Shader "Unlit/FusionChartShader"
             fixed4 _BottomColor;
             fixed4 _ThresholdTopColor;
             fixed4 _ThresholdBottomColor;
+            sampler2D _MainTex;
             int _ZeroIsTransparent;
             float _FadeInHorizontal;
             float _FadeInHorizontalOffset;
@@ -128,6 +130,8 @@ Shader "Unlit/FusionChartShader"
                     discard;
                 }
 
+                fixed4 textureColor = tex2D(_MainTex, i.uv);
+
                 // Apply vertical and horizontal fades.
                 if (i.uv.y < _FadeOutBottomOffset)
                 {
@@ -153,6 +157,7 @@ Shader "Unlit/FusionChartShader"
                 }
 
                 // handle rect mask 2d
+                col *= textureColor;
                 col.a *= UnityGet2DClipping(i.worldPosition.xy, _ClipRect);
                 
                 return col;

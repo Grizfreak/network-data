@@ -8,8 +8,12 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Unity.VisualScripting;
 using Fusion.Statistics;
+using System.Threading.Tasks;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
+using Debug = UnityEngine.Debug;
 
-public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
+public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks, IWiresharkTracking
 {
     public static NetworkLauncher Instance;
     public NetworkRunner Runner;
@@ -69,6 +73,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
                 clientButton.gameObject.SetActive(false);
                 startButton.gameObject.SetActive(true);
                 guidelinesText.text = "Server started ! Waiting for client...";
+                ParseServerPortAndConnectWireshark();
             }
             else if (Runner.IsClient)
             {
@@ -80,20 +85,24 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
                 startButton.gameObject.SetActive(false);
             }
 
-            Runner.SetupStatistics();
+            var statistics = Runner.SetupStatistics();
+            await Task.Yield();
             if (Runner.TryGetFusionStatistics(out var statisticsManager))
             {
                 Debug.Log("Successfully obtained statistics manager from NetworkRunner.");
-                var obj = FindAnyObjectByType(typeof(FusionStatisticsRoot));
-                if (obj != null)
+                var statsRoot = statistics?.Root;
+                if (statsRoot != null)
                 {
-                    var statsRoot = obj as FusionStatisticsRoot;
                     statsRoot.ToggleCollapse();
                 }
                 else
                 {
-                    Debug.LogError("Failed to find an object of type FusionStatisticsRoot in the scene.");
+                    Debug.LogWarning("Fusion statistics root was not ready yet, so the panel was not collapsed.");
                 }
+            }
+            else
+            {
+                Debug.LogWarning("Fusion statistics are not available in this build configuration.");
             }
         }
         catch (Exception e)
@@ -174,7 +183,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             PhaseManager.Instance.FinishTest();
         }
     }
-    void INetworkRunnerCallbacks.OnConnectedToServer(NetworkRunner runner) { }
+    void INetworkRunnerCallbacks.OnConnectedToServer(NetworkRunner runner)
+    {
+        Debug.Log("Successfully connected to server.");
+        ParseServerPortAndConnectWireshark();
+    }
     void INetworkRunnerCallbacks.OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) {
         Debug.LogError($"Disconnected from server: {reason}");
         guidelinesText.text = $"Disconnected from server: {reason}";
@@ -200,4 +213,66 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     void INetworkRunnerCallbacks.OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
     void INetworkRunnerCallbacks.OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ReadOnlySpan<byte> data) { }
     void INetworkRunnerCallbacks.OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
+
+    public async void ParseServerPortAndConnectWireshark()
+    {
+        await Task.Delay(1000);
+
+        int pid = Process.GetCurrentProcess().Id;
+
+        ProcessStartInfo psi = new ProcessStartInfo
+        {
+            FileName = "netstat",
+            Arguments = "-ano -p udp",
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        Process process = Process.Start(psi);
+
+        string output = process.StandardOutput.ReadToEnd();
+
+        process.WaitForExit();
+
+        string[] lines = output.Split('\n');
+
+        foreach (string line in lines)
+        {
+            if (!line.Contains(pid.ToString()))
+                continue;
+
+            Match match = Regex.Match(
+                line,
+                @"UDP\s+\S+:(\d+)"
+            );
+
+            if (match.Success)
+            {
+                string port = match.Groups[1].Value;
+
+                Debug.Log($"Detected Fusion UDP port: {port}");
+
+                string filter = $"udp port {port} or tcp port {port}";
+                
+                if (Runner.IsServer)
+                {
+                    StartTracking(filter, "photon_server_capture");
+                }
+                else if
+                (Runner.IsClient)
+                {
+                    StartTracking(filter, "photon_client_capture");
+                }
+
+                return;
+            }
+        }
+
+        Debug.LogWarning("Could not detect Fusion UDP port.");
+    }
+    public void StartTracking(string filter, string filename)
+    {
+        WiresharkManager.Instance.StartTracking(filter, filename);
+    }
 }

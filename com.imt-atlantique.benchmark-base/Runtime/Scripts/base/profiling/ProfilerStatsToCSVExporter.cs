@@ -31,9 +31,17 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
 
     private INetworkBenchmarkProvider _networkBenchmarkProvider;
 
+    [SerializeField]
+    private MonoBehaviour RealtimeRTTProviderBehaviour;
+
+    private IRealtimeRTTProvider _realtimeRttProvider;
+
     // --- Network bucket state ---
     private float _bucketRttSum;
     private int _bucketRttSamples;
+
+    private float _bucketRttSumFromRpc;
+    private int _bucketRttSamplesFromRpc;
 
     private long _lastBytesSent;
     private long _lastBytesReceived;
@@ -95,6 +103,16 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
                 $"{networkBenchmarkProviderBehaviour.name} does not implement INetworkBenchmarkProvider");
         }
 
+        _realtimeRttProvider =
+            RealtimeRTTProviderBehaviour as IRealtimeRTTProvider;
+
+        if (RealtimeRTTProviderBehaviour != null &&
+            _realtimeRttProvider == null)
+        {
+            Debug.LogError(
+                $"{RealtimeRTTProviderBehaviour.name} does not implement IRealtimeRTTProvider");
+        }
+
         // Apply new profiler data from file
         if (profilerStatsFile != null)
         {
@@ -121,7 +139,11 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
         _textWriter.Write(OutputSeparator);
         _textWriter.Write("FrameTimeMs");        // Average frame time over the bucket
         _textWriter.Write(OutputSeparator);
+
         _textWriter.Write("RTT (ms)");
+        _textWriter.Write(OutputSeparator);
+
+        _textWriter.Write("RTT (ms) - Calculated from RPC");
         _textWriter.Write(OutputSeparator);
 
         _textWriter.Write("Upload (bytes/sec)");
@@ -201,6 +223,9 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
             _bucketRttSum += _networkBenchmarkProvider.GetRttMs();
             _bucketRttSamples++;
 
+            _bucketRttSumFromRpc += _realtimeRttProvider.GetRttMs();
+            _bucketRttSamplesFromRpc++;
+
             long currentSent = _networkBenchmarkProvider.GetBytesSent();
             long currentReceived = _networkBenchmarkProvider.GetBytesReceived();
 
@@ -261,6 +286,10 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
                 ? _bucketRttSum / _bucketRttSamples
                 : 0f;
 
+            float avgRttFromRpc = _bucketRttSamplesFromRpc > 0
+                ? _bucketRttSumFromRpc / _bucketRttSamplesFromRpc
+                : 0f;
+
             float uploadRate = _bucketAccumulator > 0f
                 ? _bucketBytesSentDelta / _bucketAccumulator
                 : 0f;
@@ -270,6 +299,9 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
                 : 0f;
 
             _textWriter.Write(avgRtt.ToString("F2", CultureInfo.InvariantCulture));
+            _textWriter.Write(OutputSeparator);
+
+            _textWriter.Write(avgRttFromRpc.ToString("F2", CultureInfo.InvariantCulture));
             _textWriter.Write(OutputSeparator);
 
             _textWriter.Write(uploadRate.ToString("F0", CultureInfo.InvariantCulture));
@@ -304,6 +336,8 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
         {
             _bucketRttSum = 0f;
             _bucketRttSamples = 0;
+            _bucketRttSumFromRpc = 0f;
+            _bucketRttSamplesFromRpc = 0;
             _bucketBytesSentDelta = 0;
             _bucketBytesReceivedDelta = 0;
         }

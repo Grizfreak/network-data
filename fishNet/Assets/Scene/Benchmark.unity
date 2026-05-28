@@ -707,6 +707,7 @@ GameObject:
   - component: {fileID: 2143935292}
   - component: {fileID: 2143935294}
   - component: {fileID: 2143935293}
+  - component: {fileID: 2143935295}
   m_Layer: 0
   m_Name: Logs
   m_TagString: Untagged
@@ -862,6 +863,7 @@ MonoBehaviour:
   profilerStatsFile: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
   includeNetworkStats: 1
   networkBenchmarkProviderBehaviour: {fileID: 2143935294}
+  RealtimeRTTProviderBehaviour: {fileID: 2143935295}
 --- !u!114 &2143935294
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -874,6 +876,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 873c3f44686dc7a4a88b79b44a1e40e0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
+--- !u!114 &2143935295
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2143935284}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ae97ae8e9d0b0744946049632686c63, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: '::'
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 2143935285}
+  _networkObjectCache: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

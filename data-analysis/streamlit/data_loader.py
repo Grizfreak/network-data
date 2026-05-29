@@ -19,6 +19,19 @@ def detect_columns(df: pd.DataFrame):
     return frame_col, fps_col
 
 
+def _has_pcap_columns(df: pd.DataFrame) -> bool:
+    return any(
+        col in df.columns
+        for col in (
+            "PacketsPerSec",
+            "BytesPerSec",
+            "Packets",
+            "Bytes",
+            "BitsPerSec",
+        )
+    )
+
+
 def extract_timestamp(file_name: str):
     """Extract timestamp from filename. Returns (timestamp_str, datetime_obj) or (None, None)."""
     patterns = [
@@ -216,7 +229,7 @@ def load_csv_files_from_folder(folder_path: Path):
                 events_files.append((file_name, df))
             else:
                 _, fpscol = detect_columns(df)
-                if fpscol is not None:
+                if fpscol is not None or _has_pcap_columns(df):
                     stats_files.append((file_name, df))
         except Exception as exc:
             read_errors.append((csv_file.name, str(exc)))

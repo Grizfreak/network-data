@@ -24,7 +24,20 @@ def _has_network_columns(df: pd.DataFrame) -> bool:
 
 
 def _supports_gameobject_aggregation(metric_key: str) -> bool:
-    return metric_key in {"fps", "memory", "cpu", "gpu", "network_ping", "network_rtt", "network_rtt_rpc", "network_upload", "network_download", "network_bytes_recv", "network_bytes_sent", "network_rpc_recv", "network_rpc_sent"}
+    return metric_key in {"fps", "memory", "cpu", "gpu", "pcap_packets", "pcap_bytes", "network_ping", "network_rtt", "network_rtt_rpc", "network_upload", "network_download", "network_bytes_recv", "network_bytes_sent", "network_rpc_recv", "network_rpc_sent"}
+
+
+def _has_pcap_columns(df: pd.DataFrame) -> bool:
+    return any(
+        col in df.columns
+        for col in (
+            "PacketsPerSec",
+            "BytesPerSec",
+            "Packets",
+            "Bytes",
+            "BitsPerSec",
+        )
+    )
 
 
 def _source_from_name(file_name: str):
@@ -181,6 +194,37 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
         return None, None
 
     x_column = "Time" if x_axis_mode == "time" else "Frame"
+
+    if metric_key == "pcap_packets":
+        if not _has_pcap_columns(df):
+            return None, None
+        if "PacketsPerSec" in df.columns:
+            series = pd.to_numeric(df["PacketsPerSec"], errors="coerce")
+            out_col = "Packets/sec"
+        elif "Packets" in df.columns:
+            series = pd.to_numeric(df["Packets"], errors="coerce")
+            out_col = "Packets"
+        else:
+            return None, None
+        plot_data = pd.DataFrame({x_column: frame, out_col: series})
+        return plot_data.dropna().reset_index(drop=True), out_col
+
+    if metric_key == "pcap_bytes":
+        if not _has_pcap_columns(df):
+            return None, None
+        if "BytesPerSec" in df.columns:
+            series = pd.to_numeric(df["BytesPerSec"], errors="coerce")
+            out_col = "Bytes/sec"
+        elif "Bytes" in df.columns:
+            series = pd.to_numeric(df["Bytes"], errors="coerce")
+            out_col = "Bytes"
+        elif "BitsPerSec" in df.columns:
+            series = pd.to_numeric(df["BitsPerSec"], errors="coerce")
+            out_col = "Bits/sec"
+        else:
+            return None, None
+        plot_data = pd.DataFrame({x_column: frame, out_col: series})
+        return plot_data.dropna().reset_index(drop=True), out_col
 
     if metric_key == "network_ping":
         if not _has_network_columns(df):
@@ -420,6 +464,51 @@ def metric_per_gameobject_series(stats_df: pd.DataFrame, events_df: pd.DataFrame
     return None, None
 
 
+def _pcap_per_gameobject_series(stats_df: pd.DataFrame, events_df: pd.DataFrame, metric_key: str, stat_name: str | None = None):
+    metric_data, metric_column = metric_series_from_stats(stats_df, metric_key, stat_name, x_axis_mode="frame")
+    if metric_data is None or metric_column is None:
+        return None, None
+
+    finished_rows = _extract_finished_rows(events_df)
+    if finished_rows is None or finished_rows.empty:
+        return None, None
+
+    sample_frames = pd.to_numeric(metric_data["Frame"], errors="coerce")
+    sample_values = pd.to_numeric(metric_data[metric_column], errors="coerce")
+    valid_samples = pd.DataFrame({"Frame": sample_frames, metric_column: sample_values}).dropna().sort_values("Frame")
+    if valid_samples.empty:
+        return None, None
+
+    segment_points = []
+    previous_frame = None
+    for _, row in finished_rows.iterrows():
+        current_frame = row.get("Frame")
+        current_value = row.get("Value")
+        if pd.isna(current_frame) or pd.isna(current_value):
+            continue
+
+        if previous_frame is None:
+            segment = valid_samples.loc[valid_samples["Frame"] <= float(current_frame), metric_column]
+        else:
+            segment = valid_samples.loc[
+                (valid_samples["Frame"] > float(previous_frame)) & (valid_samples["Frame"] <= float(current_frame)),
+                metric_column,
+            ]
+
+        if not segment.empty:
+            segment_points.append((float(current_value), float(segment.mean())))
+        previous_frame = current_frame
+
+    if not segment_points:
+        return None, None
+
+    out_col = f"Average{metric_column}"
+    segment_data = pd.DataFrame(segment_points, columns=["GameObjects", out_col])
+    segment_data["GameObjects"] = pd.to_numeric(segment_data["GameObjects"], errors="coerce")
+    segment_data[out_col] = pd.to_numeric(segment_data[out_col], errors="coerce")
+    return segment_data.dropna(subset=["GameObjects", out_col]).reset_index(drop=True), out_col
+
+
 def _get_event_df(events_files, event_name):
     for ename, edf in events_files:
         if ename == event_name:
@@ -443,6 +532,15 @@ def build_datasets(
 
     for sname, sdf in stats_files:
         label = _format_label(sname)
+        if selected_metric_key.startswith("pcap_") and not per_gameobject:
+            series, ycol = metric_series_from_stats(sdf, selected_metric_key, sname, x_axis_mode=x_axis_mode)
+            if series is None or ycol is None:
+                warnings.append(f"Could not parse {selected_metric_label} series from {sname}.")
+                continue
+            series["label"] = label
+            series["_ycol"] = ycol
+            datasets.append((label, series))
+            continue
         if per_gameobject:
             if not _supports_gameobject_aggregation(selected_metric_key):
                 series, ycol = metric_series_from_stats(sdf, selected_metric_key, sname, x_axis_mode=x_axis_mode)
@@ -479,7 +577,10 @@ def build_datasets(
                 if edf is None:
                     warnings.append(f"Event file {selected_event_name} not found for {sname}.")
                     continue
-                series, ycol = metric_per_gameobject_series(sdf, edf, selected_metric_key, sname)
+                if selected_metric_key.startswith("pcap_"):
+                    series, ycol = _pcap_per_gameobject_series(sdf, edf, selected_metric_key, sname)
+                else:
+                    series, ycol = metric_per_gameobject_series(sdf, edf, selected_metric_key, sname)
                 if series is None or series.empty or ycol is None:
                     # Skip warning for network metrics on files without network data
                     if not (selected_metric_key.startswith("network_") and not _has_network_columns(sdf)):

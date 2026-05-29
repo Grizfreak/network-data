@@ -1,9 +1,12 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import importlib
 from pathlib import Path
 from statistics import median
 import sys
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from data_loader import (
     auto_pair_files,
@@ -13,9 +16,21 @@ from data_loader import (
     normalize_timestamp,
 )
 from metrics_engine import build_datasets, metric_series_from_stats
+import pcap_to_csv as pcap_tools
+
+pcap_tools = importlib.reload(pcap_tools)
+cleanup_pcap_folder_csv = pcap_tools.cleanup_pcap_folder_csv
+convert_pcap_folder_to_csv = pcap_tools.convert_pcap_folder_to_csv
+
+
+def _split_subsystem_label(label: str):
+    if label.startswith("[PC] "):
+        return "PC", label[5:]
+    if label.startswith("[Quest] "):
+        return "Quest", label[8:]
+    return "Unknown", label
 
 # allow importing project helpers (assemble.py)
-sys.path.append(str(Path(__file__).resolve().parents[1]))
 try:
     import assemble
 except Exception:
@@ -49,6 +64,65 @@ if quest_folder:
     st.success(f"✓ Quest data found: {quest_folder.name}")
 else:
     st.warning("✗ No Quest data folder found")
+
+if pc_folder:
+    with st.expander("PC capture tools", expanded=False):
+        pcap_bucket_seconds = st.number_input(
+            "PCAP bucket size (seconds)",
+            min_value=0.1,
+            value=1.0,
+            step=0.1,
+        )
+        overwrite_pcap_csv = st.checkbox("Overwrite existing pcap CSV outputs", value=False)
+        convert_col, cleanup_col = st.columns(2)
+        with convert_col:
+            convert_pcaps = st.button("Convert every PC pcap to CSV")
+        with cleanup_col:
+            cleanup_pcaps = st.button("Delete generated PC pcap CSVs")
+
+        if convert_pcaps:
+            result = convert_pcap_folder_to_csv(
+                pc_folder,
+                bucket_seconds=float(pcap_bucket_seconds),
+                overwrite=overwrite_pcap_csv,
+            )
+            converted = result["converted"]
+            skipped = result["skipped"]
+            warnings = result.get("warnings", [])
+            errors = result["errors"]
+
+            if converted:
+                st.success(f"Converted {len(converted)} pcap file(s) to CSV.")
+                for pcap_path, output_path, row_count in converted:
+                    st.write(f"{pcap_path.name} -> {output_path.name} ({row_count} bucket(s))")
+            if skipped:
+                st.info(f"Skipped {len(skipped)} existing CSV file(s).")
+            if warnings:
+                for pcap_path, message in warnings:
+                    st.warning(f"{pcap_path.name}: {message}")
+            if errors:
+                for pcap_path, message in errors:
+                    st.warning(f"Failed to convert {pcap_path.name}: {message}")
+            if not converted and not skipped and not errors:
+                st.info("No pcap or pcapng files found in the PC folder.")
+
+        if cleanup_pcaps:
+            result = cleanup_pcap_folder_csv(pc_folder)
+            deleted = result["deleted"]
+            missing = result["missing"]
+            errors = result["errors"]
+
+            if deleted:
+                st.success(f"Deleted {len(deleted)} generated CSV file(s).")
+                for output_path in deleted:
+                    st.write(output_path.name)
+            if missing:
+                st.info(f"{len(missing)} generated CSV file(s) were already missing.")
+            if errors:
+                for output_path, message in errors:
+                    st.warning(f"Failed to delete {output_path.name}: {message}")
+            if not deleted and not missing and not errors:
+                st.info("No generated pcap CSV files found in the PC folder.")
 
 # Selector for which data to load
 st.subheader("Select Data to Load")
@@ -157,6 +231,7 @@ if per_gameobject and stats_files and events_files:
     
     with st.expander("File pairings (auto-paired by timestamp)", expanded=False):
         for sname, _ in stats_files:
+            stat_subsystem, stat_file = _split_subsystem_label(sname)
             # Get the auto-paired event name
             auto_match = user_pairings.get(sname)
             
@@ -182,8 +257,14 @@ if per_gameobject and stats_files and events_files:
             
             if choice != "(none)":
                 user_pairings[sname] = choice
+                event_subsystem, event_file = _split_subsystem_label(choice)
             else:
                 user_pairings[sname] = None
+                event_subsystem, event_file = "(none)", "(none)"
+
+            st.caption(
+                f"Bound: {stat_subsystem} / {stat_file} -> {event_subsystem} / {event_file}"
+            )
 
 # Metric selection belongs right before plotting so matching comes first.
 metric_options = {
@@ -191,6 +272,8 @@ metric_options = {
     "Memory (MB)": "memory",
     "CPU (ms)": "cpu",
     "GPU (ms)": "gpu",
+    "PCAP - Packets/sec": "pcap_packets",
+    "PCAP - Bytes/sec": "pcap_bytes",
     "Network - RTT (ms) - Calculated from RPC": "network_rtt_rpc",
     "Network - RTT (ms)": "network_rtt",
     "Network - Upload (bytes/sec)": "network_upload",
@@ -205,6 +288,8 @@ def get_available_metrics(stats_files, metric_options):
     rtt_rpc_cols_present = False
     upload_cols_present = False
     download_cols_present = False
+    pcap_packets_present = False
+    pcap_bytes_present = False
     
     for _, df in stats_files:
         # Check for network columns by metric family.
@@ -216,6 +301,10 @@ def get_available_metrics(stats_files, metric_options):
             upload_cols_present = True
         if any(col in df.columns for col in ["Download (bytes/sec)", "NetInBytesPerSec"]):
             download_cols_present = True
+        if any(col in df.columns for col in ["PacketsPerSec", "Packets"]):
+            pcap_packets_present = True
+        if any(col in df.columns for col in ["BytesPerSec", "Bytes", "BitsPerSec"]):
+            pcap_bytes_present = True
         
         # Check for performance metrics (always available if we have stats files)
         if any(col in df.columns for col in ["FPS", "average_frame_rate", "FrameTimeMs"]):
@@ -237,6 +326,10 @@ def get_available_metrics(stats_files, metric_options):
         available.add("Network - Upload (bytes/sec)")
     if download_cols_present:
         available.add("Network - Download (bytes/sec)")
+    if pcap_packets_present:
+        available.add("PCAP - Packets/sec")
+    if pcap_bytes_present:
+        available.add("PCAP - Bytes/sec")
     
     return [label for label in metric_options.keys() if label in available]
 
@@ -351,6 +444,7 @@ def create_network_plot(net_datasets, selected_labels, per_gameobject, xcol):
         ]:
             if k in net_datasets:
                 series_list = [d for d in net_datasets[k] if d[0] == label]
+
                 if series_list:
                     df = series_list[0][1]
                     y_col = df["_ycol"].iloc[0]

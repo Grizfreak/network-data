@@ -23,13 +23,13 @@ public class PingRPC : NetworkBehaviour, IRealtimeRTTProvider
         }
     }
 
-    [ServerRpc()]
+    [ServerRpc(RequireOwnership = false)]
     private void PingRpc(double clientTime, int sequenceId)
     {
         PongRpc(clientTime, sequenceId);
     }
 
-    [ObserversRpc()]
+    [ObserversRpc(ExcludeOwner = true)]
     private void PongRpc(double originalTime, int sequenceId)
     {
         double rtt = Time.realtimeSinceStartupAsDouble - originalTime;

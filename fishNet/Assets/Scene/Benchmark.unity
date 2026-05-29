@@ -887,7 +887,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5ae97ae8e9d0b0744946049632686c63, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: '::'
+  m_EditorClassIdentifier: fishnet.core::PingRPC
   _componentIndexCache: 255
   _addedNetworkObject: {fileID: 2143935285}
   _networkObjectCache: {fileID: 0}

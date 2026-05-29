@@ -8,6 +8,7 @@ def _has_network_columns(df: pd.DataFrame) -> bool:
     network_cols = {
         "Ping (ns)", "Ping_ms",
         "RTT_ms", "RTT (ms)",
+        "RTT (ms) - Calculated from RPC",
         "Total Bytes Received (bytes)", "TotalBytesReceived",
         "NetInBytesPerSec", "Download (bytes/sec)",
         "Total Bytes Sent (bytes)", "TotalBytesSent",
@@ -23,7 +24,7 @@ def _has_network_columns(df: pd.DataFrame) -> bool:
 
 
 def _supports_gameobject_aggregation(metric_key: str) -> bool:
-    return metric_key in {"fps", "memory", "cpu", "gpu"}
+    return metric_key in {"fps", "memory", "cpu", "gpu", "network_ping", "network_rtt", "network_rtt_rpc", "network_upload", "network_download", "network_bytes_recv", "network_bytes_sent", "network_rpc_recv", "network_rpc_sent"}
 
 
 def _source_from_name(file_name: str):
@@ -202,10 +203,22 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
             series = pd.to_numeric(df["RTT (ms)"], errors="coerce")
         elif "RTT_ms" in df.columns:
             series = pd.to_numeric(df["RTT_ms"], errors="coerce")
+        elif "RTT (ms) - Calculated from RPC" in df.columns:
+            series = pd.to_numeric(df["RTT (ms) - Calculated from RPC"], errors="coerce")
         else:
             return None, None
         plot_data = pd.DataFrame({x_column: frame, "RTT (ms)": series})
         return plot_data.dropna().reset_index(drop=True), "RTT (ms)"
+
+    if metric_key == "network_rtt_rpc":
+        if not _has_network_columns(df):
+            return None, None
+        if "RTT (ms) - Calculated from RPC" in df.columns:
+            series = pd.to_numeric(df["RTT (ms) - Calculated from RPC"], errors="coerce")
+        else:
+            return None, None
+        plot_data = pd.DataFrame({x_column: frame, "RTT (ms) - Calculated from RPC": series})
+        return plot_data.dropna().reset_index(drop=True), "RTT (ms) - Calculated from RPC"
 
     if metric_key == "network_upload":
         if not _has_network_columns(df):

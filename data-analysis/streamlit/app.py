@@ -191,6 +191,7 @@ metric_options = {
     "Memory (MB)": "memory",
     "CPU (ms)": "cpu",
     "GPU (ms)": "gpu",
+    "Network - RTT (ms) - Calculated from RPC": "network_rtt_rpc",
     "Network - RTT (ms)": "network_rtt",
     "Network - Upload (bytes/sec)": "network_upload",
     "Network - Download (bytes/sec)": "network_download",
@@ -201,11 +202,14 @@ def get_available_metrics(stats_files, metric_options):
     """Scan loaded files and return only metrics that have data."""
     available = set()
     rtt_cols_present = False
+    rtt_rpc_cols_present = False
     upload_cols_present = False
     download_cols_present = False
     
     for _, df in stats_files:
         # Check for network columns by metric family.
+        if "RTT (ms) - Calculated from RPC" in df.columns:
+            rtt_rpc_cols_present = True
         if any(col in df.columns for col in ["RTT (ms)", "RTT_ms"]):
             rtt_cols_present = True
         if any(col in df.columns for col in ["Upload (bytes/sec)", "NetOutBytesPerSec"]):
@@ -225,6 +229,8 @@ def get_available_metrics(stats_files, metric_options):
             available.add("GPU (ms)")
     
     # Add network metrics only if the relevant columns exist.
+    if rtt_rpc_cols_present:
+        available.add("Network - RTT (ms) - Calculated from RPC")
     if rtt_cols_present:
         available.add("Network - RTT (ms)")
     if upload_cols_present:
@@ -232,7 +238,7 @@ def get_available_metrics(stats_files, metric_options):
     if download_cols_present:
         available.add("Network - Download (bytes/sec)")
     
-    return sorted(available)
+    return [label for label in metric_options.keys() if label in available]
 
 available_metrics = get_available_metrics(stats_files, metric_options)
 unavailable_metrics = [m for m in metric_options.keys() if m not in available_metrics]

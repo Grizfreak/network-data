@@ -58,7 +58,7 @@ public class NetworkLauncher : NetworkBehaviour, IWiresharkTracking
         _networkManager.ServerManager.OnServerConnectionState += OnServerStartStop;
         _networkManager.ServerManager.OnAuthenticationResult += OnClientConnection;
         _networkManager.ServerManager.StartConnection();
-        StartTracking("udp port 7777 or tcp port 7777", "fishnet_server_capture");
+        StartTracking("udp port 7770 or tcp port 7770", "fishnet_server_capture");
     }
 
     public void StartClient(string address)
@@ -95,7 +95,7 @@ public class NetworkLauncher : NetworkBehaviour, IWiresharkTracking
         guidelinesText.text = "Connecting...";
         _networkManager.ClientManager.StartConnection();
         #if !PLATFORM_ANDROID
-        StartTracking("udp port 7777 or tcp port 7777", "fishnet_client_capture");
+        StartTracking("udp port 7770 or tcp port 7770", "fishnet_client_capture");
         #endif
     }
 

@@ -66,4 +66,9 @@ public class WiresharkManager : MonoBehaviour
             Debug.Log("Wireshark stopped.");
         }
     }
+
+    void OnDestroy()
+    {
+        StopTracking();
+    }
 }

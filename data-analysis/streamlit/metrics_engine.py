@@ -36,6 +36,30 @@ def _has_pcap_columns(df: pd.DataFrame) -> bool:
     return any(col in df.columns for col in ("PacketsPerSec", "BytesPerSec", "Packets", "Bytes", "BitsPerSec", "CumulativePackets", "CumulativeBytes", "CumulativeBits"))
 
 
+def _supports_gameobject_aggregation(metric_key: str) -> bool:
+    # These metrics can be meaningfully summarized against event-derived
+    # GameObject counts, so the UI is allowed to request the per-object path.
+    return metric_key in {
+        "fps",
+        "memory",
+        "cpu",
+        "gpu",
+        "pcap_packets",
+        "pcap_bytes",
+        "pcap_cumulative_packets",
+        "pcap_cumulative_bytes",
+        "network_ping",
+        "network_rtt",
+        "network_rtt_rpc",
+        "network_upload",
+        "network_download",
+        "network_bytes_recv",
+        "network_bytes_sent",
+        "network_rpc_recv",
+        "network_rpc_sent",
+    }
+
+
 def _source_from_name(file_name: str) -> Optional[str]:
     lower = (file_name or "").lower()
     if lower.startswith("[pc]"):

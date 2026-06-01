@@ -83,6 +83,9 @@ def _build_empty_dataframe() -> pd.DataFrame:
             "PacketsPerSec",
             "BytesPerSec",
             "BitsPerSec",
+            "CumulativePackets",
+            "CumulativeBytes",
+            "CumulativeBits",
         ]
     )
 
@@ -92,9 +95,13 @@ def _finalize_buckets(buckets: dict[int, BucketStats], bucket_seconds: float) ->
         return _build_empty_dataframe()
 
     rows = []
+    cumulative_packets = 0
+    cumulative_bytes = 0
     for bucket_index in sorted(buckets):
         stats = buckets[bucket_index]
         start_s = bucket_index * bucket_seconds
+        cumulative_packets += stats.packets
+        cumulative_bytes += stats.bytes
         rows.append(
             {
                 "Frame": bucket_index,
@@ -108,6 +115,9 @@ def _finalize_buckets(buckets: dict[int, BucketStats], bucket_seconds: float) ->
                 "PacketsPerSec": stats.packets / bucket_seconds,
                 "BytesPerSec": stats.bytes / bucket_seconds,
                 "BitsPerSec": (stats.bytes * 8.0) / bucket_seconds,
+                "CumulativePackets": cumulative_packets,
+                "CumulativeBytes": cumulative_bytes,
+                "CumulativeBits": cumulative_bytes * 8.0,
             }
         )
 

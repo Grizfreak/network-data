@@ -6,6 +6,19 @@ from pathlib import Path
 from statistics import median
 import sys
 
+"""
+Streamlit application UI for the Benchmark Metrics Viewer.
+
+This module provides the interactive controls and layout used to
+load benchmark CSV files, pair stat files with event files,
+select metrics, and render Plotly figures. The code here focuses on
+presentation and user interaction; data extraction and metric
+construction are delegated to `metrics_engine` and `data_loader`.
+
+Lecture note: use this file to demonstrate how a small interactive
+frontend orchestrates data-processing helpers and plotting utilities.
+"""
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from data_loader import (
@@ -274,6 +287,8 @@ metric_options = {
     "GPU (ms)": "gpu",
     "PCAP - Packets/sec": "pcap_packets",
     "PCAP - Bytes/sec": "pcap_bytes",
+    "PCAP - Cumulative Packets": "pcap_cumulative_packets",
+    "PCAP - Cumulative Bytes": "pcap_cumulative_bytes",
     "Network - RTT (ms) - Calculated from RPC": "network_rtt_rpc",
     "Network - RTT (ms)": "network_rtt",
     "Network - Upload (bytes/sec)": "network_upload",
@@ -290,6 +305,8 @@ def get_available_metrics(stats_files, metric_options):
     download_cols_present = False
     pcap_packets_present = False
     pcap_bytes_present = False
+    pcap_cumulative_packets_present = False
+    pcap_cumulative_bytes_present = False
     
     for _, df in stats_files:
         # Check for network columns by metric family.
@@ -305,6 +322,10 @@ def get_available_metrics(stats_files, metric_options):
             pcap_packets_present = True
         if any(col in df.columns for col in ["BytesPerSec", "Bytes", "BitsPerSec"]):
             pcap_bytes_present = True
+        if "CumulativePackets" in df.columns:
+            pcap_cumulative_packets_present = True
+        if any(col in df.columns for col in ["CumulativeBytes", "CumulativeBits"]):
+            pcap_cumulative_bytes_present = True
         
         # Check for performance metrics (always available if we have stats files)
         if any(col in df.columns for col in ["FPS", "average_frame_rate", "FrameTimeMs"]):
@@ -330,6 +351,10 @@ def get_available_metrics(stats_files, metric_options):
         available.add("PCAP - Packets/sec")
     if pcap_bytes_present:
         available.add("PCAP - Bytes/sec")
+    if pcap_cumulative_packets_present:
+        available.add("PCAP - Cumulative Packets")
+    if pcap_cumulative_bytes_present:
+        available.add("PCAP - Cumulative Bytes")
     
     return [label for label in metric_options.keys() if label in available]
 
@@ -349,6 +374,7 @@ with col1:
         st.info(f"Note: {', '.join(unavailable_metrics)} are not available in your data")
 with col2:
     columns_count = st.selectbox("Columns", [1, 2, 3, 4], index=1)
+    log_scale = st.checkbox("Logarithmic Y axis", value=False)
 
 # Option: include unpaired stat files by falling back to per-frame conversion
 include_unpaired = st.checkbox("Include unpaired stat files (fallback to per-frame)", value=False)
@@ -415,7 +441,7 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
 
-def create_network_plot(net_datasets, selected_labels, per_gameobject, xcol):
+def create_network_plot(net_datasets, selected_labels, per_gameobject, xcol, log_scale=False):
     """Create the network subplots figure."""
     fig = make_subplots(
         rows=3, cols=1,
@@ -433,9 +459,14 @@ def create_network_plot(net_datasets, selected_labels, per_gameobject, xcol):
         if "network_rtt" in net_datasets:
             series_list = [d for d in net_datasets["network_rtt"] if d[0] == label]
             if series_list:
-                df = series_list[0][1]
+                df = series_list[0][1].copy()
                 y_col = df["_ycol"].iloc[0]
-                fig.add_trace(go.Scatter(x=df[xcol], y=df[y_col], line=dict(color=color), name=f"{label} RTT", legendgroup=label), row=1, col=1)
+                df[y_col] = pd.to_numeric(df[y_col], errors="coerce")
+                df = df.dropna(subset=[y_col])
+                if log_scale:
+                    df = df[df[y_col] > 0]
+                if not df.empty:
+                    fig.add_trace(go.Scatter(x=df[xcol], y=df[y_col], line=dict(color=color), name=f"{label} RTT", legendgroup=label), row=1, col=1)
         
         # Upload / Download
         for k, l_suffix, l_dash, row in [
@@ -446,19 +477,28 @@ def create_network_plot(net_datasets, selected_labels, per_gameobject, xcol):
                 series_list = [d for d in net_datasets[k] if d[0] == label]
 
                 if series_list:
-                    df = series_list[0][1]
+                    df = series_list[0][1].copy()
                     y_col = df["_ycol"].iloc[0]
-                    fig.add_trace(go.Scatter(x=df[xcol], y=df[y_col], line=dict(color=color, dash=l_dash), name=f"{label} {l_suffix}", legendgroup=label), row=row, col=1)
+                    df[y_col] = pd.to_numeric(df[y_col], errors="coerce")
+                    df = df.dropna(subset=[y_col])
+                    if log_scale:
+                        df = df[df[y_col] > 0]
+                    if not df.empty:
+                        fig.add_trace(go.Scatter(x=df[xcol], y=df[y_col], line=dict(color=color, dash=l_dash), name=f"{label} {l_suffix}", legendgroup=label), row=row, col=1)
         
     fig.update_layout(height=600, showlegend=True)
     fig.update_yaxes(title_text="RTT (ms)", row=1, col=1)
     fig.update_yaxes(title_text="Upload (bytes/sec)", row=2, col=1)
     fig.update_yaxes(title_text="Download (bytes/sec)", row=3, col=1)
+    if log_scale:
+        fig.update_yaxes(type="log", row=1, col=1)
+        fig.update_yaxes(type="log", row=2, col=1)
+        fig.update_yaxes(type="log", row=3, col=1)
     fig.update_xaxes(title_text=xcol, row=3, col=1)
     return fig
 
 
-def create_standard_plot(datasets, selected_labels, metric_label, metric_key, per_gameobject, xcol):
+def create_standard_plot(datasets, selected_labels, metric_label, metric_key, per_gameobject, xcol, log_scale=False):
     """Create a standard line plot for non-network metrics."""
     combined = []
     plot_ycol = None
@@ -545,6 +585,12 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
     
     plot_xcol = xcol if xcol in all_df.columns else ("GameObjects" if "GameObjects" in all_df.columns else ("Frame" if "Frame" in all_df.columns else xcol))
 
+    # If log scale requested, remove non-positive values for the plot y-column
+    all_df[ycol] = pd.to_numeric(all_df[ycol], errors="coerce")
+    all_df = all_df.dropna(subset=[ycol])
+    if log_scale:
+        all_df = all_df[all_df[ycol] > 0]
+
     fig = px.line(all_df, x=plot_xcol, y=ycol, color="label", markers=True)
     
     if metric_key == "fps":
@@ -561,10 +607,12 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
     y_axis_label = ycol if ycol not in ("FPS", metric_label) else metric_label
     figure_title = f"{metric_label}{phase_suffix} per GameObject" if per_gameobject and plot_xcol == "GameObjects" else f"{metric_label}{phase_suffix} vs {plot_xcol}"
     fig.update_layout(title=figure_title, xaxis_title=plot_xcol, yaxis_title=y_axis_label, height=600)
+    if log_scale:
+        fig.update_yaxes(type="log")
     return fig
 
 
-def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame"):
+def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame", log_scale=False):
     metric_figures = {}
     for metric_key in selected_metric_keys:
         metric_label = [k for k, v in metric_options.items() if v == metric_key][0]
@@ -593,6 +641,7 @@ def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame"):
                 metric_key,
                 use_per_gameobject,
                 "GameObjects" if use_per_gameobject else ("Time" if x_axis_mode == "time" else "Frame"),
+                log_scale=log_scale,
             )
             if fig:
                 metric_figures[metric_label] = fig

@@ -5,6 +5,16 @@ import pandas as pd
 
 from metrics_engine import metric_series_from_stats, _extract_finished_rows
 
+"""
+pc_data_analysis
+----------------
+PC-specific helpers for converting a per-frame metric time series
+into a per-GameObject aggregated series using the event trace.
+
+Keep these helpers small and well-documented: they show how to map
+continuous samples into discrete experiment phases for analysis.
+"""
+
 
 def metric_per_gameobject_series(
     stats_df: pd.DataFrame,

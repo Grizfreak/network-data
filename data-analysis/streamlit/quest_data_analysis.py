@@ -5,6 +5,15 @@ import pandas as pd
 
 from metrics_engine import metric_series_from_stats, _extract_finished_rows
 
+"""
+quest_data_analysis
+--------------------
+Quest-specific helpers mirroring PC processing, with attention to
+differences in time units and exported column names. These functions
+demonstrate defensive programming when merging data from sources
+with slightly different schemas.
+"""
+
 
 def _stats_time_unit(stats_df: pd.DataFrame):
     if "Time Stamp" in stats_df.columns:

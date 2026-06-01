@@ -4,6 +4,19 @@ from datetime import datetime
 
 import pandas as pd
 
+"""
+data_loader
+-----------
+Helpers to discover, read and normalize CSV files exported by
+the benchmark runs. Responsibilities include:
+- Detecting stat vs event files
+- Normalizing common column names (Frame, Time, Event, Value)
+- Pairing stats and events by filename semantics and timestamps
+
+Lecture note: this module isolates file-format variability so the
+rest of the pipeline works with predictable column names.
+"""
+
 
 def detect_columns(df: pd.DataFrame):
     frame_col = None

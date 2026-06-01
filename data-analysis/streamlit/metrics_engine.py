@@ -1,10 +1,23 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
+"""
+metrics_engine
+---------------
+Clean, documented implementation of the metric extraction and
+aggregation helpers used by the Streamlit UI.
+
+This module focuses on:
+- locating metric columns in a DataFrame exported from the benchmark
+- normalizing units and column names
+- producing per-frame time series or per-GameObject aggregated series
+
+The code aims to be defensive and easy to teach; docstrings explain the
+reasoning behind alignment and aggregation choices.
+"""
 
 import pandas as pd
 
 
 def _has_network_columns(df: pd.DataFrame) -> bool:
-    """Check if the DataFrame has any network-related columns."""
     network_cols = {
         "Ping (ns)", "Ping_ms",
         "RTT_ms", "RTT (ms)",
@@ -15,33 +28,16 @@ def _has_network_columns(df: pd.DataFrame) -> bool:
         "NetOutBytesPerSec", "Upload (bytes/sec)",
         "Rpc Received", "PacketsIn",
         "Rpc Sent", "PacketsOut",
-        "Object Spawned Bytes Received (bytes)",
-        "Object Spawned Bytes Sent (bytes)",
-        "Rpc Bytes Received (bytes)",
-        "Rpc Bytes Sent (bytes)",
     }
     return any(col in df.columns for col in network_cols)
 
 
-def _supports_gameobject_aggregation(metric_key: str) -> bool:
-    return metric_key in {"fps", "memory", "cpu", "gpu", "pcap_packets", "pcap_bytes", "network_ping", "network_rtt", "network_rtt_rpc", "network_upload", "network_download", "network_bytes_recv", "network_bytes_sent", "network_rpc_recv", "network_rpc_sent"}
-
-
 def _has_pcap_columns(df: pd.DataFrame) -> bool:
-    return any(
-        col in df.columns
-        for col in (
-            "PacketsPerSec",
-            "BytesPerSec",
-            "Packets",
-            "Bytes",
-            "BitsPerSec",
-        )
-    )
+    return any(col in df.columns for col in ("PacketsPerSec", "BytesPerSec", "Packets", "Bytes", "BitsPerSec", "CumulativePackets", "CumulativeBytes", "CumulativeBits"))
 
 
-def _source_from_name(file_name: str):
-    lower = file_name.lower()
+def _source_from_name(file_name: str) -> Optional[str]:
+    lower = (file_name or "").lower()
     if lower.startswith("[pc]"):
         return "pc"
     if lower.startswith("[quest]"):
@@ -67,69 +63,14 @@ def _x_column_name(df: pd.DataFrame, x_axis_mode: str):
     return None, None
 
 
-def _format_label(file_name: str):
-    """Format a stat filename as 'Source - BenchmarkType [Client/Server]' for legend display."""
-    source = _source_from_name(file_name)
-    if not source:
-        return file_name.rsplit(".", 1)[0]
-    source_label = source.upper()
-
-    # Remove the [SOURCE] prefix to inspect the filename body
-    body = file_name.lower()
-    if body.startswith("[pc] "):
-        body = body[5:]
-    elif body.startswith("[quest] "):
-        body = body[8:]
-
-    # Extract benchmark type and client/server variant
-    bench_type = "Unknown"
-    variant = ""
-
-    if "dots" in body:
-        bench_type = "DOTS"
-    elif "ngo" in body:
-        bench_type = "NGO"
-        if "ngo_client" in body:
-            variant = " Client"
-        elif "ngo_server" in body:
-            variant = " Server"
-    elif "photon" in body:
-        bench_type = "Photon"
-        if "photon_client" in body:
-            variant = " Client"
-        elif "photon_server" in body:
-            variant = " Server"
-    elif "fishnet" in body:
-        bench_type = "FishNet"
-        if "fishnet_client" in body:
-            variant = " Client"
-        elif "fishnet_server" in body:
-            variant = " Server"
-    elif "benchmarkbase" in body:
-        bench_type = "Base"
-    elif "gpu" in body:
-        bench_type = "GPU"
-    elif "profiler_stats-" in body:
-        bench_type = "Base"
-    else:
-        # Fallback: use the first meaningful word
-        parts = body.split("_")
-        bench_type = parts[0].title() if parts else "Unknown"
-
-    return f"{source_label} - {bench_type}{variant}"
-
-
 def _fps_series_from_stats(df: pd.DataFrame, stat_name: str | None = None, x_axis_mode: str = "frame"):
     x_column, output_column = _x_column_name(df, x_axis_mode)
     if x_column is None or output_column is None:
         return None
 
     fps_series = None
-    # Prefer computing from FrameTimeMs when available (more reliable than
-    # an exported FPS column which sometimes contains scaled values).
     if "FrameTimeMs" in df.columns:
-        frame_time_ms = pd.to_numeric(df["FrameTimeMs"], errors="coerce")
-        frame_time_ms = frame_time_ms.where(frame_time_ms > 0)
+        frame_time_ms = pd.to_numeric(df["FrameTimeMs"], errors="coerce").where(lambda s: s > 0)
         fps_series = 1000.0 / frame_time_ms
     elif "average_frame_rate" in df.columns:
         fps_series = pd.to_numeric(df["average_frame_rate"], errors="coerce")
@@ -138,12 +79,9 @@ def _fps_series_from_stats(df: pd.DataFrame, stat_name: str | None = None, x_axi
     else:
         return None
 
-    # Guard: if the FPS values look implausibly large (e.g., >1000), and a
-    # FrameTimeMs column exists, prefer that computed series instead.
     if fps_series is not None and (fps_series.mean(skipna=True) > 1000 or fps_series.median(skipna=True) > 1000):
         if "FrameTimeMs" in df.columns:
-            frame_time_ms = pd.to_numeric(df["FrameTimeMs"], errors="coerce")
-            frame_time_ms = frame_time_ms.where(frame_time_ms > 0)
+            frame_time_ms = pd.to_numeric(df["FrameTimeMs"], errors="coerce").where(lambda s: s > 0)
             fps_series = 1000.0 / frame_time_ms
 
     plot_data = df[[x_column]].copy()
@@ -170,10 +108,6 @@ def _memory_series_from_stats(df: pd.DataFrame, x_axis_mode: str = "frame"):
         memory_mb = pd.to_numeric(df["Total Used Memory (bytes)"], errors="coerce") / (1024.0 * 1024.0)
     elif "app_rss_MB" in df.columns:
         memory_mb = pd.to_numeric(df["app_rss_MB"], errors="coerce")
-    elif "app_pss_MB" in df.columns:
-        memory_mb = pd.to_numeric(df["app_pss_MB"], errors="coerce")
-    elif "app_uss_MB" in df.columns:
-        memory_mb = pd.to_numeric(df["app_uss_MB"], errors="coerce")
     else:
         return None
 
@@ -183,18 +117,20 @@ def _memory_series_from_stats(df: pd.DataFrame, x_axis_mode: str = "frame"):
 
 
 def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str | None = None, x_axis_mode: str = "frame"):
+    """
+    Return (DataFrame, ycol) for the requested metric_key, or (None, None).
+    """
     if metric_key == "fps":
         return _fps_series_from_stats(df, stat_name, x_axis_mode), "FPS"
-
     if metric_key == "memory":
         return _memory_series_from_stats(df, x_axis_mode), "MemoryMB"
 
     frame = _frame_series(df, x_axis_mode)
     if frame is None:
         return None, None
-
     x_column = "Time" if x_axis_mode == "time" else "Frame"
 
+    # PCAP packet counts / rates
     if metric_key == "pcap_packets":
         if not _has_pcap_columns(df):
             return None, None
@@ -209,6 +145,18 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
         plot_data = pd.DataFrame({x_column: frame, out_col: series})
         return plot_data.dropna().reset_index(drop=True), out_col
 
+    if metric_key == "pcap_cumulative_packets":
+        if not _has_pcap_columns(df):
+            return None, None
+        if "CumulativePackets" in df.columns:
+            series = pd.to_numeric(df["CumulativePackets"], errors="coerce")
+            out_col = "Cumulative Packets"
+        else:
+            return None, None
+        plot_data = pd.DataFrame({x_column: frame, out_col: series})
+        return plot_data.dropna().reset_index(drop=True), out_col
+
+    # PCAP bytes/rates
     if metric_key == "pcap_bytes":
         if not _has_pcap_columns(df):
             return None, None
@@ -226,11 +174,26 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
         plot_data = pd.DataFrame({x_column: frame, out_col: series})
         return plot_data.dropna().reset_index(drop=True), out_col
 
+    if metric_key == "pcap_cumulative_bytes":
+        if not _has_pcap_columns(df):
+            return None, None
+        if "CumulativeBytes" in df.columns:
+            series = pd.to_numeric(df["CumulativeBytes"], errors="coerce")
+            out_col = "Cumulative Bytes"
+        elif "CumulativeBits" in df.columns:
+            series = pd.to_numeric(df["CumulativeBits"], errors="coerce")
+            out_col = "Cumulative Bits"
+        else:
+            return None, None
+        plot_data = pd.DataFrame({x_column: frame, out_col: series})
+        return plot_data.dropna().reset_index(drop=True), out_col
+
+    # Network-derived metrics (many possible column names across exports)
     if metric_key == "network_ping":
         if not _has_network_columns(df):
             return None, None
         if "Ping (ns)" in df.columns:
-            series = pd.to_numeric(df["Ping (ns)"], errors="coerce") / 1000000.0
+            series = pd.to_numeric(df["Ping (ns)"], errors="coerce") / 1_000_000.0
         elif "Ping_ms" in df.columns:
             series = pd.to_numeric(df["Ping_ms"], errors="coerce")
         elif "RTT_ms" in df.columns:
@@ -291,59 +254,8 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
             return None, None
         plot_data = pd.DataFrame({x_column: frame, "Download (bytes/sec)": series})
         return plot_data.dropna().reset_index(drop=True), "Download (bytes/sec)"
-        
-    if metric_key == "network_bytes_recv":
-        if not _has_network_columns(df):
-            return None, None
-        if "Total Bytes Received (bytes)" in df.columns:
-            series = pd.to_numeric(df["Total Bytes Received (bytes)"], errors="coerce")
-        elif "TotalBytesReceived" in df.columns:
-            series = pd.to_numeric(df["TotalBytesReceived"], errors="coerce")
-        elif "NetInBytesPerSec" in df.columns:
-            series = pd.to_numeric(df["NetInBytesPerSec"], errors="coerce")
-        else:
-            return None, None
-        plot_data = pd.DataFrame({x_column: frame, "Bytes Received": series})
-        return plot_data.dropna().reset_index(drop=True), "Bytes Received"
 
-    if metric_key == "network_bytes_sent":
-        if not _has_network_columns(df):
-            return None, None
-        if "Total Bytes Sent (bytes)" in df.columns:
-            series = pd.to_numeric(df["Total Bytes Sent (bytes)"], errors="coerce")
-        elif "TotalBytesSent" in df.columns:
-            series = pd.to_numeric(df["TotalBytesSent"], errors="coerce")
-        elif "NetOutBytesPerSec" in df.columns:
-            series = pd.to_numeric(df["NetOutBytesPerSec"], errors="coerce")
-        else:
-            return None, None
-        plot_data = pd.DataFrame({x_column: frame, "Bytes Sent": series})
-        return plot_data.dropna().reset_index(drop=True), "Bytes Sent"
-
-    if metric_key == "network_rpc_recv":
-        if not _has_network_columns(df):
-            return None, None
-        if "Rpc Received" in df.columns:
-            series = pd.to_numeric(df["Rpc Received"], errors="coerce")
-        elif "PacketsIn" in df.columns:
-            series = pd.to_numeric(df["PacketsIn"], errors="coerce")
-        else:
-            return None, None
-        plot_data = pd.DataFrame({x_column: frame, "Messages Received": series})
-        return plot_data.dropna().reset_index(drop=True), "Messages Received"
-
-    if metric_key == "network_rpc_sent":
-        if not _has_network_columns(df):
-            return None, None
-        if "Rpc Sent" in df.columns:
-            series = pd.to_numeric(df["Rpc Sent"], errors="coerce")
-        elif "PacketsOut" in df.columns:
-            series = pd.to_numeric(df["PacketsOut"], errors="coerce")
-        else:
-            return None, None
-        plot_data = pd.DataFrame({x_column: frame, "Messages Sent": series})
-        return plot_data.dropna().reset_index(drop=True), "Messages Sent"
-
+    # CPU / GPU metrics with candidate columns and divisors for unit conversion
     if metric_key == "cpu":
         candidates = [
             ("CPU Total Frame Time (ns)", 1_000_000.0),
@@ -371,8 +283,6 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
         if candidate.isna().all():
             continue
         if col == "GPU Frame Time (ns)":
-            # Some exports contain clearly corrupt GPU samples (e.g. 1e16 ns);
-            # drop anything implausibly large before converting to ms.
             candidate = candidate.where((candidate > 0) & (candidate <= 1_000_000_000.0))
         metric_series = candidate / divisor
         used_col = col
@@ -380,8 +290,6 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
 
     if metric_series is None:
         return None, None
-
-    # Adjust output column name for Quest CPU utilization (percentage, not time)
     if used_col == "cpu_utilization_percentage":
         out_col = "CPU Utilization (%)"
 
@@ -391,117 +299,121 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
 
 def _extract_finished_rows(events_df: pd.DataFrame):
     events = events_df.copy()
-    # Parse numeric Time and Frame separately so callers can choose the
-    # alignment strategy (prefer Time when available).
     if "Time" in events.columns:
         events["Time"] = pd.to_numeric(events["Time"], errors="coerce")
     if "Frame" in events.columns:
         events["Frame"] = pd.to_numeric(events["Frame"], errors="coerce")
-
     if "Event" not in events.columns or "Value" not in events.columns:
         return None
-
     finished = events.loc[events["Event"] == "FinishedInstantiation", ["Frame", "Time", "Value"]].copy()
-    # coerce Value to numeric and drop rows without it
     finished["Value"] = pd.to_numeric(finished["Value"], errors="coerce")
     finished = finished.dropna(subset=["Value"]).sort_values(by=["Time", "Frame"], na_position="last")
     return finished.reset_index(drop=True)
 
 
-def _phase_bound(row: pd.Series, column: str):
-    value = row.get(column)
-    if pd.isna(value):
-        return None
-    return float(value)
-
-
-
-
-
 def _filter_dataframe_to_window(df: pd.DataFrame, window):
     if window is None or df.empty:
         return df.copy()
-
     column = _frame_column_name(df)
     if column is None:
         return df.copy()
-
     values = pd.to_numeric(df[column], errors="coerce")
     start = window.get("frame_start")
     end = window.get("frame_end")
-
     if column != "Frame":
         start = window.get("time_start")
         end = window.get("time_end")
-        
-        # Convert time bounds to milliseconds if the column is 'Time Stamp' (in ms)
-        # while window bounds are in seconds (from PC event files)
         if column == "Time Stamp" and start is not None and end is not None:
             start = start * 1000.0
             end = end * 1000.0
-
     if start is None or end is None:
         return df.copy()
-
     mask = values.between(start, end, inclusive="both")
     return df.loc[mask].copy()
-
-
-
 
 
 def metric_per_gameobject_series(stats_df: pd.DataFrame, events_df: pd.DataFrame, metric_key: str, stat_name: str | None = None):
     source = _source_from_name(stat_name or "")
     if source == "pc":
         from pc_data_analysis import metric_per_gameobject_series as pc_metric_per_gameobject_series
-
         return pc_metric_per_gameobject_series(stats_df, events_df, metric_key, stat_name)
     if source == "quest":
         from quest_data_analysis import metric_per_gameobject_series as quest_metric_per_gameobject_series
-
         return quest_metric_per_gameobject_series(stats_df, events_df, metric_key, stat_name)
-
     return None, None
 
 
 def _pcap_per_gameobject_series(stats_df: pd.DataFrame, events_df: pd.DataFrame, metric_key: str, stat_name: str | None = None):
+    """
+    Convert a PCAP-derived time series into a per-GameObject series.
+
+    Uses FinishedInstantiation events as segment boundaries and picks the
+    last sample inside each segment as a representative value.
+    """
     metric_data, metric_column = metric_series_from_stats(stats_df, metric_key, stat_name, x_axis_mode="frame")
     if metric_data is None or metric_column is None:
         return None, None
-
     finished_rows = _extract_finished_rows(events_df)
     if finished_rows is None or finished_rows.empty:
         return None, None
 
-    sample_frames = pd.to_numeric(metric_data["Frame"], errors="coerce")
-    sample_values = pd.to_numeric(metric_data[metric_column], errors="coerce")
-    valid_samples = pd.DataFrame({"Frame": sample_frames, metric_column: sample_values}).dropna().sort_values("Frame")
+    # Decide whether to align on Frame or Time depending on scale
+    use_time_alignment = False
+    if "Frame" in metric_data.columns:
+        try:
+            max_metric_frame = float(pd.to_numeric(metric_data["Frame"], errors="coerce").max())
+            max_event_frame = float(pd.to_numeric(finished_rows["Frame"], errors="coerce").max())
+            if max_event_frame > max_metric_frame * 100:
+                use_time_alignment = True
+        except Exception:
+            use_time_alignment = True
+
+    if use_time_alignment:
+        metric_data_time, metric_column_time = metric_series_from_stats(stats_df, metric_key, stat_name, x_axis_mode="time")
+        if metric_data_time is None or metric_column_time is None or "Time" not in metric_data_time.columns:
+            return None, None
+        sample_times = pd.to_numeric(metric_data_time["Time"], errors="coerce")
+        sample_values = pd.to_numeric(metric_data_time[metric_column_time], errors="coerce")
+        finished_index_col = "Time"
+        metric_column = metric_column_time
+        valid_samples = pd.DataFrame({"Time": sample_times, metric_column: sample_values}).dropna().sort_values("Time").reset_index(drop=True)
+    else:
+        sample_frames = pd.to_numeric(metric_data["Frame"], errors="coerce")
+        sample_values = pd.to_numeric(metric_data[metric_column], errors="coerce")
+        finished_index_col = "Frame"
+        valid_samples = pd.DataFrame({"Frame": sample_frames, metric_column: sample_values}).dropna().sort_values("Frame").reset_index(drop=True)
+
     if valid_samples.empty:
         return None, None
 
     segment_points = []
     previous_frame = None
     for _, row in finished_rows.iterrows():
-        current_frame = row.get("Frame")
+        current_frame = row.get(finished_index_col)
         current_value = row.get("Value")
         if pd.isna(current_frame) or pd.isna(current_value):
             continue
-
         if previous_frame is None:
-            segment = valid_samples.loc[valid_samples["Frame"] <= float(current_frame), metric_column]
+            if finished_index_col == "Frame":
+                segment = valid_samples.loc[valid_samples["Frame"] <= float(current_frame), metric_column]
+            else:
+                segment = valid_samples.loc[sample_times <= float(current_frame), metric_column]
         else:
-            segment = valid_samples.loc[
-                (valid_samples["Frame"] > float(previous_frame)) & (valid_samples["Frame"] <= float(current_frame)),
-                metric_column,
-            ]
-
+            if finished_index_col == "Frame":
+                segment = valid_samples.loc[(valid_samples["Frame"] > float(previous_frame)) & (valid_samples["Frame"] <= float(current_frame)), metric_column]
+            else:
+                segment = valid_samples.loc[(sample_times > float(previous_frame)) & (sample_times <= float(current_frame)), metric_column]
         if not segment.empty:
-            segment_points.append((float(current_value), float(segment.mean())))
+            try:
+                gos = float(current_value)
+            except Exception:
+                gos = 0.0
+            value = float(segment.iloc[-1])
+            segment_points.append((gos, value))
         previous_frame = current_frame
 
     if not segment_points:
         return None, None
-
     out_col = f"Average{metric_column}"
     segment_data = pd.DataFrame(segment_points, columns=["GameObjects", out_col])
     segment_data["GameObjects"] = pd.to_numeric(segment_data["GameObjects"], errors="coerce")
@@ -526,12 +438,15 @@ def build_datasets(
     x_axis_mode: str = "frame",
     include_unpaired: bool = False,
 ):
-    """Build chart-ready datasets and warning messages from selected inputs."""
+    """
+    Assemble labeled DataFrames ready for plotting and return warnings.
+    """
     datasets = []
     warnings = []
 
     for sname, sdf in stats_files:
-        label = _format_label(sname)
+        label = sname.rsplit(".", 1)[0]
+        # Simple PCAP path (no per-GameObject aggregation requested)
         if selected_metric_key.startswith("pcap_") and not per_gameobject:
             series, ycol = metric_series_from_stats(sdf, selected_metric_key, sname, x_axis_mode=x_axis_mode)
             if series is None or ycol is None:
@@ -541,6 +456,7 @@ def build_datasets(
             series["_ycol"] = ycol
             datasets.append((label, series))
             continue
+
         if per_gameobject:
             if not _supports_gameobject_aggregation(selected_metric_key):
                 series, ycol = metric_series_from_stats(sdf, selected_metric_key, sname, x_axis_mode=x_axis_mode)
@@ -558,12 +474,9 @@ def build_datasets(
                 if not include_unpaired:
                     warnings.append(f"No event file selected for {sname}; skipping per-GameObject aggregation.")
                     continue
-                warnings.append(
-                    f"No event file selected for {sname}; falling back to per-frame-to-GameObject conversion for this file."
-                )
+                warnings.append(f"No event file selected for {sname}; falling back to per-frame-to-GameObject conversion for this file.")
                 series, ycol = metric_series_from_stats(sdf, selected_metric_key, sname, x_axis_mode=x_axis_mode)
                 if series is None or ycol is None:
-                    # Skip silently for network metrics on files without network data
                     if not (selected_metric_key.startswith("network_") and not _has_network_columns(sdf)):
                         warnings.append(f"Also could not parse {selected_metric_label} series from {sname}.")
                     continue
@@ -582,14 +495,10 @@ def build_datasets(
                 else:
                     series, ycol = metric_per_gameobject_series(sdf, edf, selected_metric_key, sname)
                 if series is None or series.empty or ycol is None:
-                    # Skip warning for network metrics on files without network data
                     if not (selected_metric_key.startswith("network_") and not _has_network_columns(sdf)):
-                        warnings.append(
-                            f"Per-GameObject aggregation failed for {sname} with {selected_event_name}; falling back to per-frame."
-                        )
+                        warnings.append(f"Per-GameObject aggregation failed for {sname} with {selected_event_name}; falling back to per-frame.")
                     series, ycol = metric_series_from_stats(sdf, selected_metric_key, sname, x_axis_mode=x_axis_mode)
                     if series is None or ycol is None:
-                        # Skip silently for network metrics on files without network data
                         if not (selected_metric_key.startswith("network_") and not _has_network_columns(sdf)):
                             warnings.append(f"Also could not parse {selected_metric_label} series from {sname}.")
                         continue
@@ -601,7 +510,6 @@ def build_datasets(
         else:
             series, ycol = metric_series_from_stats(sdf, selected_metric_key, sname, x_axis_mode=x_axis_mode)
             if series is None or ycol is None:
-                # Skip silently for network metrics on files without network data
                 if not (selected_metric_key.startswith("network_") and not _has_network_columns(sdf)):
                     warnings.append(f"Could not parse {selected_metric_label} series from {sname}.")
                 continue

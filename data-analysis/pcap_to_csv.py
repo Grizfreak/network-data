@@ -11,7 +11,7 @@ import argparse
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, List
 
 import pandas as pd
 from scapy.all import PcapNgReader, PcapReader  # type: ignore[attr-defined]
@@ -257,6 +257,23 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def find_pc_capture_files(folder_path: Path) -> List[Path]:
+    """List all potential PC capture files (pcap/pcapng) directly under *folder_path*.
+
+    A file is considered a candidate if it has the correct extension.
+    This function assumes that any pcap/pcapng file found in this folder
+    is relevant for conversion, similar to how Quest captures are handled.
+    """
+    if not folder_path.exists() or not folder_path.is_dir():
+        return []
+
+    # Return all pcap/pcapng files as candidates, checking extensions case-insensitively
+    return sorted(
+        p for p in folder_path.iterdir()
+        if p.is_file() and p.suffix.lower() in (".pcap", ".pcapng")
+    )
+
+
 def main() -> None:
     args = build_arg_parser().parse_args()
     output_path = args.output or args.input.with_suffix(".csv")
@@ -267,6 +284,7 @@ def main() -> None:
         print(f"Wrote {len(frame)} bucket(s) to {output_path} (partial: {read_error})")
     else:
         print(f"Wrote {len(frame)} bucket(s) to {output_path}")
+
 
 
 if __name__ == "__main__":

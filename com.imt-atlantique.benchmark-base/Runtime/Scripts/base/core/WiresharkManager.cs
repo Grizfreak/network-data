@@ -16,6 +16,8 @@ public class WiresharkManager : MonoBehaviour
     private Process _tsharkProcess;
     private string _captureFilePath;
 
+    private bool isQuest = false;
+
     void Awake()
     {
         if (Instance == null)
@@ -28,6 +30,19 @@ public class WiresharkManager : MonoBehaviour
             Destroy(gameObject);
         }
     }
+    void Start()
+    {
+        string[] args = System.Environment.GetCommandLineArgs();
+        
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i] == "--quest")
+            {
+                isQuest = true;
+                Debug.Log("Running for Quest benchmark tracking, Wireshark will be modified.");
+            }
+        }
+    }
 
     public void StartTracking(string filter, string filename)
     {
@@ -37,23 +52,47 @@ public class WiresharkManager : MonoBehaviour
             return;
         }
 
-        _captureFilePath = Application.persistentDataPath + "/" + filename + "_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".pcap";
-        ProcessStartInfo startInfo = new ProcessStartInfo
+        if (isQuest)
         {
-            FileName = "tshark", // Ensure tshark is in the system PATH
-            Arguments = $"-i \"Wi-Fi\" -w \"{_captureFilePath}\" -f \"{filter}\"",
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+            _captureFilePath = Application.persistentDataPath + "/" + filename + "_quest_capture_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".pcap";
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                FileName = "tshark", // Ensure tshark is in the system PATH
+                Arguments = $"-i \"Wi-Fi 3\" -w \"{_captureFilePath}\" -f \"{filter}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
 
-        try
-        {
-            _tsharkProcess = Process.Start(startInfo);
-            Debug.Log("Wireshark started with filter: " + filter);
+            try
+            {
+                _tsharkProcess = Process.Start(startInfo);
+                Debug.Log("Wireshark started with filter: " + filter);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError("Failed to start Wireshark: " + ex.Message);
+            }
         }
-        catch (System.Exception ex)
+        else
         {
-            Debug.LogError("Failed to start Wireshark: " + ex.Message);
+            _captureFilePath = Application.persistentDataPath + "/" + filename + "_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".pcap";
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                FileName = "tshark", // Ensure tshark is in the system PATH
+                Arguments = $"-i \"Wi-Fi\" -w \"{_captureFilePath}\" -f \"{filter}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            try
+            {
+                _tsharkProcess = Process.Start(startInfo);
+                Debug.Log("Wireshark started with filter: " + filter);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError("Failed to start Wireshark: " + ex.Message);
+            }
         }
     }
 

@@ -35,8 +35,18 @@ pcap_tools = importlib.reload(pcap_tools)
 cleanup_pcap_folder_csv = pcap_tools.cleanup_pcap_folder_csv
 convert_pcap_folder_to_csv = pcap_tools.convert_pcap_folder_to_csv
 
+# Quest-specific pcap tool lives next to the PC tool in the project root.
+import pcap_to_csv_quest as pcap_quest_tools  # noqa: E402
+
+pcap_quest_tools = importlib.reload(pcap_quest_tools)
+cleanup_quest_captures_csv = pcap_quest_tools.cleanup_quest_captures_csv
+convert_quest_captures_to_csv = pcap_quest_tools.convert_quest_captures_to_csv
+find_pc_capture_files = pcap_tools.find_pc_capture_files
+find_quest_capture_folders = pcap_quest_tools.find_quest_capture_folders
+find_quest_capture_files = pcap_quest_tools.find_quest_capture_files
 
 def _split_subsystem_label(label: str):
+    """Splits a subsystem label string to determine if it belongs to PC or Quest."""
     if label.startswith("[PC] "):
         return "PC", label[5:]
     if label.startswith("[Quest] "):
@@ -117,7 +127,14 @@ if pc_folder:
                 for pcap_path, message in errors:
                     st.warning(f"Failed to convert {pcap_path.name}: {message}")
             if not converted and not skipped and not errors:
-                st.info("No pcap or pcapng files found in the PC folder.")
+                # List all PC capture files found for consistency
+                pc_pcap_files = find_pc_capture_files(pc_folder)
+                if pc_pcap_files:
+                    st.info("PC pcap/pcapng files in this folder:")
+                    for fpath in sorted(pc_pcap_files):
+                        st.caption(str(fpath))
+                else:
+                    st.info("No PC pcap or pcapng files found in the PC folder.")
 
         if cleanup_pcaps:
             result = cleanup_pcap_folder_csv(pc_folder)
@@ -136,6 +153,84 @@ if pc_folder:
                     st.warning(f"Failed to delete {output_path.name}: {message}")
             if not deleted and not missing and not errors:
                 st.info("No generated pcap CSV files found in the PC folder.")
+
+# Quest capture tools: same workflow as PC, but isolated to Quest captures.
+if quest_folder:
+    # List all pcap/pcapng files found (not just those named "quest_capture")
+    quest_pcap_files = find_quest_capture_files(quest_folder)
+
+    with st.expander(
+        f"Quest capture tools ({len(quest_pcap_files)} pcap file(s) found)",
+        expanded=False,
+    ):
+        quest_pcap_bucket_seconds = st.number_input(
+            "Quest PCAP bucket size (seconds)",
+            min_value=0.1,
+            value=1.0,
+            step=0.1,
+            key="quest_pcap_bucket_seconds",
+        )
+        quest_overwrite_pcap_csv = st.checkbox(
+            "Overwrite existing Quest pcap CSV outputs",
+            value=False,
+            key="quest_overwrite_pcap_csv",
+        )
+        quest_convert_col, quest_cleanup_col = st.columns(2)
+        with quest_convert_col:
+            quest_convert_pcaps = st.button("Convert every Quest pcap to CSV")
+        with quest_cleanup_col:
+            quest_cleanup_pcaps = st.button("Delete generated Quest pcap CSVs")
+
+        if quest_convert_pcaps:
+            result = convert_quest_captures_to_csv(
+                quest_folder,
+                bucket_seconds=float(quest_pcap_bucket_seconds),
+                overwrite=quest_overwrite_pcap_csv,
+            )
+            converted = result["converted"]
+            skipped = result["skipped"]
+            warnings = result.get("warnings", [])
+            errors = result["errors"]
+
+            if converted:
+                st.success(f"Converted {len(converted)} Quest pcap file(s) to CSV.")
+                for pcap_path, output_path, row_count in converted:
+                    st.write(f"{pcap_path.name} -> {output_path.name} ({row_count} bucket(s))")
+            if skipped:
+                st.info(f"Skipped {len(skipped)} existing CSV file(s).")
+            if warnings:
+                for pcap_path, message in warnings:
+                    st.warning(f"{pcap_path.name}: {message}")
+            if errors:
+                for pcap_path, message in errors:
+                    st.warning(f"Failed to convert {pcap_path.name}: {message}")
+            if not converted and not skipped and not errors:
+                # List all Quest capture files found for consistency
+                quest_pcap_files = find_quest_capture_files(quest_folder)
+                if quest_pcap_files:
+                    st.info("Quest pcap/pcapng files in this folder:")
+                    for fpath in sorted(quest_pcap_files):
+                        st.caption(str(fpath))
+                else:
+                    st.info("No Quest pcap or pcapng files found in the Quest folder.")
+
+        if quest_cleanup_pcaps:
+            result = cleanup_quest_captures_csv(quest_folder)
+            deleted = result["deleted"]
+            missing = result["missing"]
+            errors = result["errors"]
+
+            if deleted:
+                st.success(f"Deleted {len(deleted)} generated Quest CSV file(s).")
+                for output_path in deleted:
+                    st.write(output_path.name)
+            if missing:
+                st.info(f"{len(missing)} generated Quest CSV file(s) were already missing.")
+            if errors:
+                for output_path, message in errors:
+                    st.warning(f"Failed to delete {output_path.name}: {message}")
+            if not deleted and not missing and not errors:
+                st.info("No generated Quest pcap CSV files found in the Quest folder.")
 
 # Selector for which data to load
 st.subheader("Select Data to Load")
@@ -628,6 +723,15 @@ def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame", log_
             include_unpaired=include_unpaired,
         )
 
+        # Filter out non-com.IMT_Atlantique Quest files for standard metrics (FPS, Memory, CPU, GPU).
+        # We want to use ONLY com.IMT_Atlantique files for these specific metrics on Quest, as requested.
+        standard_metric_keys = ("fps", "memory", "cpu", "gpu")
+        if metric_key in standard_metric_keys and datasets:
+            datasets = [
+                (label, df) for label, df in datasets
+                if not (label.startswith("[Quest] ") and "com.IMT_Atlantique" not in label)
+            ]
+
         if datasets:
             labels = [t[0] for t in datasets]
             if active_line_filters:
@@ -667,7 +771,7 @@ def render_dashboard(metric_figures, title):
             if plot_idx < num_plots:
                 _, fig = metrics_list[plot_idx]
                 with cols[col_idx]:
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
 
 
 # Generate and display the full dashboard

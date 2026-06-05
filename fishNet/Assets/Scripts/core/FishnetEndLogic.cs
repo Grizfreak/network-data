@@ -8,6 +8,7 @@ public class FishnetEndLogic : NetworkBehaviour
 {
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     private bool finishedClient = false;
+    private bool isClient = false;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
 
     public override void OnStartServer()
@@ -18,6 +19,8 @@ public class FishnetEndLogic : NetworkBehaviour
     public override void OnStartClient()
     {
         ClientManager.OnClientConnectionState += OnClientDisconnected;
+        isClient = true;
+        Debug.Log("Successfully added client connection state listener");
     }
     
     private void FinishExperiment()
@@ -72,9 +75,11 @@ public class FishnetEndLogic : NetworkBehaviour
 
     private void OnClientDisconnected(ClientConnectionStateArgs args)
     {
-        if (args.ConnectionState == LocalConnectionState.Stopped)
+        Debug.Log($"Client connection state changed: {args.ConnectionState}");
+        if (args.ConnectionState == LocalConnectionState.Stopped || args.ConnectionState == LocalConnectionState.Stopping)
         {
             Debug.Log("Client disconnected in a non-good way.. exiting the app");
+            ClientManager.OnClientConnectionState -= OnClientDisconnected;
             PhaseManager.Instance.FinishTest();
         }
     }
@@ -82,5 +87,10 @@ public class FishnetEndLogic : NetworkBehaviour
     void OnDestroy()
     {
         WiresharkManager.Instance.StopTracking();
+        if (!isClient)
+        {
+            PhaseManager.Instance.FinishingExperimentation -= FinishExperiment;
+        }
+        
     }
 }

@@ -56,36 +56,42 @@ public class NetworkLogs : NetworkBehaviour
     [ObserversRpc]
     private void SendClientEventSiRpc(string msg)
     {
+        Debug.Log("Invoking StartingInstantiation with msg: " + msg);
         InstantiateManager.Instance.StartingInstantiation.Invoke(msg);
     }
     
     [ObserversRpc]
     private void SendClientEventFiRpc(string msg, int value)
     {
+        Debug.Log("Invoking FinishedInstantiation with msg: " + msg + " and value: " + value);
         InstantiateManager.Instance.FinishedInstantiation.Invoke(msg, value);
     }
     
     [ObserversRpc]
     private void SendClientEventPSRpc(string msg)
     {
+        Debug.Log("Invoking PhaseStarted with msg: " + msg);
         PhaseManager.Instance.PhaseStarted.Invoke(msg);
     }
     
     [ObserversRpc]
     private void SendClientEventPfRpc(string msg)
     {
+        Debug.Log("Invoking PhaseFinished with msg: " + msg);
         PhaseManager.Instance.PhaseFinished.Invoke(msg);
     }
     
     [ObserversRpc]
     private void SendClientEventSmeRpc(string msg)
     {
+        Debug.Log("Invoking StartMovingEntities with msg: " + msg);
         MoveManager.Instance.StartMovingEntities.Invoke(msg);
     }
     
     [ObserversRpc]
     private void SendClientEventEmeRpc(string msg)
     {
+        Debug.Log("Invoking EndMovingEntities with msg: " + msg);
         MoveManager.Instance.EndMovingEntities.Invoke(msg);
     }
     

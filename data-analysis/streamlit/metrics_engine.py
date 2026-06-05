@@ -411,6 +411,7 @@ def _pcap_per_gameobject_series(stats_df: pd.DataFrame, events_df: pd.DataFrame,
         return None, None
 
     segment_points = []
+    previous_value = None
     previous_frame = None
     for _, row in finished_rows.iterrows():
         current_frame = row.get(finished_index_col)
@@ -432,13 +433,25 @@ def _pcap_per_gameobject_series(stats_df: pd.DataFrame, events_df: pd.DataFrame,
                 gos = float(current_value)
             except Exception:
                 gos = 0.0
-            value = float(segment.iloc[-1])
+            current_segment_value = float(segment.iloc[-1])
+            if previous_value is None:
+                value = current_segment_value
+            else:
+                value = current_segment_value - previous_value
+                if value < 0:
+                    value = current_segment_value
+            previous_value = current_segment_value
             segment_points.append((gos, value))
         previous_frame = current_frame
 
     if not segment_points:
         return None, None
-    out_col = f"Average{metric_column}"
+    if metric_key == "pcap_cumulative_packets":
+        out_col = "Packets per GameObject (delta)"
+    elif metric_key == "pcap_cumulative_bytes":
+        out_col = "Bytes per GameObject (delta)"
+    else:
+        out_col = f"Average{metric_column}"
     segment_data = pd.DataFrame(segment_points, columns=["GameObjects", out_col])
     segment_data["GameObjects"] = pd.to_numeric(segment_data["GameObjects"], errors="coerce")
     segment_data[out_col] = pd.to_numeric(segment_data[out_col], errors="coerce")

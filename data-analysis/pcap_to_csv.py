@@ -15,7 +15,7 @@ from typing import Iterable, List
 
 import pandas as pd
 from scapy.all import PcapNgReader, PcapReader  # type: ignore[attr-defined]
-from scapy.layers.inet import ICMP, TCP, UDP
+from scapy.layers.inet import ICMP, IP, TCP, UDP
 from scapy.packet import Packet
 
 
@@ -49,6 +49,14 @@ def _packet_kind(packet: Packet) -> str:
     if packet.haslayer(ICMP):
         return "icmp"
     return "other"
+
+
+def _packet_endpoints(packet: Packet) -> tuple[str | None, str | None]:
+    """Return ``(src_ip, dst_ip)`` for an IP packet, else ``(None, None)``."""
+    if not packet.haslayer(IP):
+        return (None, None)
+    ip_layer = packet[IP]
+    return (ip_layer.src, ip_layer.dst)
 
 
 def _detect_capture_format(pcap_path: Path) -> str:
@@ -124,7 +132,26 @@ def _finalize_buckets(buckets: dict[int, BucketStats], bucket_seconds: float) ->
     return pd.DataFrame(rows)
 
 
-def _ingest_packet(packet: Packet, buckets: dict[int, BucketStats], bucket_seconds: float, start_time: float) -> None:
+def _ingest_packet(
+    packet: Packet,
+    buckets: dict[int, BucketStats],
+    bucket_seconds: float,
+    start_time: float,
+    ip_filter: set[str] | None = None,
+) -> bool:
+    """Bucket a single packet and return ``True`` if it was ingested.
+
+    When *ip_filter* is provided, packets whose endpoints are not both in
+    the set are dropped. Packets without an IP layer are always dropped
+    in that case.
+    """
+    if ip_filter is not None:
+        src_ip, dst_ip = _packet_endpoints(packet)
+        if src_ip is None or dst_ip is None:
+            return False
+        if src_ip not in ip_filter or dst_ip not in ip_filter:
+            return False
+
     elapsed = max(float(packet.time) - start_time, 0.0)
     bucket_index = int(elapsed // bucket_seconds)
     stats = buckets[bucket_index]
@@ -140,9 +167,80 @@ def _ingest_packet(packet: Packet, buckets: dict[int, BucketStats], bucket_secon
         stats.icmp_packets += 1
     else:
         stats.other_packets += 1
+    return True
 
 
-def convert_pcap_to_dataframe(pcap_path: Path, bucket_seconds: float = 1.0) -> pd.DataFrame:
+def _count_packets(pcap_path: Path) -> int:
+    """Count how many packets a capture contains (used for diagnostics)."""
+    capture_format = _detect_capture_format(pcap_path)
+    if capture_format == "pcapng":
+        reader_classes = (PcapNgReader,)
+    elif capture_format == "pcap":
+        reader_classes = (PcapReader,)
+    else:
+        reader_classes = (PcapReader, PcapNgReader)
+
+    for reader_cls in reader_classes:
+        try:
+            with reader_cls(str(pcap_path)) as reader:
+                return sum(1 for _ in reader)
+        except Exception:
+            continue
+    return 0
+
+
+def find_dominant_conversation(
+    pcap_path: Path,
+    exclude_ips: Iterable[str] | None = None,
+) -> tuple[tuple[str, str], int] | None:
+    """Return the IP pair that exchanges the most packets in *pcap_path*.
+
+    The conversation is the unordered pair ``{src_ip, dst_ip}`` with the
+    highest packet count. The returned pair is always ordered so that
+    the lower IP comes first, which makes the result deterministic.
+
+    *exclude_ips* (e.g. ``{"127.0.0.1", "::1"}``) lets the caller ignore
+    self-loopback / multicast noise that often dominates Quest captures.
+
+    Returns ``None`` when the capture contains no IP packets.
+    """
+    excluded = set(exclude_ips or ())
+    counts: dict[tuple[str, str], int] = defaultdict(int)
+
+    capture_format = _detect_capture_format(pcap_path)
+    if capture_format == "pcapng":
+        reader_classes = (PcapNgReader,)
+    elif capture_format == "pcap":
+        reader_classes = (PcapReader,)
+    else:
+        reader_classes = (PcapReader, PcapNgReader)
+
+    for reader_cls in reader_classes:
+        try:
+            with reader_cls(str(pcap_path)) as reader:
+                for packet in reader:
+                    src_ip, dst_ip = _packet_endpoints(packet)
+                    if src_ip is None or dst_ip is None:
+                        continue
+                    if src_ip in excluded or dst_ip is None or dst_ip in excluded:
+                        continue
+                    key = tuple(sorted((src_ip, dst_ip)))
+                    counts[key] += 1
+            break
+        except Exception:
+            continue
+
+    if not counts:
+        return None
+    best_pair_count = sorted(counts.items(), key=lambda item: item[1], reverse=True)[0]
+    # `best_pair_count` is already a tuple `(ip_pair, packet_count)`. Return it directly.
+
+
+def convert_pcap_to_dataframe(
+    pcap_path: Path,
+    bucket_seconds: float = 1.0,
+    ip_filter: set[str] | None = None,
+) -> pd.DataFrame:
     if bucket_seconds <= 0:
         raise ValueError("bucket_seconds must be greater than 0")
 
@@ -164,16 +262,20 @@ def convert_pcap_to_dataframe(pcap_path: Path, bucket_seconds: float = 1.0) -> p
                 for packet in reader:
                     if start_time is None:
                         start_time = float(packet.time)
-                    _ingest_packet(packet, buckets, bucket_seconds, start_time)
+                    _ingest_packet(packet, buckets, bucket_seconds, start_time, ip_filter)
             frame = _finalize_buckets(buckets, bucket_seconds)
             if capture_error is not None:
                 frame.attrs["read_error"] = f"{type(capture_error).__name__}: {capture_error}"
+            if ip_filter is not None:
+                frame.attrs["ip_filter"] = sorted(ip_filter)
             return frame
         except Exception as exc:
             if start_time is not None and buckets:
                 frame = _finalize_buckets(buckets, bucket_seconds)
                 frame.attrs["read_error"] = f"{type(exc).__name__}: {exc}"
                 frame.attrs["partial"] = True
+                if ip_filter is not None:
+                    frame.attrs["ip_filter"] = sorted(ip_filter)
                 return frame
             capture_error = exc
 

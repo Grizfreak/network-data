@@ -67,9 +67,10 @@ using UnityEngine;
             eventsWriter.WriteLine(string.Format(CultureInfo.InvariantCulture,
                 "{0},{1:F3},{2},{3}",
                 frame, timestamp, eventName, number == -1 ? -1 : number));
+            Debug.Log("Writing event for file : "+ eventsWriter);
         }
 
-        private void OnApplicationQuit()
+        private void OnDestroy()
         {
             eventsWriter?.Flush();
             eventsWriter?.Close();

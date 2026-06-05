@@ -44,6 +44,8 @@ convert_quest_captures_to_csv = pcap_quest_tools.convert_quest_captures_to_csv
 find_pc_capture_files = pcap_tools.find_pc_capture_files
 find_quest_capture_folders = pcap_quest_tools.find_quest_capture_folders
 find_quest_capture_files = pcap_quest_tools.find_quest_capture_files
+is_photon_capture_path = pcap_quest_tools.is_photon_capture_path
+find_dominant_quest_conversation = pcap_quest_tools.find_dominant_quest_conversation
 
 def _split_subsystem_label(label: str):
     """Splits a subsystem label string to determine if it belongs to PC or Quest."""
@@ -52,6 +54,15 @@ def _split_subsystem_label(label: str):
     if label.startswith("[Quest] "):
         return "Quest", label[8:]
     return "Unknown", label
+
+
+def _is_quest_network_series(label: str) -> bool:
+    """Keep only Quest series that are relevant to network/PCAP plots."""
+    if not label.startswith("[Quest] "):
+        return True
+
+    lowered = label.lower()
+    return any(token in lowered for token in ("photon", "fishnet", "ngo"))
 
 # allow importing project helpers (assemble.py)
 try:
@@ -175,6 +186,47 @@ if quest_folder:
             value=False,
             key="quest_overwrite_pcap_csv",
         )
+        # Photon-specific option: detect the conversation (IP pair) with the
+        # most packets and keep only those packets in the output CSV. This is
+        # useful when a Quest capture mixes Photon traffic with background
+        # noise (DNS, captive portal, etc.).
+        photon_capture_count = sum(
+            1 for f in quest_pcap_files if is_photon_capture_path(f)
+        )
+        quest_photon_filter_disabled = photon_capture_count == 0
+        if quest_photon_filter_disabled:
+            st.caption(
+                "No Photon captures detected in this folder — the "
+                "conversation filter is disabled."
+            )
+        quest_photon_conversation_filter = st.checkbox(
+            f"Photon: keep only the dominant conversation "
+            f"({photon_capture_count} Photon capture(s) detected)",
+            value=False,
+            key="quest_photon_conversation_filter",
+            disabled=quest_photon_filter_disabled,
+        )
+        if quest_photon_conversation_filter and not quest_photon_filter_disabled:
+            with st.expander("Photon conversation preview", expanded=False):
+                for capture_path in quest_pcap_files:
+                    if not is_photon_capture_path(capture_path):
+                        continue
+                    try:
+                        pair = find_dominant_quest_conversation(capture_path)
+                    except Exception as exc:  # noqa: BLE001
+                        st.warning(
+                            f"{capture_path.name}: could not detect "
+                            f"conversation ({exc})"
+                        )
+                        continue
+                    if pair is None:
+                        st.warning(
+                            f"{capture_path.name}: no IP packets found."
+                        )
+                    else:
+                        st.write(
+                            f"{capture_path.name}: {pair[0]} <-> {pair[1]}"
+                        )
         quest_convert_col, quest_cleanup_col = st.columns(2)
         with quest_convert_col:
             quest_convert_pcaps = st.button("Convert every Quest pcap to CSV")
@@ -186,6 +238,7 @@ if quest_folder:
                 quest_folder,
                 bucket_seconds=float(quest_pcap_bucket_seconds),
                 overwrite=quest_overwrite_pcap_csv,
+                photon_conversation_filter=quest_photon_conversation_filter,
             )
             converted = result["converted"]
             skipped = result["skipped"]
@@ -382,8 +435,8 @@ metric_options = {
     "GPU (ms)": "gpu",
     "PCAP - Packets/sec": "pcap_packets",
     "PCAP - Bytes/sec": "pcap_bytes",
-    "PCAP - Cumulative Packets": "pcap_cumulative_packets",
-    "PCAP - Cumulative Bytes": "pcap_cumulative_bytes",
+    "PCAP - Packets per GameObject (delta)": "pcap_cumulative_packets",
+    "PCAP - Bytes per GameObject (delta)": "pcap_cumulative_bytes",
     "Network - RTT (ms) - Calculated from RPC": "network_rtt_rpc",
     "Network - RTT (ms)": "network_rtt",
     "Network - Upload (bytes/sec)": "network_upload",
@@ -722,6 +775,13 @@ def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame", log_
             x_axis_mode=x_axis_mode,
             include_unpaired=include_unpaired,
         )
+
+        if metric_key.startswith(("network_", "pcap_")) and datasets:
+            datasets = [
+                (label, df)
+                for label, df in datasets
+                if _is_quest_network_series(label)
+            ]
 
         # Filter out non-com.IMT_Atlantique Quest files for standard metrics (FPS, Memory, CPU, GPU).
         # We want to use ONLY com.IMT_Atlantique files for these specific metrics on Quest, as requested.

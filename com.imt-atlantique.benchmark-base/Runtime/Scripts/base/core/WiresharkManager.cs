@@ -17,6 +17,7 @@ public class WiresharkManager : MonoBehaviour
     private string _captureFilePath;
 
     private bool isQuest = false;
+    private string QuestIp = "";
 
     void Awake()
     {
@@ -41,6 +42,12 @@ public class WiresharkManager : MonoBehaviour
                 isQuest = true;
                 Debug.Log("Running for Quest benchmark tracking, Wireshark will be modified.");
             }
+
+            if (args[i] == "--quest-ip" && i + 1 < args.Length)
+            {
+                QuestIp = args[i + 1];
+                Debug.Log("Quest IP set to: " + QuestIp);
+            }
         }
     }
 
@@ -58,7 +65,7 @@ public class WiresharkManager : MonoBehaviour
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = "tshark", // Ensure tshark is in the system PATH
-                Arguments = $"-i \"Wi-Fi 3\" -w \"{_captureFilePath}\" -f \"{filter}\"",
+                Arguments = $"-i \"Wi-Fi 3\" -w \"{_captureFilePath}\" -f \"host {QuestIp} and udp\"",
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
@@ -66,7 +73,7 @@ public class WiresharkManager : MonoBehaviour
             try
             {
                 _tsharkProcess = Process.Start(startInfo);
-                Debug.Log("Wireshark started with filter: " + filter);
+                Debug.Log("Wireshark started with filter: " + $"ip.addr == {QuestIp} && udp");
             }
             catch (System.Exception ex)
             {

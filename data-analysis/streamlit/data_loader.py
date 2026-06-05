@@ -45,6 +45,18 @@ def _has_pcap_columns(df: pd.DataFrame) -> bool:
     )
 
 
+def _canonical_csv_name(file_name: str) -> str:
+    """Return a stable capture name for CSV outputs derived from pcap files."""
+    path = Path(file_name)
+    stem = path.stem
+    lower_stem = stem.lower()
+    if lower_stem.endswith(".pcap"):
+        stem = stem[:-5]
+    elif lower_stem.endswith(".pcapng"):
+        stem = stem[:-7]
+    return f"{stem}{path.suffix.lower()}"
+
+
 def extract_timestamp(file_name: str):
     """Extract timestamp from filename. Returns (timestamp_str, datetime_obj) or (None, None)."""
     patterns = [
@@ -212,14 +224,22 @@ def load_csv_files_from_folder(folder_path: Path):
     stats_files = []
     events_files = []
     read_errors = []
+    stats_by_name = {}
+    events_by_name = {}
 
     csv_files = list(folder_path.glob("*.csv"))
+
+    def _candidate_priority(file_name: str) -> tuple[int, str]:
+        lower_name = file_name.lower()
+        # Prefer the canonical CSV name over the doubled-extension capture output.
+        return (0 if lower_name.endswith((".pcap.csv", ".pcapng.csv")) else 1, lower_name)
 
     for csv_file in csv_files:
         try:
             df = pd.read_csv(csv_file)
             file_name = csv_file.name
             lower_name = file_name.lower()
+            canonical_name = _canonical_csv_name(file_name)
             # Normalize common column names to a canonical form so downstream
             # code can rely on `Event`, `Value`, `Frame`, and `Time` column names.
             col_map = {}
@@ -239,13 +259,22 @@ def load_csv_files_from_folder(folder_path: Path):
 
             # Detect event files by filename or by presence of an `Event` column
             if "event" in lower_name or "event" in (c.lower() for c in df.columns):
-                events_files.append((file_name, df))
+                candidate = (file_name, df)
+                current = events_by_name.get(canonical_name)
+                if current is None or _candidate_priority(file_name) > _candidate_priority(current[0]):
+                    events_by_name[canonical_name] = candidate
             else:
                 _, fpscol = detect_columns(df)
                 if fpscol is not None or _has_pcap_columns(df):
-                    stats_files.append((file_name, df))
+                    candidate = (file_name, df)
+                    current = stats_by_name.get(canonical_name)
+                    if current is None or _candidate_priority(file_name) > _candidate_priority(current[0]):
+                        stats_by_name[canonical_name] = candidate
         except Exception as exc:
             read_errors.append((csv_file.name, str(exc)))
+
+    stats_files.extend(stats_by_name.values())
+    events_files.extend(events_by_name.values())
 
     return stats_files, events_files, read_errors
 

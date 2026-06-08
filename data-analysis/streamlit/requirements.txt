@@ -1,3 +1,6 @@
 streamlit
 plotly
 pandas
+matplotlib
+numpy
+scapy

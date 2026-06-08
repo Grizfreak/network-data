@@ -281,12 +281,17 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
 
     # CPU / GPU metrics with candidate columns and divisors for unit conversion
     if metric_key == "cpu":
+        # Prefer real frame-time columns. On Quest captures that only expose
+        # `average_frame_rate` and `cpu_utilization_percentage`, fall back to
+        # the frame time derived from FPS (1000 / fps). We intentionally
+        # ignore `cpu_utilization_percentage` (it's a sum across cores, e.g.
+        # 600% on 6 cores) to keep CPU expressed in milliseconds, which is
+        # directly comparable across PC and Quest.
         candidates = [
             ("CPU Total Frame Time (ns)", 1_000_000.0),
             ("CPU Main Thread Frame Time (ns)", 1_000_000.0),
             ("Main Thread (ns)", 1_000_000.0),
             ("FrameTimeMs", 1.0),
-            ("cpu_utilization_percentage", 1.0),
         ]
         out_col = "CPU (ms)"
     elif metric_key == "gpu":
@@ -312,10 +317,17 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
         used_col = col
         break
 
+    # Fallback for captures that only expose FPS: derive total frame time in
+    # ms as 1000 / average_frame_rate. This matches what `threadplot.py`
+    # already does for Quest captures, and lets us express CPU in ms even
+    # when no explicit frame-time column is available.
+    if metric_series is None and metric_key == "cpu" and "average_frame_rate" in df.columns:
+        fps = pd.to_numeric(df["average_frame_rate"], errors="coerce")
+        metric_series = 1000.0 / fps.where(fps > 0)
+        used_col = "average_frame_rate"
+
     if metric_series is None:
         return None, None
-    if used_col == "cpu_utilization_percentage":
-        out_col = "CPU Utilization (%)"
 
     plot_data = pd.DataFrame({x_column: frame, out_col: metric_series})
     return plot_data.dropna(subset=[x_column, out_col]).reset_index(drop=True), out_col
@@ -433,12 +445,27 @@ def _pcap_per_gameobject_series(stats_df: pd.DataFrame, events_df: pd.DataFrame,
                 gos = float(current_value)
             except Exception:
                 gos = 0.0
-            current_segment_value = float(segment.iloc[-1])
+            # Use the median of the per-bucket samples in this segment as a
+            # representative value. PCAP traffic is bursty (a few buckets with
+            # many packets followed by empty ones), so the median is more
+            # representative of the typical load than the last sample or the
+            # mean. This de-noises the per-GameObject curve while preserving
+            # the overall trend.
+            current_segment_value = float(segment.median())
             if previous_value is None:
                 value = current_segment_value
             else:
-                value = current_segment_value - previous_value
-                if value < 0:
+                # For rate-based metrics (Packets/sec, Bytes/sec), a per-segment
+                # delta is meaningless — the rate can fluctuate up and down
+                # bucket to bucket, so a difference between two medians is
+                # not a meaningful "amount per GameObject". Only for cumulative
+                # counters does the delta make sense (packets added between
+                # two paliers of GameObjects).
+                if metric_key in ("pcap_cumulative_packets", "pcap_cumulative_bytes"):
+                    value = current_segment_value - previous_value
+                    if value < 0:
+                        value = current_segment_value
+                else:
                     value = current_segment_value
             previous_value = current_segment_value
             segment_points.append((gos, value))
@@ -447,9 +474,12 @@ def _pcap_per_gameobject_series(stats_df: pd.DataFrame, events_df: pd.DataFrame,
     if not segment_points:
         return None, None
     if metric_key == "pcap_cumulative_packets":
-        out_col = "Packets per GameObject (delta)"
+        # Total packets sent between the previous palier and this one —
+        # this is the true "delta" (cumulative difference) meaningful for
+        # understanding the cost of adding the new GameObjects.
+        out_col = "Packets per palier (delta)"
     elif metric_key == "pcap_cumulative_bytes":
-        out_col = "Bytes per GameObject (delta)"
+        out_col = "Bytes per palier (delta)"
     else:
         out_col = f"Average{metric_column}"
     segment_data = pd.DataFrame(segment_points, columns=["GameObjects", out_col])

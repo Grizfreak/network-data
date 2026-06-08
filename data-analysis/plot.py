@@ -298,7 +298,7 @@ def _comparison_label(stat_file):
 FPS_COMPARISON_GROUPS = [
     (
         "everything",
-        "FPS comparison across systems per GameObject",
+        "FPS comparison across systems per GameObject pool",
         {
             "base",
             "dots",
@@ -412,7 +412,7 @@ def plot_fps_comparison(couple_of_files, debug=False, fig_size=FIGURE_SIZE, allo
     ax.axhline(y=72, color="red", linestyle="--", linewidth=1.2, label="72 FPS limit")
     ax.set_xlabel("GameObjects")
     ax.set_ylabel("FPS")
-    fig.suptitle(title or "FPS comparison across systems per GameObject")
+    fig.suptitle(title or "FPS comparison across systems per GameObject pool")
     ax.ticklabel_format(style='plain', axis='x')
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
     ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
@@ -560,7 +560,11 @@ def plot_metric_comparison(couple_of_files, metric_key, debug=False, fig_size=FI
     metric_title = metric_key.upper()
     ax.set_xlabel("GameObjects")
     ax.set_ylabel(y_label if y_label is not None else metric_title)
-    fig.suptitle(f"{metric_title} comparison across systems per GameObject")
+    if metric_key in ("cpu", "gpu"):
+        # 1000 ms / 72 FPS ≈ 13.89 ms — the frame-time budget required to
+        # sustain a 72 FPS refresh rate (Quest 3 / Pico 4 default).
+        ax.axhline(y=14, color="red", linestyle="--", linewidth=1.2, label="14 ms (~72 FPS budget)")
+    fig.suptitle(f"{metric_title} comparison across systems per GameObject pool")
     ax.ticklabel_format(style='plain', axis='x')
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
     ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)

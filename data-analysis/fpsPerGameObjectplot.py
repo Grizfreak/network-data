@@ -72,7 +72,7 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
 		)
 		ax.set_xlabel("GameObjects")
 		ax.set_ylabel("Average FPS")
-		fig.suptitle("Average FPS per GameObject over FinishedInstantiation Events")
+		fig.suptitle("Average FPS per GameObject pool over FinishedInstantiation Events")
 		ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
 	else:
 		x_values = pd.to_numeric(data[x_col], errors="coerce")
@@ -81,7 +81,7 @@ def plot(data, events, debug=False, fig_size=(24, 8)):
 		ax.plot(raw_plot_data["x"], raw_plot_data["FPS"], label="FPS")
 		ax.set_xlabel(x_label)
 		ax.set_ylabel("FPS")
-		fig.suptitle("FPS per GameObject over Time" if is_time_axis else "FPS per GameObject over Frames")
+		fig.suptitle("FPS per GameObject pool over Time" if is_time_axis else "FPS per GameObject pool over Frames")
 		ax.ticklabel_format(style='plain', axis='x')
 		if is_time_axis:
 			ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:,.1f}"))

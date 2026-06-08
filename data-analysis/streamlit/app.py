@@ -749,11 +749,21 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
             annotation_text="72 FPS",
             annotation_position="top left",
         )
+    elif metric_key in ("cpu", "gpu"):
+        # 1000 ms / 72 FPS ≈ 13.89 ms — the frame-time budget required to
+        # sustain a 72 FPS refresh rate (Quest 3 / Pico 4 default).
+        fig.add_hline(
+            y=14,
+            line_dash="dash",
+            line_color="gray",
+            annotation_text="14 ms (~72 FPS budget)",
+            annotation_position="top left",
+        )
     
     phase_suffix = ""
     # Use the actual y-column name for the y-axis label (in case Quest/PC differ)
     y_axis_label = ycol if ycol not in ("FPS", metric_label) else metric_label
-    figure_title = f"{metric_label}{phase_suffix} per GameObject" if per_gameobject and plot_xcol == "GameObjects" else f"{metric_label}{phase_suffix} vs {plot_xcol}"
+    figure_title = f"{metric_label}{phase_suffix} per GameObject pool" if per_gameobject and plot_xcol == "GameObjects" else f"{metric_label}{phase_suffix} vs {plot_xcol}"
     fig.update_layout(title=figure_title, xaxis_title=plot_xcol, yaxis_title=y_axis_label, height=600)
     if log_scale:
         fig.update_yaxes(type="log")

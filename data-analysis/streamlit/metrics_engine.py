@@ -2,16 +2,12 @@ from typing import List, Tuple, Optional
 """
 metrics_engine
 ---------------
-Clean, documented implementation of the metric extraction and
-aggregation helpers used by the Streamlit UI.
+Metric extraction and aggregation helpers used by the Streamlit UI.
 
-This module focuses on:
+This module provides:
 - locating metric columns in a DataFrame exported from the benchmark
 - normalizing units and column names
 - producing per-frame time series or per-GameObject aggregated series
-
-The code aims to be defensive and easy to teach; docstrings explain the
-reasoning behind alignment and aggregation choices.
 """
 
 import pandas as pd

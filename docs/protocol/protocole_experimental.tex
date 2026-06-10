@@ -1,0 +1,221 @@
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\title{Protocole expérimental et méthodologie d'évaluation}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Objectif de l'étude}
+
+L'objectif de cette expérimentation est de comparer plusieurs méthodes d'affichage d'un volume important d'informations dans Unity, en portant une attention particulière à l'impact des mécanismes réseau sur les performances de rendu, de calcul et de synchronisation.
+
+\section{Protocole expérimental}
+
+Afin de garantir la reproductibilité des résultats, un protocole unique est appliqué à l'ensemble des solutions étudiées.
+
+\subsection{Phase 1 -- Préparation du test}
+
+Cette phase correspond à l'initialisation de l'environnement de test ainsi qu'à la mise en place des conditions nécessaires au lancement de l'expérimentation.
+
+\subsection{Phase 2 -- Instanciation des entités}
+
+Les entités sont instanciées progressivement par vagues successives selon des paramètres identiques pour tous les scénarios. Cette phase permet d'évaluer la capacité du système à gérer l'apparition simultanée d'un grand nombre d'objets.
+
+\subsection{Phase 3 -- Mouvement des entités}
+
+Les entités précédemment instanciées sont progressivement mises en mouvement jusqu'à atteindre 100\,\% de la population simulée. Cette phase vise à mesurer l'impact de la simulation dynamique sur les performances.
+
+\paragraph{Note.}
+Dans la version actuelle de l'expérimentation, les phases d'instanciation et de mouvement sont fusionnées dans un scénario unique (\textit{Spawn + Move}). La distinction est conservée uniquement pour assurer la compatibilité avec les expérimentations antérieures.
+
+\section{Périmètre de l'analyse réseau}
+
+L'étude ne porte pas sur le nombre maximal de clients simultanément connectés. Les travaux antérieurs indiquent que l'évolution des performances suit une tendance relativement prévisible avec l'augmentation du nombre de clients.
+
+L'analyse se concentre principalement sur :
+
+\begin{itemize}
+\item la capacité d'affichage des données pour un client unique ;
+\item la charge induite côté serveur ;
+\item la charge induite côté client ;
+\item les coûts de synchronisation réseau.
+\end{itemize}
+
+\section{Paramètres expérimentaux}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{7cm}p{2cm}}
+\toprule
+Paramètre & Valeur \\
+\midrule
+Nombre total d'entités & 20\,000 \\
+Taille d'une vague d'instanciation & 400 \\
+Délai entre deux vagues & 10 s \\
+Entités mises en mouvement par palier & 10 \% \\
+Délai avant activation du mouvement & 5 s \\
+Durée de préparation initiale & 10 s \\
+Temps d'attente entre phases & 10 s \\
+Temps avant fermeture automatique & 10 s \\
+Mode d'exécution & Spawn + Move \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Définition d'une entité}
+
+Une entité correspond à un cube Unity standard composé de 12 triangles, utilisant une texture de base et sans éclairage dynamique.
+
+Dans les versions réseau, chaque entité possède un \texttt{NetworkObject} ainsi qu'un composant de synchronisation de position dépendant de l'implémentation étudiée.
+
+Les entités se déplacent à vitesse constante de 5~m/s sur chaque axe et effectuent simultanément une rotation uniforme.
+
+\section{Groupes d'étude}
+
+\subsection{Configuration locale}
+
+Cette configuration ne comporte aucune couche réseau apparente et permet d'évaluer les limites intrinsèques du moteur de rendu.
+
+\subsection{Configuration réseau}
+
+Cette configuration étudie le comportement des performances côté serveur et côté client dans un contexte client--serveur réel.
+
+\section{Mesures collectées}
+
+\subsection{Performances de rendu}
+
+\begin{itemize}
+\item Images par seconde (FPS) ;
+\item Temps CPU par image (ms) ;
+\item Temps GPU par image (ms).
+\end{itemize}
+
+\subsection{Consommation mémoire}
+
+\begin{itemize}
+\item Mémoire utilisée (MB).
+\end{itemize}
+
+\subsection{Performances réseau}
+
+\begin{itemize}
+\item RTT (Round Trip Time) ;
+\item RTT calculé à partir des RPC.
+\end{itemize}
+
+\subsection{Charge réseau}
+
+\begin{itemize}
+\item Débit montant ;
+\item Débit descendant ;
+\item Volume total envoyé ;
+\item Volume total reçu ;
+\item Nombre de paquets envoyés ;
+\item Nombre de paquets reçus.
+\end{itemize}
+
+\subsection{Analyse du trafic}
+
+Une capture indépendante du trafic réseau est réalisée afin d'analyser :
+
+\begin{itemize}
+\item le nombre de paquets par seconde ;
+\item le volume de données échangé ;
+\item les volumes cumulés ;
+\item l'évolution de la charge réseau.
+\end{itemize}
+
+\section{Méthode d'analyse}
+
+Les indicateurs sont étudiés en fonction du nombre d'entités présentes dans la scène afin d'identifier :
+
+\begin{itemize}
+\item les limites serveur et client ;
+\item l'impact de la couche réseau ;
+\item les goulets d'étranglement ;
+\item l'évolution de la consommation des ressources ;
+\item les limites matérielles des plateformes.
+\end{itemize}
+
+\section{Typologie des clients}
+
+Deux catégories de clients sont étudiées :
+
+\begin{enumerate}
+\item Ordinateur personnel (PC) ;
+\item Casque autonome Meta Quest 3.
+\end{enumerate}
+
+Les résultats sont analysés séparément pour chaque plateforme.
+
+\section{Configuration matérielle}
+
+\subsection{Serveur}
+
+Les expérimentations FishNet et Netcode for GameObjects utilisent un serveur dédié Dell Precision 7550 exécuté en mode headless.
+
+\begin{longtable}{ll}
+\toprule
+Composant & Caractéristiques \\
+\midrule
+Système & Windows 11 Enterprise 64 bits \\
+CPU & Intel Core i7-10850H \\
+RAM & 32 Go \\
+GPU & NVIDIA Quadro RTX 3000 \\
+API & DirectX 12 \\
+Résolution & 1920 $\times$ 1080 \\
+\bottomrule
+\end{longtable}
+
+\subsection{Client PC}
+
+\begin{longtable}{ll}
+\toprule
+Composant & Caractéristiques \\
+\midrule
+Système & Windows 11 Enterprise 64 bits \\
+CPU & Intel Core Ultra 9 285K \\
+RAM & 128 Go \\
+GPU & NVIDIA RTX 5000 Ada Generation \\
+API & DirectX 12 \\
+Résolution & 2560 $\times$ 1440 \\
+\bottomrule
+\end{longtable}
+
+\subsection{Client réalité virtuelle}
+
+Les tests immersifs sont réalisés avec un Meta Quest 3.
+
+\section{Infrastructure réseau}
+
+Pour FishNet et Netcode for GameObjects, le serveur et les clients sont connectés à un réseau local via un routeur Netgear R6020.
+
+Pour Photon, les communications transitent par l'infrastructure cloud du fournisseur. Les mesures de latence obtenues ne sont donc pas directement comparables à celles obtenues avec les architectures locales.
+
+\section{Configuration réseau}
+
+Les expérimentations locales reposent sur :
+
+\begin{itemize}
+\item un serveur headless ;
+\item un client PC ou Meta Quest ;
+\item un routeur Netgear R6020 ;
+\item des conditions réseau stables et contrôlées.
+\end{itemize}
+
+Dans le cas de Photon, les communications transitent par Internet et utilisent l'infrastructure cloud du fournisseur.
+
+\end{document}

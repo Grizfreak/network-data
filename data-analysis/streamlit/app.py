@@ -1,3 +1,5 @@
+from unicodedata import name
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -646,6 +648,34 @@ def create_network_plot(net_datasets, selected_labels, per_gameobject, xcol, log
     return fig
 
 
+def short_label(label: str) -> str:
+    platform = "PC" if label.startswith("[PC]") else "Quest"
+
+    name = label.lower()
+
+    if "photon" in name:
+        tech = "Photon"
+    elif "fishnet" in name:
+        tech = "FishNet"
+    elif "ngo" in name:
+        tech = "NGO"
+    elif "dots" in name:
+        tech = "DOTS"
+    elif "gpu" in name:
+        tech = "Base GPU"
+    elif "base" in name:
+        tech = "Base"
+    elif "benchmarkgo" in name:
+        tech = "BenchmarkGO"
+    else:
+        tech = "Base"
+    if "client" in name:
+        tech += " Client"
+    elif "server" in name:
+        tech += " Server"
+    return f"{platform} · {tech}"
+
+
 def create_standard_plot(datasets, selected_labels, metric_label, metric_key, per_gameobject, xcol, log_scale=False):
     """Create a standard line plot for non-network metrics."""
     combined = []
@@ -661,12 +691,11 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
             continue
         if plot_ycol is None and "_ycol" in temp.columns:
             plot_ycol = temp["_ycol"].iloc[0]
-        temp["label"] = label
+        temp["label"] = short_label(label);
         combined.append(temp)
     
     if not combined:
         return None
-
     def _uniform_time_bins(frame: pd.DataFrame, x_column: str, y_column: str, target_points: int = 120):
         if x_column != "Time" or len(frame) <= target_points:
             return frame

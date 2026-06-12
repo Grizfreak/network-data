@@ -669,10 +669,11 @@ def short_label(label: str) -> str:
         tech = "BenchmarkGO"
     else:
         tech = "Base"
-    if "client" in name:
-        tech += " Client"
-    elif "server" in name:
-        tech += " Server"
+    if platform != "Quest":
+        if "client" in name:
+            tech += " Client"
+        elif "server" in name:
+            tech += " Server"
     return f"{platform} · {tech}"
 
 

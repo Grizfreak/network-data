@@ -508,6 +508,12 @@ def build_datasets(
     warnings = []
 
     for sname, sdf in stats_files:
+        # --- START MODIFICATION ---
+        EXCLUDED_FILE = "ngo_server_capture_quest_capture"
+        if EXCLUDED_FILE in sname:
+            warnings.append(f"Skipping data source '{sname}' as it is an excluded file.")
+            continue # Skip processing this specific file name entirely
+        # --- END MODIFICATION ---
         label = sname.rsplit(".", 1)[0]
         # Simple PCAP path (no per-GameObject aggregation requested)
         if selected_metric_key.startswith("pcap_") and not per_gameobject:

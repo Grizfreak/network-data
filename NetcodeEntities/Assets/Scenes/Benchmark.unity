@@ -505,6 +505,9 @@ MonoBehaviour:
   outputName: dots_profiler_stats
   bucketDuration: 0.5
   profilerStatsFile: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
+  includeNetworkStats: 0
+  networkBenchmarkProviderBehaviour: {fileID: 0}
+  RealtimeRTTProviderBehaviour: {fileID: 0}
 --- !u!114 &580922104
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -526,7 +529,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 580922095}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e95cab53e8b345d6af962b75807af34f, type: 3}
+  m_Script: {fileID: 11500000, guid: b85bd2e45ef6fbf4cbc018766181149e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ECSPhaseManager
   startPhase1: 0
@@ -546,7 +549,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 580922095}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 21abe7ca77125f34cb4321828acf131b, type: 3}
+  m_Script: {fileID: 11500000, guid: 48c19798ebe251e44932ed0fce6961b4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ECSConfigBootstrap
 --- !u!114 &580922107
@@ -558,7 +561,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 580922095}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ab4c9e99f8866014283b6adf9c52318b, type: 3}
+  m_Script: {fileID: 11500000, guid: 6a6e7e3b726d1c64283d64aa0e364617, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractionBypass
 --- !u!1 &909386170

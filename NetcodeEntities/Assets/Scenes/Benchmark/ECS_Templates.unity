@@ -128,7 +128,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 572398706}
-  - component: {fileID: 572398705}
+  - component: {fileID: 572398707}
   m_Layer: 0
   m_Name: Spawner
   m_TagString: Untagged
@@ -136,31 +136,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &572398705
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 572398704}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 92ae5b2b53af18f45bb34dce0ed4b296, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SpawnerAuthoring
-  CubePrefab: {fileID: 5152379187184635091, guid: dd81187371459cd43b485bc6bb6c9dcd, type: 3}
-  NumberToSpawn: 20000
-  SpawnInstantly: 1
-  TimeBeforeSpawn: 2
-  NumberPerWave: 400
-  PercentageMoving: 10
-  TimeBeforeMoving: 2
-  StartSpawn: 0
-  StartMove: 0
-  MinSpawnPosition: {x: -40, y: 0, z: -40}
-  MaxSpawnPosition: {x: 40, y: 0, z: 40}
-  Random:
-    state: 332584831
 --- !u!4 &572398706
 Transform:
   m_ObjectHideFlags: 0
@@ -176,6 +151,31 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &572398707
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 572398704}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 63ec8530268f7034bb784e6bd3083eb0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: netcode.core::BenchmarkAuthoring
+  CubePrefab: {fileID: 5152379187184635091, guid: dd81187371459cd43b485bc6bb6c9dcd, type: 3}
+  NumberToSpawn: 20000
+  SpawnInstantly: 1
+  TimeBeforeSpawn: 2
+  NumberPerWave: 400
+  PercentageMoving: 10
+  TimeBeforeMoving: 2
+  StartSpawn: 0
+  StartMove: 0
+  MinSpawnPosition: {x: -40, y: 0, z: -40}
+  MaxSpawnPosition: {x: 40, y: 0, z: 40}
+  Random:
+    state: 332584831
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

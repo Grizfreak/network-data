@@ -1809,7 +1809,7 @@ MonoBehaviour:
   quitButton: {fileID: 61398305}
   startButton: {fileID: 1365847813}
   CurrentState: 0
-  isLaunchedHeadless: 0
+  isLaunchedHeadless: 1
 --- !u!1 &1166918832
 GameObject:
   m_ObjectHideFlags: 0

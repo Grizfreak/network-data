@@ -148,15 +148,17 @@ public class NetworkLauncher : MonoBehaviour
             UnityEngine.SceneManagement.LoadSceneMode.Single);
         baseLauncher.startAutoPhase1 = true;
         DisablePhaseManagerRpc();*/
-        SceneManager.LoadScene("Benchmark", LoadSceneMode.Single);
         var entityManager = serverWorld.EntityManager;
         var rpc = entityManager.CreateEntity();
+
+        var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
         entityManager.AddComponentData(
             rpc,
             new StartBenchmarkRpc());
 
         entityManager.AddComponent<SendRpcCommandRequest>(rpc);
+        SceneManager.LoadScene("Benchmark", LoadSceneMode.Single);
     }
 
     /*[Rpc(SendTo.NotServer)]

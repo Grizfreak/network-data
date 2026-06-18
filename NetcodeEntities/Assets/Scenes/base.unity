@@ -1786,7 +1786,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1140055516}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8e402781f53b49b49b848dedff1df913, type: 3}
+  m_Script: {fileID: 11500000, guid: 99dd8c3c7a3b6ea4a907dd570f91e691, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NetworkLoader
 --- !u!114 &1140055521
@@ -1798,7 +1798,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1140055516}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 94cd4eb3646bc9448b22ee79a222dc4b, type: 3}
+  m_Script: {fileID: 11500000, guid: c69670c92a6f15d408dfbe21c8a3fcb6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NetworkLauncher
   addressInputField: {fileID: 1646650536}
@@ -1808,6 +1808,7 @@ MonoBehaviour:
   clientButton: {fileID: 1874614847}
   quitButton: {fileID: 61398305}
   startButton: {fileID: 1365847813}
+  CurrentState: 0
   isLaunchedHeadless: 0
 --- !u!1 &1166918832
 GameObject:

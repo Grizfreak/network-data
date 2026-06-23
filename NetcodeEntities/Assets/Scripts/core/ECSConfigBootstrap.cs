@@ -10,8 +10,8 @@ public class ECSConfigBootstrap : MonoBehaviour
     {
         if (BaseLoader.Instance == null)
             return;
-
-        _em = World.DefaultGameObjectInjectionWorld.EntityManager;
+        var world = ResolveWorld();
+        _em = world.EntityManager;
         _configQuery = _em.CreateEntityQuery(typeof(BenchmarkConfig));
     }
 
@@ -43,5 +43,17 @@ public class ECSConfigBootstrap : MonoBehaviour
 
         initialized = true;
         Debug.Log("BenchmarkConfig updated from file.");
+    }
+    private static World ResolveWorld()
+    {
+        foreach (var world in World.All)
+        {
+            if (world.Name == "Server" || world.Name == "Client")
+            {
+                return world;
+            }
+        }
+
+        return World.DefaultGameObjectInjectionWorld;
     }
 }

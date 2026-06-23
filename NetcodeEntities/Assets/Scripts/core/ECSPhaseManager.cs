@@ -1,4 +1,6 @@
+using System.Linq;
 using Unity.Entities;
+using Unity.NetCode;
 using UnityEngine;
 public class ECSPhaseManager : PhaseManager
 {
@@ -16,8 +18,8 @@ public class ECSPhaseManager : PhaseManager
         protected override void Start()
         {
                 base.Start();
-
-                _em = World.DefaultGameObjectInjectionWorld.EntityManager;
+                var world = ResolveWorld();
+                _em = world.EntityManager;
 
                 _configQuery = _em.CreateEntityQuery(typeof(BenchmarkConfig));
                 _numberOfStaticInstances = _em.CreateEntityQuery(typeof(StaticTag));
@@ -98,5 +100,18 @@ public class ECSPhaseManager : PhaseManager
                 config.StartMove = true;
 
                 _em.SetComponentData(_configEntity, config);
+        }
+
+        private static World ResolveWorld()
+        {
+        foreach (var world in World.All)
+        {
+            if (world.Name == "Server" || world.Name == "Client")
+            {
+                return world;
+            }
+        }
+
+        return World.DefaultGameObjectInjectionWorld;
         }
 }

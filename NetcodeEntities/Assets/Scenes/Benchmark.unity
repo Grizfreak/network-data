@@ -419,6 +419,7 @@ GameObject:
   - component: {fileID: 580922105}
   - component: {fileID: 580922106}
   - component: {fileID: 580922107}
+  - component: {fileID: 580922108}
   m_Layer: 0
   m_Name: Manager
   m_TagString: Untagged
@@ -453,7 +454,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c8ce9130152a27247a228d5112af994d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InstantiateManager
-  objectToSpawn: {fileID: 295692051021194745, guid: f08f5136baba1b941a3459f9db5b1478, type: 3}
+  objectToSpawn: {fileID: 5152379187184635091, guid: dd81187371459cd43b485bc6bb6c9dcd, type: 3}
   numberToSpawn: 1200
   spawnInstantly: 0
   timeBeforeSpawn: 1
@@ -564,7 +565,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a6e7e3b726d1c64283d64aa0e364617, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractionBypass
---- !u!1 &909386170
+--- !u!114 &580922108
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 580922095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 42c305244b64ff944908b62daeda08a9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: netcode.profiling::NetworkLogs
+--- !u!1 &1323259342
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -572,43 +585,43 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 909386172}
-  - component: {fileID: 909386171}
+  - component: {fileID: 1323259344}
+  - component: {fileID: 1323259343}
   m_Layer: 0
-  m_Name: ECS_Templates
+  m_Name: ECS_Template
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &909386171
+--- !u!114 &1323259343
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 909386170}
+  m_GameObject: {fileID: 1323259342}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 45a335734b1572644a6a5d09d87adc65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Scenes::Unity.Scenes.SubScene
-  _SceneAsset: {fileID: 102900000, guid: 25463b6aed72e6648a0fd70e62038225, type: 3}
+  _SceneAsset: {fileID: 102900000, guid: e1136290532d3e44da586510477c83b7, type: 3}
   _HierarchyColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   AutoLoadScene: 1
   _SceneGUID:
     Value:
-      x: 2796774482
-      y: 1181624286
-      z: 3766349992
-      w: 1378365478
---- !u!4 &909386172
+      x: 153497886
+      y: 1155781173
+      z: 22447533
+      w: 2067318644
+--- !u!4 &1323259344
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 909386170}
+  m_GameObject: {fileID: 1323259342}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -833,4 +846,4 @@ SceneRoots:
   - {fileID: 1946087861}
   - {fileID: 580922097}
   - {fileID: 1338800696}
-  - {fileID: 909386172}
+  - {fileID: 1323259344}

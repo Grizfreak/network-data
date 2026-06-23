@@ -505,6 +505,9 @@ MonoBehaviour:
   outputName: dots_profiler_stats
   bucketDuration: 0.5
   profilerStatsFile: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
+  includeNetworkStats: 0
+  networkBenchmarkProviderBehaviour: {fileID: 0}
+  RealtimeRTTProviderBehaviour: {fileID: 0}
 --- !u!114 &580922104
 MonoBehaviour:
   m_ObjectHideFlags: 0

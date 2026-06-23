@@ -6,7 +6,13 @@ public partial struct ServerNetworkLogsSystem : ISystem
 {
     public void OnCreate(ref SystemState state)
     {
-        UnityEngine.Debug.Log("Server world");
+        if (!SystemAPI.HasSingleton<LogConfig>())
+        {
+            state.EntityManager.CreateSingleton(new LogConfig
+            {
+                Prefix = "ngo_server_"
+            });
+        }
     }
 
     public void OnUpdate(ref SystemState state)

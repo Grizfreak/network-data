@@ -16,6 +16,7 @@ public partial struct ServerConnectionDebugSystem : ISystem
                           .WithEntityAccess())
         {
             Debug.Log($"[SERVER] Client connected: {netId.ValueRO.Value}");
+            ecb.AddComponent<NetworkStreamInGame>(entity);
             ecb.AddComponent<DebugLoggedConnection>(entity);
             if (NetworkLauncher.Instance.isLaunchedHeadless)
             {

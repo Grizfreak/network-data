@@ -71,12 +71,19 @@ public class NetworkLauncher : MonoBehaviour
             {
                 Endpoint = NetworkEndpoint.Parse("127.0.0.1", 7777)
             });
+        
+        ScriptBehaviourUpdateOrder.AppendWorldToCurrentPlayerLoop(serverWorld);
+        ScriptBehaviourUpdateOrder.AppendWorldToCurrentPlayerLoop(clientWorld);
 
         OnServerStarted();
     }
 
     public void StartServer()
     {
+        foreach (var world in World.All)
+        {
+            Debug.Log("WORLD: " + world.Name);
+        }
         /*NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
         NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
         guidelinesText.text = "Trying to start server...";
@@ -94,6 +101,7 @@ public class NetworkLauncher : MonoBehaviour
                 Endpoint = NetworkEndpoint.AnyIpv4.WithPort(7777)
             });
 
+        ScriptBehaviourUpdateOrder.AppendWorldToCurrentPlayerLoop(serverWorld);
         OnServerStarted();
 
     }
@@ -119,6 +127,7 @@ public class NetworkLauncher : MonoBehaviour
 
         ConnectionStartTime = Time.realtimeSinceStartup;
         CurrentState = LauncherNetworkState.Connecting;
+        ScriptBehaviourUpdateOrder.AppendWorldToCurrentPlayerLoop(clientWorld);
         guidelinesText.text = "Connecting...";
     }
 

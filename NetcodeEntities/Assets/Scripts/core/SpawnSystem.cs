@@ -1,14 +1,19 @@
+using System;
+using UnityEngine;
 using Unity.Burst;
 using Unity.Entities;
+using Unity.NetCode;
 using Unity.Mathematics;
 using Unity.Transforms;
 using Unity.Collections;
 
 [BurstCompile]
+[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 public partial struct SpawnSystem : ISystem
 {
     public void OnCreate(ref SystemState state)
     {
+        Debug.Log("SpawnSystem created");
         state.RequireForUpdate<Spawner>();
     }
 

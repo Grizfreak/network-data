@@ -1747,7 +1747,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bc451c0a757cfee41a4c388bd62001fd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: base::BaseLauncher
-  startAutoPhase1: 0
+  startAutoPhase1: 1
 --- !u!4 &1140055518
 Transform:
   m_ObjectHideFlags: 0
@@ -1775,7 +1775,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7814512ce1558154fb9d49b402dc8250, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
-  originalResource: {fileID: 11400000, guid: 82e361cf2c74f50459f06739e8994f43, type: 2}
+  originalResource: {fileID: 11400000, guid: 64721350932dc6e4daa789e2df8f4ea5, type: 2}
   originalStats: {fileID: 11400000, guid: 07685ef4de2140e4db9736680effa897, type: 2}
 --- !u!114 &1140055520
 MonoBehaviour:
@@ -1809,7 +1809,7 @@ MonoBehaviour:
   quitButton: {fileID: 61398305}
   startButton: {fileID: 1365847813}
   CurrentState: 0
-  isLaunchedHeadless: 1
+  isLaunchedHeadless: 0
 --- !u!1 &1166918832
 GameObject:
   m_ObjectHideFlags: 0

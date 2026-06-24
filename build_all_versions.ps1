@@ -1,5 +1,5 @@
 param(
-    [string[]]$ProjectFolders = @("base","base_DOTS","base_GPU","photonFusion","ngo","fishNet"),
+    [string[]]$ProjectFolders = @("base","base_DOTS","base_GPU","photonFusion","ngo","fishNet","NetcodeEntities"),
     [string]$DestinationPath = (Join-Path $PSScriptRoot "builds")
 )
 

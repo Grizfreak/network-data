@@ -11,6 +11,7 @@ public class NetworkLoader : MonoBehaviour
         {
             if (args[i] == "--server")
             {
+                NetworkLauncher.Instance.StartServer();
                 NetworkLauncher.Instance.isLaunchedHeadless = true;
             }
         }

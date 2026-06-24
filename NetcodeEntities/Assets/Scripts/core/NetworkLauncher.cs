@@ -102,6 +102,7 @@ public class NetworkLauncher : MonoBehaviour
             });
 
         ScriptBehaviourUpdateOrder.AppendWorldToCurrentPlayerLoop(serverWorld);
+        StartTracking("udp port 7777 or tcp port 7777", "netcodeEntities_server_capture");
         OnServerStarted();
 
     }
@@ -128,6 +129,9 @@ public class NetworkLauncher : MonoBehaviour
         ConnectionStartTime = Time.realtimeSinceStartup;
         CurrentState = LauncherNetworkState.Connecting;
         ScriptBehaviourUpdateOrder.AppendWorldToCurrentPlayerLoop(clientWorld);
+        #if !PLATFORM_ANDROID
+        StartTracking("udp port 7777 or tcp port 7777", "netcodeEntities_client_capture");
+        #endif
         guidelinesText.text = "Connecting...";
     }
 

@@ -420,6 +420,7 @@ GameObject:
   - component: {fileID: 580922106}
   - component: {fileID: 580922107}
   - component: {fileID: 580922108}
+  - component: {fileID: 580922109}
   m_Layer: 0
   m_Name: Manager
   m_TagString: Untagged
@@ -577,6 +578,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 42c305244b64ff944908b62daeda08a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: netcode.profiling::NetworkLogs
+--- !u!114 &580922109
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 580922095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1d02504a5343d34ead24028025c8441, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: netcode.profiling::NetworkLogsBridge
 --- !u!1 &1323259342
 GameObject:
   m_ObjectHideFlags: 0

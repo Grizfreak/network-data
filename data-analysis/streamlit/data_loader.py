@@ -78,12 +78,23 @@ def extract_timestamp(file_name: str):
 
 
 def normalize_timestamp(ts: str):
-    """Normalize timestamps to YYYYMMDD_HHMM format for display/comparison."""
+    """Normalize timestamps to YYYYMMDD_HHMM format for display/comparison.
+
+    Supports both the profiler-stats format `YYYY.MM.DD-HH.MM` (e.g.
+    `2026.06.24-16.21`) and the event format `YYYYMMDD_HHMMSS`
+    (e.g. `20260624_162005`). The event form may carry an underscore
+    between the date and the time; we drop the trailing seconds so the
+    resulting string always ends in exactly HHMM.
+    """
     if not ts:
         return None
     if "." in ts and "-" in ts:
         parts = ts.replace(".", "").replace("-", "")
         return parts[:8] + "_" + parts[8:12]
+    if "_" in ts:
+        date_part, _, time_part = ts.partition("_")
+        if len(date_part) == 8 and len(time_part) >= 4:
+            return f"{date_part}_{time_part[:4]}"
     return ts[:8] + "_" + ts[-4:]
 
 

@@ -64,6 +64,86 @@ def _is_quest_network_series(label: str) -> bool:
     lowered = label.lower()
     return any(token in lowered for token in ("photon", "fishnet", "ngo", "netcodeentities"))
 
+
+def short_label(label: str, all_labels: list[str] | None = None) -> str:
+    """Return a friendly, human-readable label like 'PC · DOTS Server'.
+
+    The label disambiguates client/server roles for both platforms and
+    appends a short timestamp when several files would otherwise map to
+    the same display name (e.g. multiple NetcodeEntities runs). When a
+    `all_labels` collection is provided, the function also appends a
+    short type tag — `(stats)`, `(events)`, or `(trace)` — so files that
+    share the same capture timestamp but are different artefacts
+    (events CSV, profiler stats CSV, Android trace CSV) remain
+    distinguishable in the legend and dropdown.
+    """
+    platform = "PC" if label.startswith("[PC]") else "Quest"
+
+    name = label.lower()
+
+    if "photon" in name:
+        tech = "Photon"
+    elif "fishnet" in name:
+        tech = "FishNet"
+    elif "ngo" in name:
+        tech = "NGO"
+    elif "netcodeentities" in name:
+        tech = "NetcodeEntities"
+    elif "dots" in name:
+        tech = "DOTS"
+    elif "gpu" in name:
+        tech = "Base GPU"
+    elif "base" in name:
+        tech = "Base"
+    elif "benchmarkgo" in name:
+        tech = "BenchmarkGO"
+    else:
+        tech = "Base"
+    if "client" in name:
+        tech += " Client"
+    elif "server" in name:
+        tech += " Server"
+
+    # Append a compact timestamp so files from different captures remain
+    # distinguishable in the legend / dropdown. The label may carry either
+    # the profiler-stats format "YYYY.MM.DD-HH.MM" or the event format
+    # "YYYYMMDD_HHMMSS" (which contains seconds we want to drop).
+    short_ts, _ = extract_timestamp(label)
+    if short_ts:
+        normalized = normalize_timestamp(short_ts)  # YYYYMMDD_HHMM
+        if normalized and len(normalized) >= 13:
+            time_part = normalized[9:13]
+            tech = f"{tech} \u00b7 {normalized[6:8]}.{time_part}"
+
+    base = f"{platform} \u00b7 {tech}"
+
+    # Detect collisions: when more than one underlying label maps to the
+    # same `base` string, append a type tag so the dropdown / legend lets
+    # the user tell events, profiler stats, and Android trace apart.
+    if all_labels:
+        siblings = [lbl for lbl in all_labels if short_label(lbl) == base]
+        if len(siblings) > 1 and label in siblings:
+            type_tag = _type_tag_for(label)
+            if type_tag:
+                base = f"{base} ({type_tag})"
+
+    return base
+
+
+def _type_tag_for(label: str) -> str:
+    """Classify a CSV label as stats, events or trace for disambiguation."""
+    lower = label.lower()
+    if "events" in lower:
+        return "events"
+    if "profiler_stats" in lower:
+        return "stats"
+    if "unityplayer" in lower or "imt_atlantique" in lower or lower.endswith("#unityplayergameactivity"):
+        return "trace"
+    if ".pcap.csv" in lower or "_capture_" in lower:
+        return "pcap"
+    return ""
+
+
 # allow importing project helpers (assemble.py)
 try:
     import assemble
@@ -549,7 +629,63 @@ for metric_key in selected_metric_keys:
     )
     line_filter_candidates.update([label for label, _ in preview_datasets])
 
-line_filter_options = sorted(line_filter_candidates)
+# Collapse duplicates that share a capture timestamp: when several CSVs
+# (events, profiler_stats, Android trace) map to the same display name,
+# keep only the canonical "stats" file so the dropdown exposes one entry
+# per capture run and avoids confusing "(events)" / "(stats)" siblings.
+_TYPE_PRIORITY = {"stats": 0, "pcap": 1, "events": 2, "trace": 3, "": 4}
+
+
+def _pick_canonical(siblings: list[str]) -> str:
+    """Return the canonical label for a group of siblings sharing a display name."""
+    return sorted(
+        siblings,
+        key=lambda lbl: (
+            _TYPE_PRIORITY.get(_type_tag_for(lbl), 99),
+            _type_tag_for(lbl),
+            lbl,
+        ),
+    )[0]
+
+
+def _dedupe_candidates(candidates: set[str]) -> list[str]:
+    groups: dict[str, list[str]] = {}
+    for label in candidates:
+        base = short_label(label)
+        groups.setdefault(base, []).append(label)
+    deduped = []
+    for base, siblings in groups.items():
+        if len(siblings) == 1:
+            deduped.append(siblings[0])
+            continue
+        deduped.append(_pick_canonical(siblings))
+    return sorted(deduped)
+
+
+def _collapse_datasets(datasets: list[tuple[str, pd.DataFrame]]) -> list[tuple[str, pd.DataFrame]]:
+    """Reduce a list of (label, df) pairs to one entry per short_label().
+
+    Keeps the same canonical label as `_dedupe_candidates` so the legend
+    matches the line-filter dropdown exactly.
+    """
+    groups: dict[str, list[tuple[str, pd.DataFrame]]] = {}
+    for entry in datasets:
+        base = short_label(entry[0])
+        groups.setdefault(base, []).append(entry)
+    collapsed: list[tuple[str, pd.DataFrame]] = []
+    for base, siblings in groups.items():
+        if len(siblings) == 1:
+            collapsed.append(siblings[0])
+            continue
+        canonical = _pick_canonical([lbl for lbl, _ in siblings])
+        for lbl, df in siblings:
+            if lbl == canonical:
+                collapsed.append((lbl, df))
+                break
+    return collapsed
+
+
+line_filter_options = _dedupe_candidates(line_filter_candidates)
 if "line_filter_choices" not in st.session_state:
     st.session_state.line_filter_choices = []
 if "active_line_filters" not in st.session_state:
@@ -570,6 +706,7 @@ with filter_col1:
         "Choose lines to display on all plots",
         options=line_filter_options,
         default=st.session_state.line_filter_choices,
+        format_func=lambda label: short_label(label, line_filter_options),
     )
     st.session_state.line_filter_choices = selected_line_filters
 with filter_col2:
@@ -579,6 +716,117 @@ with filter_col3:
     if st.button("Clear"):
         st.session_state.active_line_filters = []
         st.session_state.line_filter_choices = []
+
+# Quick filters: one-click presets that pre-fill the multiselect and the
+# active filter set. They mutate `line_filter_choices` so the dropdown
+# updates immediately, and they also push into `active_line_filters` so
+# the next plot render reflects the change without an explicit Apply.
+_NETWORK_TOKENS = ("photon", "fishnet", "ngo", "netcodeentities", "pcap", "capture")
+
+
+def _is_network_label(label: str) -> bool:
+    lowered = label.lower()
+    if "_capture_" in lowered or lowered.endswith(".pcap.csv"):
+        return True
+    return any(token in lowered for token in ("photon", "fishnet", "ngo", "netcodeentities"))
+
+
+def _is_pc_label(label: str) -> bool:
+    return label.startswith("[PC]")
+
+
+def _is_quest_label(label: str) -> bool:
+    return label.startswith("[Quest]")
+
+
+def _is_client_label(label: str) -> bool:
+    """Return True if the label belongs to a client-side capture.
+
+    Matches both the profiler-stats naming convention (`..._client_...`)
+    and the event-style naming convention (`..._client_events_...`).
+    """
+    lowered = label.lower()
+    if "_client_" in lowered or "_client_events_" in lowered or "_client_profiler_" in lowered:
+        return True
+    # PC DOTS / Base / BenchmarkBase stats do not carry a client/server
+    # role. Treat them as client-side for the purpose of role filters
+    # since they represent the local device.
+    if lowered.startswith("[pc] ") and "server" not in lowered:
+        return True
+    return False
+
+
+def _is_server_label(label: str) -> bool:
+    """Return True only when the label belongs to a real server-side role.
+
+    In this dataset, the Quest device never acts as a server: any
+    `*_server_*` file coming from the Quest is actually a PCAP capture of
+    *server-bound* traffic observed on the Quest, not a server hosted on
+    the device. To avoid surfacing misleading "server" lines, this
+    predicate is intentionally scoped to PC files only.
+    """
+    if not _is_pc_label(label):
+        return False
+    lowered = label.lower()
+    return (
+        "_server_" in lowered
+        or "_server_events_" in lowered
+        or "_server_profiler_" in lowered
+    )
+
+
+def _quick_filter(matcher):
+    return [label for label in line_filter_options if matcher(label)]
+
+
+quick_row1 = st.columns(5)
+with quick_row1[0]:
+    if st.button("All", use_container_width=True):
+        picked = list(line_filter_options)
+        st.session_state.line_filter_choices = picked
+        st.session_state.active_line_filters = picked
+with quick_row1[1]:
+    if st.button("Non-network", use_container_width=True):
+        picked = _quick_filter(lambda lbl: not _is_network_label(lbl))
+        st.session_state.line_filter_choices = picked
+        st.session_state.active_line_filters = picked
+with quick_row1[2]:
+    if st.button("Network only", use_container_width=True):
+        picked = _quick_filter(_is_network_label)
+        st.session_state.line_filter_choices = picked
+        st.session_state.active_line_filters = picked
+with quick_row1[3]:
+    if st.button("PC only", use_container_width=True):
+        picked = _quick_filter(_is_pc_label)
+        st.session_state.line_filter_choices = picked
+        st.session_state.active_line_filters = picked
+with quick_row1[4]:
+    if st.button("Quest only", use_container_width=True):
+        picked = _quick_filter(_is_quest_label)
+        st.session_state.line_filter_choices = picked
+        st.session_state.active_line_filters = picked
+
+quick_row2 = st.columns(4)
+with quick_row2[0]:
+    if st.button("Client only", use_container_width=True):
+        picked = _quick_filter(_is_client_label)
+        st.session_state.line_filter_choices = picked
+        st.session_state.active_line_filters = picked
+with quick_row2[1]:
+    if st.button("Quest clients", use_container_width=True):
+        picked = _quick_filter(lambda lbl: _is_quest_label(lbl) and _is_client_label(lbl))
+        st.session_state.line_filter_choices = picked
+        st.session_state.active_line_filters = picked
+with quick_row2[2]:
+    if st.button("Network clients", use_container_width=True):
+        picked = _quick_filter(lambda lbl: _is_network_label(lbl) and _is_client_label(lbl))
+        st.session_state.line_filter_choices = picked
+        st.session_state.active_line_filters = picked
+with quick_row2[3]:
+    if st.button("PC network", use_container_width=True):
+        picked = _quick_filter(lambda lbl: _is_pc_label(lbl) and _is_network_label(lbl))
+        st.session_state.line_filter_choices = picked
+        st.session_state.active_line_filters = picked
 
 active_line_filters = set(st.session_state.active_line_filters)
 if active_line_filters:
@@ -646,37 +894,6 @@ def create_network_plot(net_datasets, selected_labels, per_gameobject, xcol, log
     return fig
 
 
-def short_label(label: str) -> str:
-    platform = "PC" if label.startswith("[PC]") else "Quest"
-
-    name = label.lower()
-
-    if "photon" in name:
-        tech = "Photon"
-    elif "fishnet" in name:
-        tech = "FishNet"
-    elif "ngo" in name:
-        tech = "NGO"
-    elif "netcodeentities" in name:
-        tech = "NetcodeEntities"
-    elif "dots" in name:
-        tech = "DOTS"
-    elif "gpu" in name:
-        tech = "Base GPU"
-    elif "base" in name:
-        tech = "Base"
-    elif "benchmarkgo" in name:
-        tech = "BenchmarkGO"
-    else:
-        tech = "Base"
-    if platform != "Quest":
-        if "client" in name:
-            tech += " Client"
-        elif "server" in name:
-            tech += " Server"
-    return f"{platform} · {tech}"
-
-
 def create_standard_plot(datasets, selected_labels, metric_label, metric_key, per_gameobject, xcol, log_scale=False):
     """Create a standard line plot for non-network metrics."""
     combined = []
@@ -692,7 +909,7 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
             continue
         if plot_ycol is None and "_ycol" in temp.columns:
             plot_ycol = temp["_ycol"].iloc[0]
-        temp["label"] = short_label(label);
+        temp["label"] = short_label(label, [lbl for lbl, _ in datasets]);
         combined.append(temp)
     
     if not combined:
@@ -800,8 +1017,73 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
     return fig
 
 
+def _capture_timestamp_key(label: str) -> str | None:
+    """Return the capture timestamp used to group files from the same run.
+
+    This is the same normalized YYYYMMDD_HHMM value produced by
+    `normalize_timestamp`. Note that for the same Unity capture run, the
+    Android trace file (`com.IMT_Atlantique.*#UnityPlayerGameActivity-*.csv`)
+    and the corresponding stats file (`*_profiler_stats-*.csv`) often
+    start within a minute or two of each other, so a strict equality
+    match on this key is too narrow. Callers should use
+    `_capture_date_key` when they want to allow that tolerance.
+    """
+    ts, _ = extract_timestamp(label)
+    if not ts:
+        return None
+    return normalize_timestamp(ts)
+
+
+def _capture_date_key(label: str) -> str | None:
+    """Return the capture date (YYYYMMDD) for grouping files from the
+    same Unity session. Android trace files and stats files from the same
+    run usually share this date but can be minutes apart, so this key
+    is broader than `_capture_timestamp_key`.
+    """
+    key = _capture_timestamp_key(label)
+    if not key or len(key) < 8:
+        return None
+    return key[:8]
+
+
+def _expand_filter_labels(
+    selected: set[str],
+    candidates: list[str],
+    datasets_labels: list[str],
+) -> set[str]:
+    """Expand each selected dropdown label to every related file in `datasets`.
+
+    Two expansion rules are tried, in order:
+    1. Same `short_label()` — covers cases where sibling files were
+       kept alongside the canonical entry (e.g. PCAP stats vs trace
+       with identical display names).
+    2. Same capture date (YYYYMMDD) — covers cases where the trace
+       file's display name differs from the stats file (no
+       Client/Server suffix, different sub-minute timestamp) but the
+       files belong to the same Unity capture session.
+    """
+    expanded: set[str] = set()
+    for label in selected:
+        expanded.add(label)
+        base = short_label(label)
+        cap_ts = _capture_timestamp_key(label)
+        cap_date = cap_ts[:8] if cap_ts else None
+        for candidate in candidates:
+            if candidate == label or candidate in expanded:
+                continue
+            if short_label(candidate) == base:
+                expanded.add(candidate)
+                continue
+            if cap_date:
+                cand_date = _capture_date_key(candidate)
+                if cand_date == cap_date:
+                    expanded.add(candidate)
+    return expanded
+
+
 def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame", log_scale=False):
     metric_figures = {}
+    skipped_by_filter = []
     for metric_key in selected_metric_keys:
         metric_label = [k for k, v in metric_options.items() if v == metric_key][0]
         use_per_gameobject = per_gameobject if per_gameobject_override is None else per_gameobject_override
@@ -833,10 +1115,24 @@ def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame", log_
             ]
 
         if datasets:
+            # Collapse datasets by short_label() so the legend stays
+            # consistent with the line-filter dropdown (one entry per
+            # capture run, no duplicate "(stats)" / "(trace)" siblings).
+            datasets = _collapse_datasets(datasets)
             labels = [t[0] for t in datasets]
             if active_line_filters:
-                labels = [label for label in labels if label in active_line_filters]
+                # Expand each selected dropdown label back to every sibling
+                # file that shares the same short_label() (or the same
+                # capture timestamp when display names diverge between
+                # stats and trace files).
+                expanded = _expand_filter_labels(
+                    active_line_filters,
+                    list(line_filter_candidates),
+                    labels,
+                )
+                labels = [label for label in labels if label in expanded]
             if not labels:
+                skipped_by_filter.append(metric_label)
                 continue
             fig = create_standard_plot(
                 datasets,
@@ -850,12 +1146,19 @@ def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame", log_
             if fig:
                 metric_figures[metric_label] = fig
 
-    return metric_figures
+    return metric_figures, skipped_by_filter
 
 
-def render_dashboard(metric_figures, title):
+def render_dashboard(metric_figures, title, skipped_by_filter=None):
     if not metric_figures:
         st.info(f"No compatible datasets found for {title.lower()}.")
+        if active_line_filters and skipped_by_filter:
+            filter_names = ", ".join(sorted(active_line_filters))
+            st.caption(
+                f"The active line filter ({filter_names}) excludes every "
+                f"available data source for: {', '.join(sorted(skipped_by_filter))}."
+            )
+            st.caption("Try a different quick filter or clear the line filter to see these metrics.")
         return
 
     st.subheader(title)
@@ -875,8 +1178,8 @@ def render_dashboard(metric_figures, title):
 
 
 # Generate and display the full dashboard
-metric_figures = build_metric_figures()
-render_dashboard(metric_figures, "Metrics Dashboard")
+metric_figures, skipped_by_filter = build_metric_figures()
+render_dashboard(metric_figures, "Metrics Dashboard", skipped_by_filter=skipped_by_filter)
 
 # Generate and display the movement-phase dashboard below the main one
 # movement-phase dashboard removed (data changed; movement phase logic deprecated)

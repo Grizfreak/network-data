@@ -483,8 +483,11 @@ def _pcap_per_gameobject_series(stats_df: pd.DataFrame, events_df: pd.DataFrame,
             max_event_frame = float(pd.to_numeric(finished_rows["Frame"], errors="coerce").max())
             if max_event_frame > max_metric_frame * 100:
                 use_time_alignment = True
-        except Exception:
-            use_time_alignment = True
+        except Exception as exc:
+            # Log the exception for debugging but continue with frame alignment
+            # Use print instead of warnings since this is a standalone function
+            print(f"Time alignment decision failed: {exc}")
+            use_time_alignment = False
 
     if use_time_alignment:
         metric_data_time, metric_column_time = metric_series_from_stats(stats_df, metric_key, stat_name, x_axis_mode="time")
@@ -496,9 +499,10 @@ def _pcap_per_gameobject_series(stats_df: pd.DataFrame, events_df: pd.DataFrame,
         metric_column = metric_column_time
         valid_samples = pd.DataFrame({"Time": sample_times, metric_column: sample_values}).dropna().sort_values("Time").reset_index(drop=True)
     else:
+        # Initialize variables for frame alignment path to avoid undefined references
+        finished_index_col = "Frame"
         sample_frames = pd.to_numeric(metric_data["Frame"], errors="coerce")
         sample_values = pd.to_numeric(metric_data[metric_column], errors="coerce")
-        finished_index_col = "Frame"
         valid_samples = pd.DataFrame({"Frame": sample_frames, metric_column: sample_values}).dropna().sort_values("Frame").reset_index(drop=True)
 
     if valid_samples.empty:

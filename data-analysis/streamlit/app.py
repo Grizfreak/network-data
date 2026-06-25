@@ -1,12 +1,10 @@
-from unicodedata import name
+import sys
+from pathlib import Path
+from statistics import median
 
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import importlib
-from pathlib import Path
-from statistics import median
-import sys
 
 """
 Streamlit application UI for the Benchmark Metrics Viewer.
@@ -23,6 +21,7 @@ frontend orchestrates data-processing helpers and plotting utilities.
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+# Local application modules
 from data_loader import (
     auto_pair_files,
     extract_timestamp,
@@ -31,19 +30,18 @@ from data_loader import (
     normalize_timestamp,
 )
 from metrics_engine import build_datasets, metric_series_from_stats
-import pcap_to_csv as pcap_tools
 
-pcap_tools = importlib.reload(pcap_tools)
+# PCAP processing tools (imported once at module level)
+import pcap_to_csv as pcap_tools
+import pcap_to_csv_quest as pcap_quest_tools
+
+# Re-export key functions from PCAP tools for backward compatibility
 cleanup_pcap_folder_csv = pcap_tools.cleanup_pcap_folder_csv
 convert_pcap_folder_to_csv = pcap_tools.convert_pcap_folder_to_csv
+find_pc_capture_files = pcap_tools.find_pc_capture_files
 
-# Quest-specific pcap tool lives next to the PC tool in the project root.
-import pcap_to_csv_quest as pcap_quest_tools  # noqa: E402
-
-pcap_quest_tools = importlib.reload(pcap_quest_tools)
 cleanup_quest_captures_csv = pcap_quest_tools.cleanup_quest_captures_csv
 convert_quest_captures_to_csv = pcap_quest_tools.convert_quest_captures_to_csv
-find_pc_capture_files = pcap_tools.find_pc_capture_files
 find_quest_capture_folders = pcap_quest_tools.find_quest_capture_folders
 find_quest_capture_files = pcap_quest_tools.find_quest_capture_files
 is_photon_capture_path = pcap_quest_tools.is_photon_capture_path

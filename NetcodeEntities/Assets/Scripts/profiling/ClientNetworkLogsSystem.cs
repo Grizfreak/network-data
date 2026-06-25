@@ -10,7 +10,7 @@ public partial struct ClientNetworkLogsSystem : ISystem
         {
             state.EntityManager.CreateSingleton(new LogConfig
             {
-                Prefix = "ngo_client_"
+                Prefix = "netcodeEntities_client_"
             });
         }
     }

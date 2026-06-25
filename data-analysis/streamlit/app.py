@@ -64,7 +64,7 @@ def _is_quest_network_series(label: str) -> bool:
         return True
 
     lowered = label.lower()
-    return any(token in lowered for token in ("photon", "fishnet", "ngo"))
+    return any(token in lowered for token in ("photon", "fishnet", "ngo", "netcodeentities"))
 
 # allow importing project helpers (assemble.py)
 try:
@@ -462,7 +462,7 @@ def get_available_metrics(stats_files, metric_options):
         # Check for network columns by metric family.
         if "RTT (ms) - Calculated from RPC" in df.columns:
             rtt_rpc_cols_present = True
-        if any(col in df.columns for col in ["RTT (ms)", "RTT_ms"]):
+        if any(col in df.columns for col in ["RTT (ms)", "RTT_ms", "Ping_ms", "Ping (ns)"]):
             rtt_cols_present = True
         if any(col in df.columns for col in ["Upload (bytes/sec)", "NetOutBytesPerSec"]):
             upload_cols_present = True
@@ -659,6 +659,8 @@ def short_label(label: str) -> str:
         tech = "FishNet"
     elif "ngo" in name:
         tech = "NGO"
+    elif "netcodeentities" in name:
+        tech = "NetcodeEntities"
     elif "dots" in name:
         tech = "DOTS"
     elif "gpu" in name:

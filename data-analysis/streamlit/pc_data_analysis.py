@@ -16,6 +16,20 @@ continuous samples into discrete experiment phases for analysis.
 """
 
 
+def _interp_or_nan(x: float, xs: np.ndarray, ys: np.ndarray) -> float:
+    """Like np.interp but returns NaN when x is outside [xs[0], xs[-1]].
+
+    np.interp clamps to the boundary values, which is misleading when
+    those boundary samples are sentinel zeros (e.g. Photon writing 0
+    before the connection is established). Returning NaN instead makes
+    Plotly break the line at that point, so the chart accurately
+    reflects "no measurement" rather than a fake zero.
+    """
+    if x < xs[0] or x > xs[-1]:
+        return float("nan")
+    return float(np.interp(x, xs, ys))
+
+
 def metric_per_gameobject_series(
     stats_df: pd.DataFrame,
     events_df: pd.DataFrame,
@@ -42,7 +56,7 @@ def metric_per_gameobject_series(
     segment_points = []
     first_frame = finished_rows.iloc[0]["Frame"]
     if pd.notna(first_frame):
-        first_value = float(np.interp(float(first_frame), sample_x, sample_y))
+        first_value = _interp_or_nan(float(first_frame), sample_x, sample_y)
         segment_points.append((0, first_value))
 
     for _, row in finished_rows.iterrows():
@@ -50,7 +64,7 @@ def metric_per_gameobject_series(
         current_value = row.get("Value")
         if pd.isna(current_frame) or pd.isna(current_value):
             continue
-        interpolated_value = float(np.interp(float(current_frame), sample_x, sample_y))
+        interpolated_value = _interp_or_nan(float(current_frame), sample_x, sample_y)
         segment_points.append((float(current_value), interpolated_value))
 
     if not segment_points:

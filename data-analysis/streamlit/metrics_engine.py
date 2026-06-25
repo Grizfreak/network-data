@@ -136,6 +136,67 @@ def _memory_series_from_stats(df: pd.DataFrame, x_axis_mode: str = "frame"):
     return plot_data.dropna(subset=[x_column, "MemoryMB"]).reset_index(drop=True)
 
 
+def _sanitize_latency_series(series: "pd.Series[float]") -> "pd.Series[float]":
+    """Drop sentinel/no-measurement and out-of-range values from a latency series.
+
+    Three classes of bad values are filtered out:
+
+    1. **Negative sentinels.** Some profilers (notably Photon's older
+       ``RTT (ms)`` export) emit ``-1`` as a sentinel meaning "RTT not yet
+       measured" before the first round-trip completes.
+    2. **Zero sentinels.** Photon's older ``Ping_ms`` export writes 0
+       whenever no measurement is available (e.g. before the connection
+       is established or after a disconnect). The vast majority of
+       rows in a typical capture can be 0, and ``np.interp`` would
+       happily return 0 for any frame in those regions, producing
+       misleading "0 ms ping" flat segments. We treat 0 as a sentinel
+       so the per-GameObject aggregation skips those rows instead.
+       Truly sub-millisecond LAN pings are exceedingly rare and were
+       already implicit noise; rejecting 0s makes the chart match
+       the underlying signal.
+    3. **Out-of-range values** (likely a unit-mislabel). The Quest
+       base/DOTS/GPU profiler exports store nanoseconds in a column
+       labelled ``RTT (ms)`` — values like 13,851,306 appear where
+       13.85 ms was intended. Any value above 30 seconds (30,000 ms) is
+       treated as a unit error and dropped.
+    """
+    return series.where((series > 0) & (series <= 30_000))
+
+
+def _bytes_per_sec_from_cumulative(
+    df: pd.DataFrame, cumulative_col: str, x_column: str, frame: "pd.Series[float]"
+) -> "pd.Series[float]":
+    """Convert a monotonically-increasing cumulative byte counter into a bytes/sec rate.
+
+    The benchmark CSV only ships cumulative counters (e.g. ``TotalBytesReceived``,
+    ``Total Bytes Sent (bytes)``). Plotting them directly as a "rate" produces a
+    constantly-rising curve and, worse, yields negative values whenever the
+    counter wraps or resets (Photon reconnects, scene reloads, etc.).
+
+    Strategy:
+      1. Take ``diff()`` of the cumulative counter; clamp negative diffs to 0
+         so a reset is treated as "no bytes transferred" rather than a bogus
+         negative spike.
+      2. Convert the diff to a per-second rate using the most precise time axis
+         available (``Time Stamp`` in ms, ``Time`` in s, else sample index).
+    """
+    counter = pd.to_numeric(df[cumulative_col], errors="coerce")
+    byte_diff = counter.diff().clip(lower=0)
+
+    # Choose the most precise time axis (seconds).
+    if "Time Stamp" in df.columns:
+        dt = pd.to_numeric(df["Time Stamp"], errors="coerce").diff() / 1000.0
+    elif "Time" in df.columns:
+        dt = pd.to_numeric(df["Time"], errors="coerce").diff()
+    elif x_column == "Frame":
+        dt = pd.to_numeric(frame, errors="coerce").diff()
+    else:
+        dt = pd.Series([1.0] * len(df), index=df.index)
+
+    rate = byte_diff / dt.replace(0, pd.NA)
+    return rate
+
+
 def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str | None = None, x_axis_mode: str = "frame"):
     """
     Return (DataFrame, ycol) for the requested metric_key, or (None, None).
@@ -220,6 +281,7 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
             series = pd.to_numeric(df["RTT_ms"], errors="coerce")
         else:
             return None, None
+        series = _sanitize_latency_series(series)
         plot_data = pd.DataFrame({x_column: frame, "Ping (ms)": series})
         return plot_data.dropna().reset_index(drop=True), "Ping (ms)"
 
@@ -232,8 +294,13 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
             series = pd.to_numeric(df["RTT_ms"], errors="coerce")
         elif "RTT (ms) - Calculated from RPC" in df.columns:
             series = pd.to_numeric(df["RTT (ms) - Calculated from RPC"], errors="coerce")
+        elif "Ping_ms" in df.columns:
+            # Photon exports don't expose RTT_ms; fall back to Ping_ms so
+            # the RTT subplot isn't empty when comparing Photon vs. NGO.
+            series = pd.to_numeric(df["Ping_ms"], errors="coerce")
         else:
             return None, None
+        series = _sanitize_latency_series(series)
         plot_data = pd.DataFrame({x_column: frame, "RTT (ms)": series})
         return plot_data.dropna().reset_index(drop=True), "RTT (ms)"
 
@@ -244,6 +311,7 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
             series = pd.to_numeric(df["RTT (ms) - Calculated from RPC"], errors="coerce")
         else:
             return None, None
+        series = _sanitize_latency_series(series)
         plot_data = pd.DataFrame({x_column: frame, "RTT (ms) - Calculated from RPC": series})
         return plot_data.dropna().reset_index(drop=True), "RTT (ms) - Calculated from RPC"
 
@@ -254,10 +322,19 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
             series = pd.to_numeric(df["Upload (bytes/sec)"], errors="coerce")
         elif "NetOutBytesPerSec" in df.columns:
             series = pd.to_numeric(df["NetOutBytesPerSec"], errors="coerce")
+        elif "TotalBytesSent" in df.columns:
+            series = _bytes_per_sec_from_cumulative(
+                df, "TotalBytesSent", x_column, frame
+            )
         elif "Total Bytes Sent (bytes)" in df.columns:
-            series = pd.to_numeric(df["Total Bytes Sent (bytes)"], errors="coerce")
+            series = _bytes_per_sec_from_cumulative(
+                df, "Total Bytes Sent (bytes)", x_column, frame
+            )
         else:
             return None, None
+        # Clamp negatives: counters can wrap/reset mid-run; treat those as 0.
+        if series is not None:
+            series = series.clip(lower=0)
         plot_data = pd.DataFrame({x_column: frame, "Upload (bytes/sec)": series})
         return plot_data.dropna().reset_index(drop=True), "Upload (bytes/sec)"
 
@@ -268,10 +345,19 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
             series = pd.to_numeric(df["Download (bytes/sec)"], errors="coerce")
         elif "NetInBytesPerSec" in df.columns:
             series = pd.to_numeric(df["NetInBytesPerSec"], errors="coerce")
+        elif "TotalBytesReceived" in df.columns:
+            series = _bytes_per_sec_from_cumulative(
+                df, "TotalBytesReceived", x_column, frame
+            )
         elif "Total Bytes Received (bytes)" in df.columns:
-            series = pd.to_numeric(df["Total Bytes Received (bytes)"], errors="coerce")
+            series = _bytes_per_sec_from_cumulative(
+                df, "Total Bytes Received (bytes)", x_column, frame
+            )
         else:
             return None, None
+        # Clamp negatives: counters can wrap/reset mid-run; treat those as 0.
+        if series is not None:
+            series = series.clip(lower=0)
         plot_data = pd.DataFrame({x_column: frame, "Download (bytes/sec)": series})
         return plot_data.dropna().reset_index(drop=True), "Download (bytes/sec)"
 

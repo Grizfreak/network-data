@@ -113,6 +113,10 @@ def _preferred_event_patterns(stat_file_name: str):
         return ["photon_server_events_", "photon_client_events_"]
     if "photon_client" in lower or "photonfusion" in lower:
         return ["photon_client_events_", "photon_server_events_"]
+    if "netcodeentities_server" in lower:
+        return ["netcodeentities_server_dots_events_", "netcodeentities_client_dots_events_"]
+    if "netcodeentities_client" in lower:
+        return ["netcodeentities_client_dots_events_", "netcodeentities_server_dots_events_"]
     if "dots" in lower:
         return ["dots_events_"]
     if "gpu" in lower:
@@ -125,7 +129,7 @@ def _preferred_event_patterns(stat_file_name: str):
     return []
 
 
-def _pairing_score(stat_name: str, event_name: str, stat_dt: datetime, event_dt: datetime):
+def _pairing_score(stat_name: str, event_name: str, stat_dt: datetime | None, event_dt: datetime | None):
     """Compute pairing score. Higher is better."""
     score = 0.0
     event_lower = event_name.lower()
@@ -155,7 +159,7 @@ def _pairing_score(stat_name: str, event_name: str, stat_dt: datetime, event_dt:
 
     # Strongly prefer when both share the same major token (ngo, photon, dots, gpu, fishnet, profiler)
     common = stat_tokens.intersection(event_tokens)
-    major_tokens = {"ngo", "photon", "dots", "gpu", "fishnet", "profiler", "benchmarkbase"}
+    major_tokens = {"ngo", "photon", "dots", "gpu", "fishnet", "profiler", "benchmarkbase", "netcodeentities"}
     if common.intersection(major_tokens):
         score += 300.0
 

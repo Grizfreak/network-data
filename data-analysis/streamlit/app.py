@@ -740,20 +740,26 @@ def _is_quest_label(label: str) -> bool:
 
 
 def _is_client_label(label: str) -> bool:
-    """Return True if the label belongs to a client-side capture.
+    """Return True only when the label carries an explicit client marker.
 
     Matches both the profiler-stats naming convention (`..._client_...`)
     and the event-style naming convention (`..._client_events_...`).
+    Quest Android traces (`com.IMT_Atlantique.*`) carry no role token
+    and are matched separately via `_is_quest_label` — they are NOT
+    treated as client by this predicate so that the "Quest clients" /
+    "Client only" quick filters stay focused on network-stack captures.
+
+    PC baseline files (dots / gpu / events / generic `profiler_stats`
+    without a client/server token) are role-agnostic and intentionally
+    excluded: they are still selectable via "PC only" / "Non-network"
+    presets or the manual multiselect.
     """
     lowered = label.lower()
-    if "_client_" in lowered or "_client_events_" in lowered or "_client_profiler_" in lowered:
-        return True
-    # PC DOTS / Base / BenchmarkBase stats do not carry a client/server
-    # role. Treat them as client-side for the purpose of role filters
-    # since they represent the local device.
-    if lowered.startswith("[pc] ") and "server" not in lowered:
-        return True
-    return False
+    return (
+        "_client_" in lowered
+        or "_client_events_" in lowered
+        or "_client_profiler_" in lowered
+    )
 
 
 def _is_server_label(label: str) -> bool:
@@ -809,21 +815,30 @@ with quick_row1[4]:
 quick_row2 = st.columns(4)
 with quick_row2[0]:
     if st.button("Client only", use_container_width=True):
+        # Show every client-side capture across both platforms.
         picked = _quick_filter(_is_client_label)
         st.session_state.line_filter_choices = picked
         st.session_state.active_line_filters = picked
 with quick_row2[1]:
     if st.button("Quest clients", use_container_width=True):
+        # Narrow the client list down to Quest-only captures.
         picked = _quick_filter(lambda lbl: _is_quest_label(lbl) and _is_client_label(lbl))
         st.session_state.line_filter_choices = picked
         st.session_state.active_line_filters = picked
 with quick_row2[2]:
-    if st.button("Network clients", use_container_width=True):
-        picked = _quick_filter(lambda lbl: _is_network_label(lbl) and _is_client_label(lbl))
+    if st.button("PC clients", use_container_width=True):
+        # Narrow the client list down to PC-only captures. This replaces
+        # the previous "Network clients" preset, which mixed platforms
+        # and duplicated what "PC clients" + "Quest clients" already
+        # cover for the network stacks.
+        picked = _quick_filter(lambda lbl: _is_pc_label(lbl) and _is_client_label(lbl))
         st.session_state.line_filter_choices = picked
         st.session_state.active_line_filters = picked
 with quick_row2[3]:
     if st.button("PC network", use_container_width=True):
+        # Keep PC + network as a separate, non-client-scoped preset so
+        # users can still inspect the full PC network stack (both client
+        # and server roles) without going through the client buttons.
         picked = _quick_filter(lambda lbl: _is_pc_label(lbl) and _is_network_label(lbl))
         st.session_state.line_filter_choices = picked
         st.session_state.active_line_filters = picked
@@ -1046,6 +1061,23 @@ def _capture_date_key(label: str) -> str | None:
     return key[:8]
 
 
+def _label_has_server_role(label: str) -> bool:
+    """Return True when the label explicitly identifies a server-side role.
+
+    Used to prevent the same-capture-date expansion from leaking server
+    captures into a client-only filter: a Photon *client* selection on
+    `20260605` must not pull in the Photon *server* capture that happens
+    to share the same Unity capture date.
+    """
+    lowered = label.lower()
+    return (
+        "_server_" in lowered
+        or "_server_events_" in lowered
+        or "_server_profiler_" in lowered
+        or "_server_capture_" in lowered
+    )
+
+
 def _expand_filter_labels(
     selected: set[str],
     candidates: list[str],
@@ -1061,11 +1093,21 @@ def _expand_filter_labels(
        file's display name differs from the stats file (no
        Client/Server suffix, different sub-minute timestamp) but the
        files belong to the same Unity capture session.
+
+    Rule 2 is gated by role safety: a candidate that explicitly carries
+    a server-side role token (`_server_`, `_server_events_`,
+    `_server_profiler_`, `_server_capture_`) is never pulled in by a
+    selection whose `short_label()` is client-side, even when the
+    capture dates match. This avoids the "Client only" plot leaking in
+    Fishnet / NetcodeEntities / NGO / Photon server traces from the
+    same Unity session, which share the same capture timestamp family
+    (`_capture_timestamp_key` collapses seconds to minutes).
     """
     expanded: set[str] = set()
     for label in selected:
         expanded.add(label)
         base = short_label(label)
+        selection_is_client = _is_client_label(label)
         cap_ts = _capture_timestamp_key(label)
         cap_date = cap_ts[:8] if cap_ts else None
         for candidate in candidates:
@@ -1076,8 +1118,15 @@ def _expand_filter_labels(
                 continue
             if cap_date:
                 cand_date = _capture_date_key(candidate)
-                if cand_date == cap_date:
-                    expanded.add(candidate)
+                if cand_date != cap_date:
+                    continue
+                # Same-date expansion: refuse to bring in any capture
+                # that is explicitly labelled as a server-side role when
+                # the user is filtering on a client selection. This is
+                # the role-gating guarantee promised by the docstring.
+                if selection_is_client and _label_has_server_role(candidate):
+                    continue
+                expanded.add(candidate)
     return expanded
 
 

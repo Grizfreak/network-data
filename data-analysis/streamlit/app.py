@@ -62,7 +62,7 @@ def _is_quest_network_series(label: str) -> bool:
         return True
 
     lowered = label.lower()
-    return any(token in lowered for token in ("photon", "fishnet", "ngo", "netcodeentities"))
+    return any(token in lowered for token in ("photon", "fishnet", "ngo", "netcodeentities", "godot"))
 
 
 def short_label(label: str, all_labels: list[str] | None = None) -> str:
@@ -77,7 +77,12 @@ def short_label(label: str, all_labels: list[str] | None = None) -> str:
     (events CSV, profiler stats CSV, Android trace CSV) remain
     distinguishable in the legend and dropdown.
     """
-    platform = "PC" if label.startswith("[PC]") else "Quest"
+    if label.startswith("[PC]"):
+        platform = "PC"
+    elif label.startswith("[Quest]"):
+        platform = "Quest"
+    else:
+        platform = "Quest"
 
     name = label.lower()
 
@@ -89,6 +94,11 @@ def short_label(label: str, all_labels: list[str] | None = None) -> str:
         tech = "NGO"
     elif "netcodeentities" in name:
         tech = "NetcodeEntities"
+    elif "godot" in name:
+        # Godot is a benchmark like the others, not a separate category:
+        # it inherits its platform from the capture folder (PC/Quest) and
+        # exposes "Godot" as the tech tag in the legend.
+        tech = "Godot"
     elif "dots" in name:
         tech = "DOTS"
     elif "gpu" in name:
@@ -144,6 +154,22 @@ def _type_tag_for(label: str) -> str:
     return ""
 
 
+def _is_godot_label(label: str) -> bool:
+    """Return True when the file name (after the platform tag) is a Godot run.
+
+    Godot files used to be tagged with a separate `[Godot] ` prefix, but
+    they are now treated like every other benchmark: they keep the
+    platform tag from the capture folder (`[PC]` / `[Quest]`) and expose
+    "Godot" as the tech. We detect them by their `godot` token in the
+    filename instead of by an exclusive prefix.
+    """
+    return "godot" in label.lower()
+
+
+def _is_godot_file_name(file_name: str) -> bool:
+    return "godot" in file_name.lower()
+
+
 # allow importing project helpers (assemble.py)
 try:
     import assemble
@@ -153,7 +179,7 @@ except Exception:
 st.set_page_config(page_title="Benchmark Metrics Viewer", layout="wide")
 
 st.title("Benchmark Metrics Viewer")
-st.markdown("Load PC and/or Quest benchmark data. Choose a metric (FPS, Memory, CPU, GPU, Network) and the app will plot either per-frame or per-GameObject series.")
+st.markdown("Load PC, Quest, and Godot benchmark data. Choose a metric (FPS, Memory, CPU, GPU, Network, or Godot profiler columns) and the app will plot either per-frame or per-GameObject series.")
 
 # Initialize session state for pairings
 if "pairings_state" not in st.session_state:
@@ -178,6 +204,18 @@ if quest_folder:
     st.success(f"✓ Quest data found: {quest_folder.name}")
 else:
     st.warning("✗ No Quest data folder found")
+
+godot_present = any(
+    _is_godot_file_name(csv_file.name)
+    for folder in (pc_folder, quest_folder)
+    if folder is not None
+    for csv_file in folder.glob("*.csv")
+)
+if godot_present:
+    st.success("✓ Godot data found in the capture folders")
+    st.warning(
+        "Godot profiler exports do not expose every metric used by PC/Quest captures, so some plots (for example CPU %, GPU, or network-derived views) may be unavailable depending on the CSV columns you exported."
+    )
 
 if pc_folder:
     with st.expander("PC capture tools", expanded=False):
@@ -388,21 +426,34 @@ if not selected_data:
     st.stop()
 
 # Load the selected data
+def _load_source_files(folder: Path, source_label: str):
+    """Load every CSV in `folder` and tag it with `source_label`.
+
+    Godot files are treated like every other benchmark: they keep the
+    platform tag from the capture folder (PC or Quest) and are detected
+    as "Godot" by their filename token when the legend is built.
+    """
+    stats, events, errors = load_csv_files_from_folder(folder)
+    stats = [(f"[{source_label}] {name}", df) for name, df in stats]
+    events = [(f"[{source_label}] {name}", df) for name, df in events]
+    return stats, events, errors
+
+
 for data_type in selected_data:
     if data_type == "PC" and pc_folder:
         st.info(f"Loading PC data from: {pc_folder.name}")
-        pc_stats, pc_events, pc_errors = load_csv_files_from_folder(pc_folder)
+        pc_stats, pc_events, pc_errors = _load_source_files(pc_folder, "PC")
         for file_name, err in pc_errors:
             st.warning(f"Failed to read {file_name}: {err}")
-        stats_files.extend([(f"[PC] {name}", df) for name, df in pc_stats])
-        events_files.extend([(f"[PC] {name}", df) for name, df in pc_events])
+        stats_files.extend(pc_stats)
+        events_files.extend(pc_events)
     elif data_type == "Quest" and quest_folder:
         st.info(f"Loading Quest data from: {quest_folder.name}")
-        quest_stats, quest_events, quest_errors = load_csv_files_from_folder(quest_folder)
+        quest_stats, quest_events, quest_errors = _load_source_files(quest_folder, "Quest")
         for file_name, err in quest_errors:
             st.warning(f"Failed to read {file_name}: {err}")
-        stats_files.extend([(f"[Quest] {name}", df) for name, df in quest_stats])
-        events_files.extend([(f"[Quest] {name}", df) for name, df in quest_events])
+        stats_files.extend(quest_stats)
+        events_files.extend(quest_events)
 
 # Verify we have data
 if assemble is None:
@@ -513,6 +564,8 @@ metric_options = {
     "Memory (MB)": "memory",
     "CPU (ms)": "cpu",
     "GPU (ms)": "gpu",
+    "Godot - FPS": "godot_fps",
+    "Godot - Frame Time (ms)": "godot_frame_time",
     "PCAP - Packets/sec": "pcap_packets",
     "PCAP - Bytes/sec": "pcap_bytes",
     "PCAP - Packets per GameObject (delta)": "pcap_cumulative_packets",
@@ -527,6 +580,7 @@ metric_options = {
 def get_available_metrics(stats_files, metric_options):
     """Scan loaded files and return only metrics that have data."""
     available = set()
+    godot_present = False
     rtt_cols_present = False
     rtt_rpc_cols_present = False
     upload_cols_present = False
@@ -536,7 +590,9 @@ def get_available_metrics(stats_files, metric_options):
     pcap_cumulative_packets_present = False
     pcap_cumulative_bytes_present = False
     
-    for _, df in stats_files:
+    for sname, df in stats_files:
+        if _is_godot_label(sname):
+            godot_present = True
         # Check for network columns by metric family.
         if "RTT (ms) - Calculated from RPC" in df.columns:
             rtt_rpc_cols_present = True
@@ -565,6 +621,7 @@ def get_available_metrics(stats_files, metric_options):
             available.add("CPU (ms)")
         if any(col in df.columns for col in ["GPU Frame Time (ns)", "app_gpu_time_microseconds"]):
             available.add("GPU (ms)")
+
     
     # Add network metrics only if the relevant columns exist.
     if rtt_rpc_cols_present:
@@ -583,6 +640,14 @@ def get_available_metrics(stats_files, metric_options):
         available.add("PCAP - Cumulative Packets")
     if pcap_cumulative_bytes_present:
         available.add("PCAP - Cumulative Bytes")
+
+    if godot_present:
+        available.update(
+            {
+                "Godot - FPS",
+                "Godot - Frame Time (ms)",
+            }
+        )
     
     return [label for label in metric_options.keys() if label in available]
 
@@ -843,6 +908,15 @@ with quick_row2[3]:
         st.session_state.line_filter_choices = picked
         st.session_state.active_line_filters = picked
 
+# Godot is treated like every other benchmark (a tech, not a platform),
+# so this quick filter targets every Godot run across PC and Quest.
+quick_row3 = st.columns(1)
+with quick_row3[0]:
+    if st.button("Godot only", use_container_width=True):
+        picked = _quick_filter(_is_godot_label)
+        st.session_state.line_filter_choices = picked
+        st.session_state.active_line_filters = picked
+
 active_line_filters = set(st.session_state.active_line_filters)
 if active_line_filters:
     st.info(f"Line filter active: {len(active_line_filters)} selected")
@@ -1024,7 +1098,7 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
     
     phase_suffix = ""
     # Use the actual y-column name for the y-axis label (in case Quest/PC differ)
-    y_axis_label = ycol if ycol not in ("FPS", metric_label) else metric_label
+    y_axis_label = metric_label if metric_key.startswith("godot_") else (ycol if ycol not in ("FPS", metric_label) else metric_label)
     figure_title = f"{metric_label}{phase_suffix} per GameObject pool" if per_gameobject and plot_xcol == "GameObjects" else f"{metric_label}{phase_suffix} vs {plot_xcol}"
     fig.update_layout(title=figure_title, xaxis_title=plot_xcol, yaxis_title=y_axis_label, height=600)
     if log_scale:
@@ -1108,6 +1182,7 @@ def _expand_filter_labels(
         expanded.add(label)
         base = short_label(label)
         selection_is_client = _is_client_label(label)
+        selection_type = _type_tag_for(label)
         cap_ts = _capture_timestamp_key(label)
         cap_date = cap_ts[:8] if cap_ts else None
         for candidate in candidates:
@@ -1119,6 +1194,13 @@ def _expand_filter_labels(
             if cap_date:
                 cand_date = _capture_date_key(candidate)
                 if cand_date != cap_date:
+                    continue
+                candidate_type = _type_tag_for(candidate)
+                # Only use same-date expansion to bridge the intended stats/trace
+                # sibling case. Without this guard, choosing a PC Base line filter
+                # also pulls in unrelated DOTS/GPU stat files that happen to share
+                # the same capture date.
+                if {selection_type, candidate_type} != {"stats", "trace"}:
                     continue
                 # Same-date expansion: refuse to bring in any capture
                 # that is explicitly labelled as a server-side role when
@@ -1156,11 +1238,16 @@ def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame", log_
 
         # Filter out non-com.IMT_Atlantique Quest files for standard metrics (FPS, Memory, CPU, GPU).
         # We want to use ONLY com.IMT_Atlantique files for these specific metrics on Quest, as requested.
+        # However, we also need to include godot-quest data in the plots like godot-pc ones.
         standard_metric_keys = ("fps", "memory", "cpu", "gpu")
         if metric_key in standard_metric_keys and datasets:
             datasets = [
                 (label, df) for label, df in datasets
-                if not (label.startswith("[Quest] ") and "com.IMT_Atlantique" not in label)
+                if not (
+                    label.startswith("[Quest] ") 
+                    and "com.IMT_Atlantique" not in label 
+                    and not _is_godot_label(label)
+                )
             ]
 
         if datasets:

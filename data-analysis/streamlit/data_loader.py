@@ -62,6 +62,7 @@ def extract_timestamp(file_name: str):
     patterns = [
         (r"\d{8}_\d{6}", "%Y%m%d_%H%M%S"),
         (r"\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}", "%Y.%m.%d-%H.%M"),
+        (r"\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}", "%Y-%m-%dT%H-%M-%S"),
     ]
     for pattern, fmt in patterns:
         matches = list(re.finditer(pattern, file_name))
@@ -91,6 +92,12 @@ def normalize_timestamp(ts: str):
     if "." in ts and "-" in ts:
         parts = ts.replace(".", "").replace("-", "")
         return parts[:8] + "_" + parts[8:12]
+    if "T" in ts and ts.count("-") >= 3:
+        date_part, time_part = ts.split("T", 1)
+        date_digits = date_part.replace("-", "")
+        time_digits = time_part.replace("-", "")
+        if len(date_digits) == 8 and len(time_digits) >= 4:
+            return f"{date_digits}_{time_digits[:4]}"
     if "_" in ts:
         date_part, _, time_part = ts.partition("_")
         if len(date_part) == 8 and len(time_part) >= 4:
@@ -104,6 +111,8 @@ def _extract_source_label(file_name: str):
         return "pc"
     if lower.startswith("[quest]"):
         return "quest"
+    if lower.startswith("[godot]"):
+        return "godot"
     return None
 
 
@@ -132,6 +141,8 @@ def _preferred_event_patterns(stat_file_name: str):
         return ["dots_events_"]
     if "gpu" in lower:
         return ["gpu_events_"]
+    if "godot" in lower:
+        return ["events_godot_", "events_"]
     if "benchmarkbase" in lower:
         return ["events_"]
     if "profiler_stats-" in lower:
@@ -170,7 +181,7 @@ def _pairing_score(stat_name: str, event_name: str, stat_dt: datetime | None, ev
 
     # Strongly prefer when both share the same major token (ngo, photon, dots, gpu, fishnet, profiler)
     common = stat_tokens.intersection(event_tokens)
-    major_tokens = {"ngo", "photon", "dots", "gpu", "fishnet", "profiler", "benchmarkbase", "netcodeentities"}
+    major_tokens = {"ngo", "photon", "dots", "gpu", "fishnet", "profiler", "benchmarkbase", "netcodeentities", "godot"}
     if common.intersection(major_tokens):
         score += 300.0
 

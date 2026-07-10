@@ -62,6 +62,8 @@ def _source_from_name(file_name: str) -> Optional[str]:
         return "pc"
     if lower.startswith("[quest]"):
         return "quest"
+    if lower.startswith("[godot]"):
+        return "godot"
     return None
 
 
@@ -136,6 +138,13 @@ def _memory_series_from_stats(df: pd.DataFrame, x_axis_mode: str = "frame"):
     return plot_data.dropna(subset=[x_column, "MemoryMB"]).reset_index(drop=True)
 
 
+def _bytes_series_to_mb(df: pd.DataFrame, column_name: str):
+    if column_name not in df.columns:
+        return None
+    series = pd.to_numeric(df[column_name], errors="coerce")
+    return series / (1024.0 * 1024.0)
+
+
 def _sanitize_latency_series(series: "pd.Series[float]") -> "pd.Series[float]":
     """Drop sentinel/no-measurement and out-of-range values from a latency series.
 
@@ -205,6 +214,17 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
         return _fps_series_from_stats(df, stat_name, x_axis_mode), "FPS"
     if metric_key == "memory":
         return _memory_series_from_stats(df, x_axis_mode), "MemoryMB"
+
+    if metric_key == "godot_fps":
+        return _fps_series_from_stats(df, stat_name, x_axis_mode), "FPS"
+
+    if metric_key == "godot_frame_time":
+        frame = _frame_series(df, x_axis_mode)
+        if frame is None or "FrameTimeMs" not in df.columns:
+            return None, None
+        series = pd.to_numeric(df["FrameTimeMs"], errors="coerce")
+        plot_data = pd.DataFrame({"Frame" if x_axis_mode == "frame" else "Time": frame, "FrameTimeMs": series})
+        return plot_data.dropna().reset_index(drop=True), "FrameTimeMs"
 
     frame = _frame_series(df, x_axis_mode)
     if frame is None:
@@ -452,6 +472,14 @@ def _filter_dataframe_to_window(df: pd.DataFrame, window):
 
 def metric_per_gameobject_series(stats_df: pd.DataFrame, events_df: pd.DataFrame, metric_key: str, stat_name: str | None = None):
     source = _source_from_name(stat_name or "")
+    # Godot files no longer carry a dedicated [Godot] prefix; they are
+    # tagged with their capture platform ([PC] / [Quest]) and identified
+    # by the `godot` token in the filename. Route them through the PC
+    # per-GameObject pipeline, which is what the alias used to point at
+    # anyway (see `pc_data_analysis.metric_per_gameobject_series`).
+    if "godot" in (stat_name or "").lower():
+        from pc_data_analysis import metric_per_gameobject_series as godot_metric_per_gameobject_series
+        return godot_metric_per_gameobject_series(stats_df, events_df, metric_key, stat_name)
     if source == "pc":
         from pc_data_analysis import metric_per_gameobject_series as pc_metric_per_gameobject_series
         return pc_metric_per_gameobject_series(stats_df, events_df, metric_key, stat_name)

@@ -564,8 +564,6 @@ metric_options = {
     "Memory (MB)": "memory",
     "CPU (ms)": "cpu",
     "GPU (ms)": "gpu",
-    "Godot - FPS": "godot_fps",
-    "Godot - Frame Time (ms)": "godot_frame_time",
     "PCAP - Packets/sec": "pcap_packets",
     "PCAP - Bytes/sec": "pcap_bytes",
     "PCAP - Packets per GameObject (delta)": "pcap_cumulative_packets",
@@ -640,14 +638,6 @@ def get_available_metrics(stats_files, metric_options):
         available.add("PCAP - Cumulative Packets")
     if pcap_cumulative_bytes_present:
         available.add("PCAP - Cumulative Bytes")
-
-    if godot_present:
-        available.update(
-            {
-                "Godot - FPS",
-                "Godot - Frame Time (ms)",
-            }
-        )
     
     return [label for label in metric_options.keys() if label in available]
 

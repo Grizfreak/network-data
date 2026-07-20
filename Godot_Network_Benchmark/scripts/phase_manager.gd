@@ -30,6 +30,10 @@ func _ready():
 		wait_between_phases = BaseLoader.resource.wait_between_phases
 		wait_before_quitting_app = BaseLoader.resource.wait_before_quitting_app
 		move_and_spawn = BaseLoader.resource.move_and_spawn
+
+	if !multiplayer.is_server():
+		print("This is not the server, phase management will be handled by the server.")
+		auto_linking_phase = false
 	
 	# Connect signals
 	ask_phase1_start.connect(start_phase1)

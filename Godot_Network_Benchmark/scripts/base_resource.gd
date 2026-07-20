@@ -18,6 +18,10 @@ class_name base_resource
 
 @export var move_and_spawn := false
 
+@export var multiplayer_mode:= "client"
+
+@export var server_address := ""
+
 func load_from_json(path: String) -> void:
     var file := FileAccess.open(path, FileAccess.READ)
     if file == null:
@@ -57,3 +61,6 @@ func load_from_json(path: String) -> void:
     )
 
     move_and_spawn = bool(data.get("moveAndSpawn", move_and_spawn))
+
+    multiplayer_mode = data.get("multiplayerMode", multiplayer_mode)
+    server_address = data.get("mServerAddress", server_address)

@@ -18,4 +18,7 @@ func _process(_delta) -> void:
 				start_auto_phase_1 = false
 
 func on_scene_changed():
-	searching_for_phase_manager = true
+	if multiplayer.is_server():
+		searching_for_phase_manager = true
+	else:
+		start_auto_phase_1 = false

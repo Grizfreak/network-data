@@ -23,21 +23,35 @@ var static_memory_sum : float = 0
 
 var last_flush := 0.0
 
+@export var network_provider : NetworkBenchmarkProvider
+var bucket_rtt_sum := 0.0
+var bucket_rtt_samples := 0
+
+var bucket_bytes_sent_delta := 0
+var bucket_bytes_received_delta := 0
+
+var last_bytes_sent := 0
+var last_bytes_received := 0
+
+var network_baseline_initialized := false
+
+var filename = "";
+
 
 func _ready():
-	var filename = "";
 	var timestamp = Time.get_datetime_string_from_system()
 	timestamp = timestamp.replace(":", "-")  # Replace colons with hyphens for filename compatibility
 	if OS.get_name() == "Android":
-		filename = "/storage/emulated/0/Android/data/com.example.godot_benchmark/files/godot_profiler_stats_%s.csv" % timestamp
+		filename = "/storage/emulated/0/Android/data/com.IMT_Atlantique.godot_network_benchmark/files/%s_godot_profiler_stats_%s.csv" % [filename, timestamp]
 	else:
-		filename = "user://godot_profiler_stats_%s.csv" % timestamp
+		filename = "user://%s_godot_profiler_stats_%s.csv" % [filename, timestamp]
 	file = FileAccess.open(filename, FileAccess.WRITE)
 	FileAccess.get_open_error()
 
 	file.store_line(
 		"Time,Frame,FPS,FrameTimeMs,ProcessTimeMs,PhysicsTimeMs," +
-        "DrawCalls,Objects,Primitives,TextureMemory,VideoMemory,StaticMemory"
+		"DrawCalls,Objects,Primitives,TextureMemory,VideoMemory,StaticMemory," +
+		"RTTms,UploadBytesPerSec,DownloadBytesPerSec"
 	)
 
 
@@ -81,6 +95,29 @@ func _process(delta):
 		Performance.MEMORY_STATIC
 	)
 
+	if network_provider:
+
+		bucket_rtt_sum += network_provider.get_rtt_ms()
+		bucket_rtt_samples += 1
+
+		var current_sent = network_provider.get_bytes_sent()
+		var current_received = network_provider.get_bytes_received()
+
+		if !network_baseline_initialized:
+
+			last_bytes_sent = current_sent
+			last_bytes_received = current_received
+
+			network_baseline_initialized = true
+
+		else:
+
+			bucket_bytes_sent_delta += current_sent - last_bytes_sent
+			bucket_bytes_received_delta += current_received - last_bytes_received
+
+			last_bytes_sent = current_sent
+			last_bytes_received = current_received
+
 	if bucket_time >= BUCKET_DURATION:
 		write_bucket()
 		reset_bucket()
@@ -94,9 +131,22 @@ func _process(delta):
 
 func write_bucket():
 
+	var avg_rtt := 0.0
+
+	if bucket_rtt_samples > 0:
+		avg_rtt = bucket_rtt_sum / bucket_rtt_samples
+
+	var upload_rate := 0.0
+	var download_rate := 0.0
+
+	if bucket_time > 0.0:
+
+		upload_rate = bucket_bytes_sent_delta / bucket_time
+		download_rate = bucket_bytes_received_delta / bucket_time
+
 	var n = max(bucket_frames, 1)
 
-	var row = "%0.3f,%d,%0.2f,%0.3f,%0.3f,%0.3f,%d,%d,%d,%d,%d,%d" % [
+	var row = "%0.3f,%d,%0.2f,%0.3f,%0.3f,%0.3f,%d,%d,%d,%d,%d,%d,%0.2f,%0.0f,%0.0f" % [
 
 		Time.get_ticks_msec() / 1000.0,
 
@@ -120,7 +170,13 @@ func write_bucket():
 
 		video_memory_sum / n,
 
-		static_memory_sum / n
+		static_memory_sum / n,
+
+		avg_rtt,
+
+		upload_rate,
+
+		download_rate
 	]
 
 	file.store_line(row)
@@ -143,6 +199,12 @@ func reset_bucket():
 	texture_memory_sum = 0
 	video_memory_sum = 0
 	static_memory_sum = 0
+
+	bucket_rtt_sum = 0.0
+	bucket_rtt_samples = 0
+
+	bucket_bytes_sent_delta = 0
+	bucket_bytes_received_delta = 0
 
 
 func _exit_tree():

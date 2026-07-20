@@ -1,17 +1,9 @@
 [gd_scene format=3 uid="uid://b6wsbqry1shej"]
 
+[ext_resource type="Script" uid="uid://bwyn0ukmgrbfr" path="res://scripts/xr_origin_3d.gd" id="1_baglu"]
 [ext_resource type="Script" uid="uid://kphquloywugr" path="res://scripts/platform_switcher.gd" id="2_baglu"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_g4v7s"]
-
-[sub_resource type="ViewportTexture" id="ViewportTexture_pvqg0"]
-viewport_path = NodePath("MeshInstance3D/SubViewport")
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pvqg0"]
-resource_local_to_scene = true
-albedo_texture = SubResource("ViewportTexture_pvqg0")
-
-[sub_resource type="QuadMesh" id="QuadMesh_pvqg0"]
 
 [node name="base" type="Node" unique_id=69101855]
 
@@ -22,6 +14,7 @@ albedo_texture = SubResource("ViewportTexture_pvqg0")
 [node name="Camera3D" type="Camera3D" parent="." unique_id=1701432802]
 
 [node name="XROrigin3D" type="XROrigin3D" parent="." unique_id=138910905]
+script = ExtResource("1_baglu")
 
 [node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D" unique_id=449438617]
 
@@ -43,18 +36,5 @@ mesh = SubResource("SphereMesh_g4v7s")
 script = ExtResource("2_baglu")
 android_subsystem = NodePath("../XROrigin3D")
 windows_subsystem = NodePath("../Camera3D")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=276244679]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.73931694)
-material_override = SubResource("StandardMaterial3D_pvqg0")
-mesh = SubResource("QuadMesh_pvqg0")
-
-[node name="SubViewport" type="SubViewport" parent="MeshInstance3D" unique_id=1565934277]
-disable_3d = true
-
-[node name="Label" type="Label" parent="MeshInstance3D/SubViewport" unique_id=82616450]
-offset_right = 40.0
-offset_bottom = 23.0
-text = "Hello !"
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=107411437]

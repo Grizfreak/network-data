@@ -19,6 +19,8 @@ config/icon="res://icon.svg"
 
 BaseLoader="*uid://d1x45q05ic5yb"
 BaseLauncher="*uid://d3fnt8s24opvk"
+ServerManager="*uid://cwjksjgj8edt2"
+WiresharkManager="*uid://1hnk60744qgl"
 
 [display]
 

@@ -55,7 +55,7 @@ func spawn_objects() -> void:
 		var obj = object_to_spawn.instantiate()
 		obj.global_position = random_spawn_position()
 
-		add_child(obj)
+		add_child(obj,true)
 
 		if phase_manager.move_and_spawn:
 			obj.is_moving = true
@@ -77,7 +77,7 @@ func spawn_objects_by_group() -> void:
 				break
 
 			var obj = object_to_spawn.instantiate()
-			add_child(obj)
+			add_child(obj,true)
 			obj.global_position = random_spawn_position()
 
 			if phase_manager.move_and_spawn:

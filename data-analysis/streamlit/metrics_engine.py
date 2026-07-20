@@ -503,9 +503,21 @@ def _pcap_per_gameobject_series(stats_df: pd.DataFrame, events_df: pd.DataFrame,
     if finished_rows is None or finished_rows.empty:
         return None, None
 
-    # Decide whether to align on Frame or Time depending on scale
-    use_time_alignment = False
-    if "Frame" in metric_data.columns:
+    # Decide whether to align on Frame or Time depending on scale.
+    #
+    # PCAP-derived time series have a `Frame` column that is just a
+    # per-second bucket index (0..N where N is the capture duration in
+    # seconds), NOT a Unity/engine frame number. The events file's
+    # `Frame` column is the actual engine frame (typically 0..tens of
+    # thousands). Comparing the two directly is meaningless and produces
+    # bogus segment ranges (e.g. every PCAP sample has Frame <= 2191, so
+    # the first event claims the entire PCAP trace, and every later
+    # event finds an empty segment). For PCAP files, the only alignment
+    # that makes sense is time-based: the PCAP `Time (s)` column maps 1:1
+    # to the events `Time` column.
+    use_time_alignment = _has_pcap_columns(stats_df)
+
+    if not use_time_alignment and "Frame" in metric_data.columns:
         try:
             max_metric_frame = float(pd.to_numeric(metric_data["Frame"], errors="coerce").max())
             max_event_frame = float(pd.to_numeric(finished_rows["Frame"], errors="coerce").max())

@@ -62,7 +62,8 @@ def _is_quest_network_series(label: str) -> bool:
         return True
 
     lowered = label.lower()
-    return any(token in lowered for token in ("photon", "fishnet", "ngo", "netcodeentities", "godot"))
+    # Include godot client, godot server, and godot quest client in network filter
+    return any(token in lowered for token in ("photon", "fishnet", "ngo", "netcodeentities", "godot client", "godot server", "godot quest client"))
 
 
 def short_label(label: str, all_labels: list[str] | None = None) -> str:
@@ -113,6 +114,15 @@ def short_label(label: str, all_labels: list[str] | None = None) -> str:
         tech += " Client"
     elif "server" in name:
         tech += " Server"
+    elif platform == "Quest" and tech == "Godot" and _type_tag_for(label) == "trace":
+        # The Quest Godot Android trace (`com.IMT_Atlantique.godot_network_benchmark#GodotApp-*.csv`)
+        # is emitted by the running app itself, i.e. the client. It carries
+        # no `_client_` / `_server_` token in its filename, so without this
+        # branch it would render as a bare `Quest · Godot` line that
+        # duplicates the client view. The PCAP capture output and the
+        # events/stats CSVs all already have explicit `client`/`server`
+        # tokens, so they are unaffected.
+        tech += " Client"
 
     # Append a compact timestamp so files from different captures remain
     # distinguishable in the legend / dropdown. The label may carry either
@@ -436,6 +446,36 @@ def _load_source_files(folder: Path, source_label: str):
     stats, events, errors = load_csv_files_from_folder(folder)
     stats = [(f"[{source_label}] {name}", df) for name, df in stats]
     events = [(f"[{source_label}] {name}", df) for name, df in events]
+
+    # The Quest headset only ever runs the Godot client. Server-side
+    # artefacts that are mirrored on the Quest (server-side events/stats
+    # CSVs) must be hidden so the only `Quest · Godot …` line that
+    # survives is the Client one.
+    #
+    # We deliberately KEEP `*_server_capture_quest_capture_*.pcap.csv`:
+    # these are PCAP captures of the *server-bound* network traffic
+    # observed on the Quest device, and they are the only data source
+    # for the "PCAP" plots (Packets/sec, Bytes/sec, etc.) for the Godot
+    # stack. Dropping them would leave the PCAP plots empty for Godot.
+    #
+    # The dropped artefacts are the mirrored server-side stats/events
+    # CSVs: `server_godot_*_events_*.csv` and
+    # `server_godot_*_profiler_stats_*.csv`.
+    if source_label == "Quest":
+        def _is_quest_godot_server_artefact(name: str) -> bool:
+            lowered = name.lower()
+            # PCAP captures are kept — they are the only PCAP data for
+            # the Godot benchmark on Quest.
+            if lowered.endswith(".pcap.csv") or ".pcap.csv" in lowered:
+                return False
+            # The mirrored server-side stats/events CSVs are dropped.
+            if "godot" not in lowered or "server" not in lowered:
+                return False
+            return True
+
+        stats = [(n, df) for n, df in stats if not _is_quest_godot_server_artefact(n)]
+        events = [(n, df) for n, df in events if not _is_quest_godot_server_artefact(n)]
+
     return stats, events, errors
 
 
@@ -776,14 +816,26 @@ with filter_col3:
 # active filter set. They mutate `line_filter_choices` so the dropdown
 # updates immediately, and they also push into `active_line_filters` so
 # the next plot render reflects the change without an explicit Apply.
-_NETWORK_TOKENS = ("photon", "fishnet", "ngo", "netcodeentities", "pcap", "capture")
+_NETWORK_TOKENS = ("photon", "fishnet", "ngo", "netcodeentities", "server", "client", "pcap", "capture")
 
 
 def _is_network_label(label: str) -> bool:
+    """Return True when *label* corresponds to a network-stack capture.
+
+    This includes every networking framework covered by the benchmark
+    (Photon, FishNet, NGO, NetcodeEntities, Godot) as well as generic
+    PCAP capture artefacts (`*_capture_*.pcap.csv`). The Godot stack
+    does not use a dedicated networking library on the wire — it
+    communicates over the engine's built-in ENet/UDP transport — so
+    PCAP is the only data source for its network traffic and the
+    matching Godot client/server labels (e.g. `client_godot_*`,
+    `godot_server_capture_*`, `godot_events_*`) must be surfaced by
+    the "Network only" preset for those plots to be visible.
+    """
     lowered = label.lower()
     if "_capture_" in lowered or lowered.endswith(".pcap.csv"):
         return True
-    return any(token in lowered for token in ("photon", "fishnet", "ngo", "netcodeentities"))
+    return any(token in lowered for token in _NETWORK_TOKENS)
 
 
 def _is_pc_label(label: str) -> bool:

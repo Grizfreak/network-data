@@ -5,7 +5,15 @@ __pycache__/
 *.pyc
 .venv/
 data/*
-!data/20260528_145024/
-!data/20260603_094339/
+!data/BenchmarkPC#1
+!data/BenchmarkPC#2
+!data/BenchmarkPC#3
+!data/BenchmarkPC#4
+!data/BenchmarkPC#5
+!data/BenchmarkQuest#1
+!data/BenchmarkQuest#2
+!data/BenchmarkQuest#3
+!data/BenchmarkQuest#4
+!data/BenchmarkQuest#5
 *.pcap
 ccl/

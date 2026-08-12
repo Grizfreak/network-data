@@ -40,7 +40,7 @@ func _create_log_file() -> void:
     ]
 
     if OS.get_name() == "Android":
-        events_file_path = "/storage/emulated/0/Android/data/com.example.godot_benchmark/files/%s" % filename
+        events_file_path = "/storage/emulated/0/Android/data/com.IMT_Atlantique.godot_benchmark/files/%s" % filename
     else:
         events_file_path = "user://%s" % filename
 

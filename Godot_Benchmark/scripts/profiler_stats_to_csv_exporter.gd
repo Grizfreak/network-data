@@ -29,7 +29,7 @@ func _ready():
 	var timestamp = Time.get_datetime_string_from_system()
 	timestamp = timestamp.replace(":", "-")  # Replace colons with hyphens for filename compatibility
 	if OS.get_name() == "Android":
-		filename = "/storage/emulated/0/Android/data/com.example.godot_benchmark/files/godot_profiler_stats_%s.csv" % timestamp
+		filename = "/storage/emulated/0/Android/data/com.IMT_Atlantique.godot_benchmark/files/godot_profiler_stats_%s.csv" % timestamp
 	else:
 		filename = "user://godot_profiler_stats_%s.csv" % timestamp
 	file = FileAccess.open(filename, FileAccess.WRITE)

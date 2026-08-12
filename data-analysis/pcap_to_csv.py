@@ -11,7 +11,7 @@ import argparse
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List
+from typing import Callable, Iterable, List
 
 import pandas as pd
 from scapy.all import PcapNgReader, PcapReader  # type: ignore[attr-defined]
@@ -282,18 +282,43 @@ def convert_pcap_to_dataframe(
     raise RuntimeError(f"Unable to read capture: {pcap_path}") from capture_error
 
 
-def convert_pcap_folder_to_csv(folder_path: Path, bucket_seconds: float = 1.0, overwrite: bool = False):
-    """Convert every pcap/pcapng file in a folder to CSV."""
+def _iter_capture_files(folder_path: Path) -> Iterable[Path]:
+    """Yield every .pcap/.pcapng file under *folder_path*, recursing into
+    subfolders (captures are sometimes nested one or more levels deep,
+    e.g. a dated sub-run folder inside a benchmark folder). Directories
+    whose name starts with ``_`` or ``.`` are skipped (used for internal
+    / backup folders such as ``_corrupted_backup``)."""
+    for path in sorted(folder_path.rglob("*")):
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in {".pcap", ".pcapng"}:
+            continue
+        if any(part.startswith(("_", ".")) for part in path.relative_to(folder_path).parts[:-1]):
+            continue
+        yield path
+
+
+def convert_pcap_folder_to_csv(
+    folder_path: Path,
+    bucket_seconds: float = 1.0,
+    overwrite: bool = False,
+    progress_callback: Callable[[Path], None] | None = None,
+):
+    """Convert every pcap/pcapng file in a folder (including subfolders) to CSV.
+
+    If given, *progress_callback* is invoked with each capture's path right
+    before it's processed (whether it ends up converted, skipped, or
+    erroring), so a caller can drive a progress bar across a batch of
+    folders without waiting for the whole thing to finish.
+    """
     converted = []
     skipped = []
     errors = []
     warnings = []
 
-    for pcap_path in sorted(folder_path.iterdir()):
-        if not pcap_path.is_file():
-            continue
-        if pcap_path.suffix.lower() not in {".pcap", ".pcapng"}:
-            continue
+    for pcap_path in _iter_capture_files(folder_path):
+        if progress_callback is not None:
+            progress_callback(pcap_path)
 
         output_path = pcap_path.with_suffix(f"{pcap_path.suffix}.csv")
         if output_path.exists() and not overwrite:
@@ -319,22 +344,24 @@ def convert_pcap_folder_to_csv(folder_path: Path, bucket_seconds: float = 1.0, o
 
 
 def iter_pcap_folder_outputs(folder_path: Path):
-    """Yield generated CSV paths for pcap and pcapng files in a folder."""
-    for pcap_path in sorted(folder_path.iterdir()):
-        if not pcap_path.is_file():
-            continue
-        if pcap_path.suffix.lower() not in {".pcap", ".pcapng"}:
-            continue
+    """Yield generated CSV paths for pcap and pcapng files in a folder
+    (including subfolders)."""
+    for pcap_path in _iter_capture_files(folder_path):
         yield pcap_path.with_suffix(f"{pcap_path.suffix}.csv")
 
 
-def cleanup_pcap_folder_csv(folder_path: Path):
+def cleanup_pcap_folder_csv(
+    folder_path: Path,
+    progress_callback: Callable[[Path], None] | None = None,
+):
     """Delete generated CSV files for pcap/pcapng captures in a folder."""
     deleted = []
     missing = []
     errors = []
 
     for output_path in iter_pcap_folder_outputs(folder_path):
+        if progress_callback is not None:
+            progress_callback(output_path)
         if not output_path.exists():
             missing.append(output_path)
             continue
@@ -360,7 +387,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def find_pc_capture_files(folder_path: Path) -> List[Path]:
-    """List all potential PC capture files (pcap/pcapng) directly under *folder_path*.
+    """List all potential PC capture files (pcap/pcapng) under *folder_path*,
+    including any subfolders.
 
     A file is considered a candidate if it has the correct extension.
     This function assumes that any pcap/pcapng file found in this folder
@@ -369,11 +397,7 @@ def find_pc_capture_files(folder_path: Path) -> List[Path]:
     if not folder_path.exists() or not folder_path.is_dir():
         return []
 
-    # Return all pcap/pcapng files as candidates, checking extensions case-insensitively
-    return sorted(
-        p for p in folder_path.iterdir()
-        if p.is_file() and p.suffix.lower() in (".pcap", ".pcapng")
-    )
+    return sorted(_iter_capture_files(folder_path))
 
 
 def main() -> None:

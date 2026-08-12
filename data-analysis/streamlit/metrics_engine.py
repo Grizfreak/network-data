@@ -638,12 +638,6 @@ def build_datasets(
     warnings = []
 
     for sname, sdf in stats_files:
-        # --- START MODIFICATION ---
-        EXCLUDED_FILE = "ngo_server_capture_quest_capture"
-        if EXCLUDED_FILE in sname:
-            warnings.append(f"Skipping data source '{sname}' as it is an excluded file.")
-            continue # Skip processing this specific file name entirely
-        # --- END MODIFICATION ---
         label = sname.rsplit(".", 1)[0]
         # Simple PCAP path (no per-GameObject aggregation requested)
         if selected_metric_key.startswith("pcap_") and not per_gameobject:
@@ -717,3 +711,57 @@ def build_datasets(
             datasets.append((label, series))
 
     return datasets, warnings
+
+
+def average_series_across_runs(
+    series_list: list,
+    x_col: str,
+    y_col: str,
+    tolerance: float = 0.0,
+) -> pd.DataFrame:
+    """Combine N per-run (x, y) series for the SAME system into one
+    averaged series with spread.
+
+    Each entry in `series_list` is a DataFrame with at least
+    [x_col, y_col] (e.g. the per-GameObject output of
+    metric_per_gameobject_series). A list of length 1 passes through
+    safely (mean == the single value, std == NaN, n == 1) so callers can
+    always route single-run data through this function.
+
+    tolerance: if > 0, x-values within this distance are snapped onto a
+    shared grid before averaging (handles GameObjects milestones that
+    drift slightly between runs). 0 (default) requires exact x matches.
+
+    Returns a DataFrame [x_col, "mean", "std", "min", "max", "n"] sorted
+    by x_col; a milestone reached by only some runs still appears, with
+    n < len(series_list).
+    """
+    frames = []
+    for series in series_list:
+        cleaned = series[[x_col, y_col]].dropna()
+        if not cleaned.empty:
+            frames.append(cleaned)
+    if not frames:
+        return pd.DataFrame(columns=[x_col, "mean", "std", "min", "max", "n"])
+
+    combined = pd.concat(frames, ignore_index=True)
+    if tolerance > 0:
+        combined["_bucket"] = (combined[x_col] / tolerance).round() * tolerance
+    else:
+        combined["_bucket"] = combined[x_col]
+
+    grouped = (
+        combined.groupby("_bucket")
+        .agg(
+            **{
+                x_col: (x_col, "mean"),
+                "mean": (y_col, "mean"),
+                "std": (y_col, "std"),
+                "min": (y_col, "min"),
+                "max": (y_col, "max"),
+                "n": (y_col, "count"),
+            }
+        )
+        .reset_index(drop=True)
+    )
+    return grouped.sort_values(x_col).reset_index(drop=True)

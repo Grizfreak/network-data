@@ -140,18 +140,6 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
         _textWriter.Write("FrameTimeMs");        // Average frame time over the bucket
         _textWriter.Write(OutputSeparator);
 
-        _textWriter.Write("RTT (ms)");
-        _textWriter.Write(OutputSeparator);
-
-        _textWriter.Write("RTT (ms) - Calculated from RPC");
-        _textWriter.Write(OutputSeparator);
-
-        _textWriter.Write("Upload (bytes/sec)");
-        _textWriter.Write(OutputSeparator);
-
-        _textWriter.Write("Download (bytes/sec)");
-        _textWriter.Write(OutputSeparator);
-
         _profilerRecorders = new ProfilerRecorder[profilerStats.Length];
         _bucketProfilerSums = new long[profilerStats.Length];
 
@@ -169,10 +157,21 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
 
             _textWriter.Write(profilerStats[i].name);
             AppendStatUnitToText(_profilerRecorders[i], _textWriter);
-
-            bool isLastColumn = i == profilerStats.Length - 1;
-            AppendSeparatorToText(_textWriter, isLastColumn);
+            _textWriter.Write(OutputSeparator);
         }
+
+        _textWriter.Write("RTT (ms)");
+        _textWriter.Write(OutputSeparator);
+
+        _textWriter.Write("RTT (ms) - Calculated from RPC");
+        _textWriter.Write(OutputSeparator);
+
+        _textWriter.Write("Upload (bytes/sec)");
+        _textWriter.Write(OutputSeparator);
+
+        _textWriter.Write("Download (bytes/sec)");
+
+        _textWriter.WriteLine();
 
         // Initialise bucket state
         ResetBucket();
@@ -280,6 +279,15 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
 
         _textWriter.Write(avgFrameTime.ToString("F3", CultureInfo.InvariantCulture));
         _textWriter.Write(OutputSeparator);
+        int samples = _bucketProfilerSamples > 0 ? _bucketProfilerSamples : 1;
+        for (int i = 0; i < _profilerRecorders.Length; i++)
+        {
+            long avgValue = _bucketProfilerSums[i] / samples;
+            _textWriter.Write(GetLongAsChars(avgValue));
+
+            bool isLastColumn = !includeNetworkStats && i == _profilerRecorders.Length - 1;
+            AppendSeparatorToText(_textWriter, isLastColumn);
+        }
         if (includeNetworkStats)
         {
             float avgRtt = _bucketRttSamples > 0
@@ -308,16 +316,7 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
             _textWriter.Write(OutputSeparator);
 
             _textWriter.Write(downloadRate.ToString("F0", CultureInfo.InvariantCulture));
-            _textWriter.Write(OutputSeparator);
-        }
-        int samples = _bucketProfilerSamples > 0 ? _bucketProfilerSamples : 1;
-        for (int i = 0; i < _profilerRecorders.Length; i++)
-        {
-            long avgValue = _bucketProfilerSums[i] / samples;
-            _textWriter.Write(GetLongAsChars(avgValue));
-
-            bool isLastColumn = i == _profilerRecorders.Length - 1;
-            AppendSeparatorToText(_textWriter, isLastColumn);
+            _textWriter.WriteLine();
         }
     }
 

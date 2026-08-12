@@ -25,7 +25,7 @@ from __future__ import annotations
 import argparse
 import re
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple, cast
+from typing import Callable, Iterable, List, Optional, Tuple, cast
 
 import pandas as pd
 
@@ -167,8 +167,24 @@ def _photon_ip_filter_for(pcap_path: Path) -> Tuple[Optional[set[str]], Optional
     return ip_filter, pair_with_count, None
 
 
+def _iter_files_recursive(folder_path: Path, suffixes: tuple[str, ...] | None = None) -> Iterable[Path]:
+    """Yield files under *folder_path*, recursing into subfolders (captures
+    are sometimes nested one or more levels deep). Directories whose name
+    starts with ``_`` or ``.`` are skipped (internal/backup folders such as
+    ``_corrupted_backup``)."""
+    for path in sorted(folder_path.rglob("*")):
+        if not path.is_file():
+            continue
+        if suffixes is not None and path.suffix.lower() not in suffixes:
+            continue
+        if any(part.startswith(("_", ".")) for part in path.relative_to(folder_path).parts[:-1]):
+            continue
+        yield path
+
+
 def find_quest_capture_files(folder_path: Path) -> List[Path]:
-    """List all potential Quest capture files (pcap/pcapng) directly under *folder_path*.
+    """List all potential Quest capture files (pcap/pcapng) under
+    *folder_path*, including any subfolders.
 
     A file is considered a candidate if it has the correct extension AND its name
     suggests it's a network capture, not a profiler dump. This helps exclude
@@ -178,28 +194,29 @@ def find_quest_capture_files(folder_path: Path) -> List[Path]:
         return []
 
     # Check if the folder is associated with Quest data by checking for a known CSV pattern
-    has_quest_context = any("com.IMT_Atlantique" in str(csv_file.name) for csv_file in folder_path.glob("*.csv"))
+    has_quest_context = any(
+        "com.IMT_Atlantique" in csv_file.name
+        for csv_file in _iter_files_recursive(folder_path, (".csv",))
+    )
 
     if not has_quest_context:
         return []  # Not a Quest data directory based on CSV content
 
     # Filter pcap/pcapng files to exclude common profiler/stats dumps
     network_captures = [
-        p for p in folder_path.iterdir()
-        if p.is_file() and p.suffix.lower() in QUEST_CAPTURE_EXTENSIONS and not any(
-            token in p.stem.lower() for token in ("profiler", "stats")
-        )
+        p for p in _iter_files_recursive(folder_path, QUEST_CAPTURE_EXTENSIONS)
+        if not any(token in p.stem.lower() for token in ("profiler", "stats"))
     ]
     return sorted(network_captures)
 
 
 def find_quest_capture_csv_outputs(folder_path: Path) -> List[Path]:
-    """List Quest-derived CSV files directly under *folder_path*."""
+    """List Quest-derived CSV files under *folder_path*, including subfolders."""
     if not folder_path.exists() or not folder_path.is_dir():
         return []
     return sorted(
-        p for p in folder_path.iterdir()
-        if p.is_file() and _is_quest_csv_output(p)
+        p for p in _iter_files_recursive(folder_path, (".csv",))
+        if _is_quest_csv_output(p)
     )
 
 
@@ -226,15 +243,16 @@ def find_quest_capture_folders(data_root: Path) -> List[Path]:
         if not folder.is_dir():
             continue
         # Check if the directory contains any CSV file associated with Quest (the original heuristic)
-        has_quest_context = any("com.IMT_Atlantique" in str(csv_file.name) for csv_file in folder.glob("*.csv"))
+        has_quest_context = any(
+            "com.IMT_Atlantique" in csv_file.name
+            for csv_file in _iter_files_recursive(folder, (".csv",))
+        )
 
         if has_quest_context:
             # Filter pcap/pcapng files to exclude common profiler/stats dumps, then check if there are valid captures.
             network_captures = [
-                p for p in folder.iterdir()
-                if p.is_file() and p.suffix.lower() in QUEST_CAPTURE_EXTENSIONS and not any(
-                    token in p.stem.lower() for token in ("profiler", "stats")
-                )
+                p for p in _iter_files_recursive(folder, QUEST_CAPTURE_EXTENSIONS)
+                if not any(token in p.stem.lower() for token in ("profiler", "stats"))
             ]
 
             # Only include the directory if it has at least one valid network capture (not just profiler dumps).
@@ -256,6 +274,7 @@ def convert_quest_captures_to_csv(
     bucket_seconds: float = 1.0,
     overwrite: bool = False,
     photon_conversation_filter: bool = False,
+    progress_callback: Callable[[Path], None] | None = None,
 ):
     """Convert every Quest pcap/pcapng capture in *folder_path* to CSV.
 
@@ -293,6 +312,9 @@ def convert_quest_captures_to_csv(
         }
 
     for capture in captures:
+        if progress_callback is not None:
+            progress_callback(capture)
+
         output_path = capture.with_suffix(f"{capture.suffix}.csv")
         if output_path.exists() and not overwrite:
             skipped.append((capture, output_path))
@@ -338,7 +360,10 @@ def convert_quest_captures_to_csv(
     }
 
 
-def cleanup_quest_captures_csv(folder_path: Path):
+def cleanup_quest_captures_csv(
+    folder_path: Path,
+    progress_callback: Callable[[Path], None] | None = None,
+):
     """Delete generated CSV files for Quest captures in *folder_path*.
 
     Mirrors :func:`pcap_to_csv.cleanup_pcap_folder_csv` but only targets
@@ -349,6 +374,8 @@ def cleanup_quest_captures_csv(folder_path: Path):
     errors: List[Tuple[Path, str]] = []
 
     for output_path in find_quest_capture_csv_outputs(folder_path):
+        if progress_callback is not None:
+            progress_callback(output_path)
         if not output_path.exists():
             missing.append(output_path)
             continue

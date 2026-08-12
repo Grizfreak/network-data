@@ -24,12 +24,17 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 # Local application modules
 from data_loader import (
     auto_pair_files,
+    classify_subsystem,
     extract_timestamp,
     get_pc_and_quest_folders,
+    is_networked_subsystem,
+    is_quest_server_artefact,
+    list_pc_and_quest_folders,
     load_csv_files_from_folder,
     normalize_timestamp,
+    _is_quest_routed_capture,
 )
-from metrics_engine import build_datasets, metric_series_from_stats
+from metrics_engine import average_series_across_runs, build_datasets, metric_series_from_stats
 
 # PCAP processing tools (imported once at module level)
 import pcap_to_csv as pcap_tools
@@ -56,14 +61,25 @@ def _split_subsystem_label(label: str):
     return "Unknown", label
 
 
-def _is_quest_network_series(label: str) -> bool:
-    """Keep only Quest series that are relevant to network/PCAP plots."""
-    if not label.startswith("[Quest] "):
-        return True
+def _is_networked_tech_label(label: str) -> bool:
+    """Keep only series from an actually-networked tech for network/PCAP plots.
 
-    lowered = label.lower()
-    # Include godot client, godot server, and godot quest client in network filter
-    return any(token in lowered for token in ("photon", "fishnet", "ngo", "netcodeentities", "godot client", "godot server", "godot quest client"))
+    Non-networked baseline scenes (Base, Base-GPU, DOTS, solo Godot) can
+    still carry an RTT/Upload/Download column in their exported CSV --
+    some captures had a stray network-stats provider wired into the
+    ProfilerStatsToCSVExporter component on the Unity side even though
+    the scene never opens a connection, so the numbers exist but are
+    meaningless. `_has_network_columns` only checks column presence, so
+    without this filter those baseline runs sneak into "Network - RTT"
+    etc. plots as if they were real network telemetry. Delegates to
+    `classify_subsystem` + `is_networked_subsystem` (shared with the
+    offline analysis pipeline) instead of a filename substring check:
+    a "godot client"/"godot server" (space-joined) substring check used
+    to sit here, but real filenames are underscore-joined
+    (`godot_client_capture`, `server_godot_...`), so it never actually
+    matched anything and silently excluded every Godot PCAP series.
+    """
+    return is_networked_subsystem(classify_subsystem(label))
 
 
 def short_label(label: str, all_labels: list[str] | None = None) -> str:
@@ -110,7 +126,15 @@ def short_label(label: str, all_labels: list[str] | None = None) -> str:
         tech = "BenchmarkGO"
     else:
         tech = "Base"
-    if "client" in name:
+    if platform == "Quest" and _is_quest_routed_capture(label):
+        # PCAP capture of Quest-client traffic taken on the PC side while
+        # it routes the headset's connection. Its filename carries a
+        # literal "server" token (traffic direction, not an actual
+        # server role) that the plain substring checks below would
+        # otherwise misread as a server capture -- the Quest headset
+        # never hosts a server, for any tech.
+        tech += " Client"
+    elif "client" in name:
         tech += " Client"
     elif "server" in name:
         tech += " Server"
@@ -157,11 +181,133 @@ def _type_tag_for(label: str) -> str:
         return "events"
     if "profiler_stats" in lower:
         return "stats"
-    if "unityplayer" in lower or "imt_atlantique" in lower or lower.endswith("#unityplayergameactivity"):
+    if (
+        "unityplayer" in lower
+        or "imt_atlantique" in lower
+        or lower.endswith("#unityplayergameactivity")
+        or "#godotapp" in lower
+    ):
+        # "#GodotApp-<timestamp>.csv" is the Android on-device trace
+        # naming convention regardless of package id -- the earliest
+        # Quest capture used the default "com.example" package before
+        # it was renamed to "com.IMT_Atlantique", so package-name
+        # matching alone misses it.
         return "trace"
     if ".pcap.csv" in lower or "_capture_" in lower:
         return "pcap"
     return ""
+
+
+def _is_pc_label(label: str) -> bool:
+    return label.startswith("[PC]")
+
+
+def _is_quest_label(label: str) -> bool:
+    return label.startswith("[Quest]")
+
+
+def _is_client_label(label: str) -> bool:
+    """Return True only when the label carries an explicit client marker.
+
+    Matches both the profiler-stats naming convention (`..._client_...`)
+    and the event-style naming convention (`..._client_events_...`).
+    Quest Android traces (`com.IMT_Atlantique.*`) carry no role token
+    and are matched separately via `_is_quest_label` — they are NOT
+    treated as client by this predicate so that the "Quest clients" /
+    "Client only" quick filters stay focused on network-stack captures.
+
+    PC baseline files (dots / gpu / events / generic `profiler_stats`
+    without a client/server token) are role-agnostic and intentionally
+    excluded: they are still selectable via "PC only" / "Non-network"
+    presets or the manual multiselect.
+    """
+    lowered = label.lower()
+    return (
+        "_client_" in lowered
+        or "_client_events_" in lowered
+        or "_client_profiler_" in lowered
+    )
+
+
+def _is_server_label(label: str) -> bool:
+    """Return True only when the label belongs to a real server-side role.
+
+    In this dataset, the Quest device never acts as a server: any
+    `*_server_*` file coming from the Quest is actually a PCAP capture of
+    *server-bound* traffic observed on the Quest, not a server hosted on
+    the device. To avoid surfacing misleading "server" lines, this
+    predicate is intentionally scoped to PC files only.
+    """
+    if not _is_pc_label(label):
+        return False
+    lowered = label.lower()
+    return (
+        "_server_" in lowered
+        or "_server_events_" in lowered
+        or "_server_profiler_" in lowered
+    )
+
+
+def _run_group_key(label: str) -> tuple[str, str, str]:
+    """Group key identifying "the same system" across repeated run
+    folders, ignoring per-run timestamps: (platform, subsystem, role).
+    Used to average multiple runs of the same platform/subsystem/role
+    into one line -- client and server stay distinct so a trial folder's
+    client/server pair is never averaged together as if it were two
+    repeats of the same measurement.
+
+    Role uses a plain "client"/"server" substring match (same approach
+    as short_label()'s tech-role suffix) rather than the stricter
+    _is_client_label()/_is_server_label() predicates: those require a
+    `_client_`/`_server_` token wrapped in underscores, which the Godot
+    Network files (`client_godot_...csv` / `server_godot_...csv`, role
+    token as a bare prefix) don't have -- using the strict predicates
+    here silently merged a single run's Godot client+server pair into
+    one averaged "run".
+    """
+    platform = "PC" if _is_pc_label(label) else "Quest"
+    subsystem = classify_subsystem(label)
+    lowered = label.lower()
+    if platform == "Quest" and _is_quest_routed_capture(label):
+        # PCAP capture of Quest-client traffic taken on the PC side
+        # while it routes the headset's connection. Its filename carries
+        # a literal "server" token (denoting traffic *direction*, not an
+        # actual server role) that would otherwise misclassify this as
+        # server data -- the Quest headset never hosts a server, for any
+        # tech, so this must always be Client.
+        role = "Client"
+    elif "client" in lowered:
+        role = "Client"
+    elif "server" in lowered:
+        role = "Server"
+    elif platform == "Quest" and subsystem == "Godot" and _type_tag_for(label) == "trace":
+        # Every Quest tech is exported twice per run: once as a
+        # profiler_stats CSV and once as the on-device Android trace
+        # (`com.IMT_Atlantique...#GodotApp-*.csv` / `#UnityPlayerGameActivity-*.csv`).
+        # For NGO/FishNet/Photon/NetcodeEntities the trace's role=""
+        # never collides with the real "Client"/"Server" groups, so it
+        # just sits harmlessly as its own separate line. Godot is the
+        # only tech with a *legitimate* role="" group (the single-player
+        # baseline), so without this branch the trace collides with it
+        # -- and for the networked-run trace specifically, that silently
+        # mixes networked-client data into the baseline average. Giving
+        # the trace its own non-colliding role keeps Godot consistent
+        # with how every other tech already behaves: the trace is a
+        # separate, ignorable line, never averaged into profiler-stats
+        # data.
+        role = "Trace (network run)" if "network" in lowered else "Trace"
+    else:
+        role = ""
+    return platform, subsystem, role
+
+
+def _group_key_to_display(key: tuple[str, str, str]) -> str:
+    """Render a `_run_group_key()` tuple as the display string used both
+    by the averaged legend line (see create_standard_plot) and by the
+    aggregated-mode Line Filter dropdown, so the two stay in sync."""
+    platform, subsystem, role = key
+    role_suffix = f" {role}" if role else ""
+    return f"{platform} · {subsystem}{role_suffix}"
 
 
 def _is_godot_label(label: str) -> bool:
@@ -227,8 +373,43 @@ if godot_present:
         "Godot profiler exports do not expose every metric used by PC/Quest captures, so some plots (for example CPU %, GPU, or network-derived views) may be unavailable depending on the CSV columns you exported."
     )
 
+def _make_progress_tracker(total: int, verb: str):
+    """Create a Streamlit progress bar + status line driven by a simple
+    per-file callback, for batch pcap convert/cleanup operations that
+    otherwise give no feedback until the whole multi-folder batch is done."""
+    progress_bar = st.progress(0.0)
+    status_text = st.empty()
+    count = [0]
+
+    def _on_file(path: Path) -> None:
+        count[0] += 1
+        status_text.text(f"{verb} {count[0]}/{total}: {path.parent.name}/{path.name}")
+        progress_bar.progress(min(count[0] / total, 1.0) if total else 1.0)
+
+    def _finish() -> None:
+        progress_bar.empty()
+        status_text.empty()
+
+    return _on_file, _finish
+
+
 if pc_folder:
-    with st.expander("PC capture tools", expanded=False):
+    # Per-folder pcap counts across every PC benchmark run (#1, #2, ...).
+    # The convert/delete buttons below now process every one of these
+    # folders, not just the most recently modified one -- lets you spot
+    # a run that's missing captures at a glance, and one click handles
+    # the whole dataset.
+    pc_folders_all, _ = list_pc_and_quest_folders(data_root)
+    pc_pcap_counts = [(folder, len(find_pc_capture_files(folder))) for folder in pc_folders_all]
+    total_pc_pcap_count = sum(count for _, count in pc_pcap_counts)
+
+    with st.expander(f"PC capture tools ({total_pc_pcap_count} pcap file(s) found across {len(pc_folders_all)} folder(s))", expanded=False):
+        if pc_pcap_counts:
+            st.caption("PCAP files found per PC folder (all are processed by the buttons below):")
+            for folder, count in sorted(pc_pcap_counts, key=lambda item: item[0].name):
+                marker = " (most recently modified)" if folder == pc_folder else ""
+                st.write(f"{folder.name}{marker}: {count} pcap file(s)")
+
         pcap_bucket_seconds = st.number_input(
             "PCAP bucket size (seconds)",
             min_value=0.1,
@@ -238,70 +419,82 @@ if pc_folder:
         overwrite_pcap_csv = st.checkbox("Overwrite existing pcap CSV outputs", value=False)
         convert_col, cleanup_col = st.columns(2)
         with convert_col:
-            convert_pcaps = st.button("Convert every PC pcap to CSV")
+            convert_pcaps = st.button("Convert every PC pcap to CSV (all folders)")
         with cleanup_col:
-            cleanup_pcaps = st.button("Delete generated PC pcap CSVs")
+            cleanup_pcaps = st.button("Delete generated PC pcap CSVs (all folders)")
 
         if convert_pcaps:
-            result = convert_pcap_folder_to_csv(
-                pc_folder,
-                bucket_seconds=float(pcap_bucket_seconds),
-                overwrite=overwrite_pcap_csv,
-            )
-            converted = result["converted"]
-            skipped = result["skipped"]
-            warnings = result.get("warnings", [])
-            errors = result["errors"]
+            all_converted, all_skipped, all_warnings, all_errors = [], [], [], []
+            on_file, finish = _make_progress_tracker(total_pc_pcap_count, "Converting")
+            for folder in pc_folders_all:
+                result = convert_pcap_folder_to_csv(
+                    folder,
+                    bucket_seconds=float(pcap_bucket_seconds),
+                    overwrite=overwrite_pcap_csv,
+                    progress_callback=on_file,
+                )
+                all_converted.extend(result["converted"])
+                all_skipped.extend(result["skipped"])
+                all_warnings.extend(result.get("warnings", []))
+                all_errors.extend(result["errors"])
+            finish()
 
-            if converted:
-                st.success(f"Converted {len(converted)} pcap file(s) to CSV.")
-                for pcap_path, output_path, row_count in converted:
-                    st.write(f"{pcap_path.name} -> {output_path.name} ({row_count} bucket(s))")
-            if skipped:
-                st.info(f"Skipped {len(skipped)} existing CSV file(s).")
-            if warnings:
-                for pcap_path, message in warnings:
-                    st.warning(f"{pcap_path.name}: {message}")
-            if errors:
-                for pcap_path, message in errors:
-                    st.warning(f"Failed to convert {pcap_path.name}: {message}")
-            if not converted and not skipped and not errors:
-                # List all PC capture files found for consistency
-                pc_pcap_files = find_pc_capture_files(pc_folder)
-                if pc_pcap_files:
-                    st.info("PC pcap/pcapng files in this folder:")
-                    for fpath in sorted(pc_pcap_files):
-                        st.caption(str(fpath))
-                else:
-                    st.info("No PC pcap or pcapng files found in the PC folder.")
+            if all_converted:
+                st.success(f"Converted {len(all_converted)} pcap file(s) to CSV across {len(pc_folders_all)} folder(s).")
+                for pcap_path, output_path, row_count in all_converted:
+                    st.write(f"{pcap_path.parent.name}/{pcap_path.name} -> {output_path.name} ({row_count} bucket(s))")
+            if all_skipped:
+                st.info(f"Skipped {len(all_skipped)} existing CSV file(s).")
+            if all_warnings:
+                for pcap_path, message in all_warnings:
+                    st.warning(f"{pcap_path.parent.name}/{pcap_path.name}: {message}")
+            if all_errors:
+                for pcap_path, message in all_errors:
+                    st.warning(f"Failed to convert {pcap_path.parent.name}/{pcap_path.name}: {message}")
+            if not all_converted and not all_skipped and not all_errors:
+                st.info("No PC pcap or pcapng files found in any PC folder.")
 
         if cleanup_pcaps:
-            result = cleanup_pcap_folder_csv(pc_folder)
-            deleted = result["deleted"]
-            missing = result["missing"]
-            errors = result["errors"]
+            all_deleted, all_missing, all_errors = [], [], []
+            on_file, finish = _make_progress_tracker(total_pc_pcap_count, "Checking")
+            for folder in pc_folders_all:
+                result = cleanup_pcap_folder_csv(folder, progress_callback=on_file)
+                all_deleted.extend(result["deleted"])
+                all_missing.extend(result["missing"])
+                all_errors.extend(result["errors"])
+            finish()
 
-            if deleted:
-                st.success(f"Deleted {len(deleted)} generated CSV file(s).")
-                for output_path in deleted:
-                    st.write(output_path.name)
-            if missing:
-                st.info(f"{len(missing)} generated CSV file(s) were already missing.")
-            if errors:
-                for output_path, message in errors:
-                    st.warning(f"Failed to delete {output_path.name}: {message}")
-            if not deleted and not missing and not errors:
-                st.info("No generated pcap CSV files found in the PC folder.")
+            if all_deleted:
+                st.success(f"Deleted {len(all_deleted)} generated CSV file(s) across {len(pc_folders_all)} folder(s).")
+                for output_path in all_deleted:
+                    st.write(f"{output_path.parent.name}/{output_path.name}")
+            if all_missing:
+                st.info(f"{len(all_missing)} generated CSV file(s) were already missing.")
+            if all_errors:
+                for output_path, message in all_errors:
+                    st.warning(f"Failed to delete {output_path.parent.name}/{output_path.name}: {message}")
+            if not all_deleted and not all_missing and not all_errors:
+                st.info("No generated pcap CSV files found in any PC folder.")
 
 # Quest capture tools: same workflow as PC, but isolated to Quest captures.
 if quest_folder:
-    # List all pcap/pcapng files found (not just those named "quest_capture")
-    quest_pcap_files = find_quest_capture_files(quest_folder)
+    # Per-folder pcap counts across every Quest benchmark run (#1, #2, ...).
+    # The convert/delete buttons below now process every one of these
+    # folders, not just the most recently modified one.
+    _, quest_folders_all = list_pc_and_quest_folders(data_root)
+    quest_pcap_counts = [(folder, len(find_quest_capture_files(folder))) for folder in quest_folders_all]
+    total_quest_pcap_count = sum(count for _, count in quest_pcap_counts)
 
     with st.expander(
-        f"Quest capture tools ({len(quest_pcap_files)} pcap file(s) found)",
+        f"Quest capture tools ({total_quest_pcap_count} pcap file(s) found across {len(quest_folders_all)} folder(s))",
         expanded=False,
     ):
+        if quest_pcap_counts:
+            st.caption("PCAP files found per Quest folder (all are processed by the buttons below):")
+            for folder, count in sorted(quest_pcap_counts, key=lambda item: item[0].name):
+                marker = " (most recently modified)" if folder == quest_folder else ""
+                st.write(f"{folder.name}{marker}: {count} pcap file(s)")
+
         quest_pcap_bucket_seconds = st.number_input(
             "Quest PCAP bucket size (seconds)",
             min_value=0.1,
@@ -317,14 +510,18 @@ if quest_folder:
         # Photon-specific option: detect the conversation (IP pair) with the
         # most packets and keep only those packets in the output CSV. This is
         # useful when a Quest capture mixes Photon traffic with background
-        # noise (DNS, captive portal, etc.).
+        # noise (DNS, captive portal, etc.). Counted across every folder now
+        # that the buttons below process all of them.
+        quest_pcap_files_all = [f for _, files in (
+            (folder, find_quest_capture_files(folder)) for folder in quest_folders_all
+        ) for f in files]
         photon_capture_count = sum(
-            1 for f in quest_pcap_files if is_photon_capture_path(f)
+            1 for f in quest_pcap_files_all if is_photon_capture_path(f)
         )
         quest_photon_filter_disabled = photon_capture_count == 0
         if quest_photon_filter_disabled:
             st.caption(
-                "No Photon captures detected in this folder — the "
+                "No Photon captures detected in any Quest folder — the "
                 "conversation filter is disabled."
             )
         quest_photon_conversation_filter = st.checkbox(
@@ -336,103 +533,114 @@ if quest_folder:
         )
         if quest_photon_conversation_filter and not quest_photon_filter_disabled:
             with st.expander("Photon conversation preview", expanded=False):
-                for capture_path in quest_pcap_files:
+                for capture_path in quest_pcap_files_all:
                     if not is_photon_capture_path(capture_path):
                         continue
                     try:
                         pair = find_dominant_quest_conversation(capture_path)
                     except Exception as exc:  # noqa: BLE001
                         st.warning(
-                            f"{capture_path.name}: could not detect "
+                            f"{capture_path.parent.name}/{capture_path.name}: could not detect "
                             f"conversation ({exc})"
                         )
                         continue
                     if pair is None:
                         st.warning(
-                            f"{capture_path.name}: no IP packets found."
+                            f"{capture_path.parent.name}/{capture_path.name}: no IP packets found."
                         )
                     else:
                         st.write(
-                            f"{capture_path.name}: {pair[0]} <-> {pair[1]}"
+                            f"{capture_path.parent.name}/{capture_path.name}: {pair[0]} <-> {pair[1]}"
                         )
         quest_convert_col, quest_cleanup_col = st.columns(2)
         with quest_convert_col:
-            quest_convert_pcaps = st.button("Convert every Quest pcap to CSV")
+            quest_convert_pcaps = st.button("Convert every Quest pcap to CSV (all folders)")
         with quest_cleanup_col:
-            quest_cleanup_pcaps = st.button("Delete generated Quest pcap CSVs")
+            quest_cleanup_pcaps = st.button("Delete generated Quest pcap CSVs (all folders)")
 
         if quest_convert_pcaps:
-            result = convert_quest_captures_to_csv(
-                quest_folder,
-                bucket_seconds=float(quest_pcap_bucket_seconds),
-                overwrite=quest_overwrite_pcap_csv,
-                photon_conversation_filter=quest_photon_conversation_filter,
-            )
-            converted = result["converted"]
-            skipped = result["skipped"]
-            warnings = result.get("warnings", [])
-            errors = result["errors"]
+            all_converted, all_skipped, all_warnings, all_errors = [], [], [], []
+            on_file, finish = _make_progress_tracker(len(quest_pcap_files_all), "Converting")
+            for folder in quest_folders_all:
+                result = convert_quest_captures_to_csv(
+                    folder,
+                    bucket_seconds=float(quest_pcap_bucket_seconds),
+                    overwrite=quest_overwrite_pcap_csv,
+                    photon_conversation_filter=quest_photon_conversation_filter,
+                    progress_callback=on_file,
+                )
+                all_converted.extend(result["converted"])
+                all_skipped.extend(result["skipped"])
+                all_warnings.extend(result.get("warnings", []))
+                all_errors.extend(result["errors"])
+            finish()
 
-            if converted:
-                st.success(f"Converted {len(converted)} Quest pcap file(s) to CSV.")
-                for pcap_path, output_path, row_count in converted:
-                    st.write(f"{pcap_path.name} -> {output_path.name} ({row_count} bucket(s))")
-            if skipped:
-                st.info(f"Skipped {len(skipped)} existing CSV file(s).")
-            if warnings:
-                for pcap_path, message in warnings:
-                    st.warning(f"{pcap_path.name}: {message}")
-            if errors:
-                for pcap_path, message in errors:
-                    st.warning(f"Failed to convert {pcap_path.name}: {message}")
-            if not converted and not skipped and not errors:
-                # List all Quest capture files found for consistency
-                quest_pcap_files = find_quest_capture_files(quest_folder)
-                if quest_pcap_files:
-                    st.info("Quest pcap/pcapng files in this folder:")
-                    for fpath in sorted(quest_pcap_files):
-                        st.caption(str(fpath))
-                else:
-                    st.info("No Quest pcap or pcapng files found in the Quest folder.")
+            if all_converted:
+                st.success(f"Converted {len(all_converted)} Quest pcap file(s) to CSV across {len(quest_folders_all)} folder(s).")
+                for pcap_path, output_path, row_count in all_converted:
+                    st.write(f"{pcap_path.parent.name}/{pcap_path.name} -> {output_path.name} ({row_count} bucket(s))")
+            if all_skipped:
+                st.info(f"Skipped {len(all_skipped)} existing CSV file(s).")
+            if all_warnings:
+                for pcap_path, message in all_warnings:
+                    st.warning(f"{pcap_path.parent.name}/{pcap_path.name}: {message}")
+            if all_errors:
+                for pcap_path, message in all_errors:
+                    st.warning(f"Failed to convert {pcap_path.parent.name}/{pcap_path.name}: {message}")
+            if not all_converted and not all_skipped and not all_errors:
+                st.info("No Quest pcap or pcapng files found in any Quest folder.")
 
         if quest_cleanup_pcaps:
-            result = cleanup_quest_captures_csv(quest_folder)
-            deleted = result["deleted"]
-            missing = result["missing"]
-            errors = result["errors"]
+            all_deleted, all_missing, all_errors = [], [], []
+            on_file, finish = _make_progress_tracker(len(quest_pcap_files_all), "Checking")
+            for folder in quest_folders_all:
+                result = cleanup_quest_captures_csv(folder, progress_callback=on_file)
+                all_deleted.extend(result["deleted"])
+                all_missing.extend(result["missing"])
+                all_errors.extend(result["errors"])
+            finish()
 
-            if deleted:
-                st.success(f"Deleted {len(deleted)} generated Quest CSV file(s).")
-                for output_path in deleted:
-                    st.write(output_path.name)
-            if missing:
-                st.info(f"{len(missing)} generated Quest CSV file(s) were already missing.")
-            if errors:
-                for output_path, message in errors:
-                    st.warning(f"Failed to delete {output_path.name}: {message}")
-            if not deleted and not missing and not errors:
-                st.info("No generated Quest pcap CSV files found in the Quest folder.")
+            if all_deleted:
+                st.success(f"Deleted {len(all_deleted)} generated Quest CSV file(s) across {len(quest_folders_all)} folder(s).")
+                for output_path in all_deleted:
+                    st.write(f"{output_path.parent.name}/{output_path.name}")
+            if all_missing:
+                st.info(f"{len(all_missing)} generated Quest CSV file(s) were already missing.")
+            if all_errors:
+                for output_path, message in all_errors:
+                    st.warning(f"Failed to delete {output_path.parent.name}/{output_path.name}: {message}")
+            if not all_deleted and not all_missing and not all_errors:
+                st.info("No generated Quest pcap CSV files found in any Quest folder.")
 
-# Selector for which data to load
+# Selector for which run(s) to load. Each folder is a full repeated trial
+# of the same benchmark sweep, so selecting several PC (or Quest) runs
+# lets the "Average across selected runs" option below combine them.
 st.subheader("Select Data to Load")
-load_options = []
-if pc_folder:
-    load_options.append("PC")
-if quest_folder:
-    load_options.append("Quest")
+pc_run_folders, quest_run_folders = list_pc_and_quest_folders(data_root)
 
-if not load_options:
+if not pc_run_folders and not quest_run_folders:
     st.error("No data folders found in ./data")
     st.stop()
 
-selected_data = st.multiselect(
-    "Choose which data to load:",
-    options=load_options,
-    default=load_options  # Select all by default
-)
+selected_pc_folders = []
+selected_quest_folders = []
+if pc_run_folders:
+    selected_pc_names = st.multiselect(
+        "PC runs to load:",
+        options=[f.name for f in pc_run_folders],
+        default=[f.name for f in pc_run_folders],
+    )
+    selected_pc_folders = [f for f in pc_run_folders if f.name in selected_pc_names]
+if quest_run_folders:
+    selected_quest_names = st.multiselect(
+        "Quest runs to load:",
+        options=[f.name for f in quest_run_folders],
+        default=[f.name for f in quest_run_folders],
+    )
+    selected_quest_folders = [f for f in quest_run_folders if f.name in selected_quest_names]
 
-if not selected_data:
-    st.warning("Please select at least one data source to load.")
+if not selected_pc_folders and not selected_quest_folders:
+    st.warning("Please select at least one run to load.")
     st.stop()
 
 # Load the selected data
@@ -447,53 +655,49 @@ def _load_source_files(folder: Path, source_label: str):
     stats = [(f"[{source_label}] {name}", df) for name, df in stats]
     events = [(f"[{source_label}] {name}", df) for name, df in events]
 
-    # The Quest headset only ever runs the Godot client. Server-side
-    # artefacts that are mirrored on the Quest (server-side events/stats
-    # CSVs) must be hidden so the only `Quest · Godot …` line that
-    # survives is the Client one.
+    # The Quest headset never hosts a server, for any tech -- the server
+    # always runs on the PC. When a trial is recorded, the PC-hosted
+    # server's own profiler_stats/events CSVs routinely get dropped into
+    # the same benchmark folder as the Quest client's data for
+    # convenience, so without this filter they get tagged "[Quest]" and
+    # produce nonsensical "Quest · <Tech> Server" lines (RTT/Upload/
+    # Download data that's actually the PC server's own telemetry, not
+    # anything the headset measured).
     #
-    # We deliberately KEEP `*_server_capture_quest_capture_*.pcap.csv`:
-    # these are PCAP captures of the *server-bound* network traffic
-    # observed on the Quest device, and they are the only data source
-    # for the "PCAP" plots (Packets/sec, Bytes/sec, etc.) for the Godot
-    # stack. Dropping them would leave the PCAP plots empty for Godot.
+    # We deliberately KEEP `*_server_capture_quest_capture_*.pcap.csv`
+    # (and every other `.pcap.csv`): these are PCAP captures of the
+    # traffic the PC observed while routing the headset's connection, so
+    # they genuinely describe the Quest client's network activity and
+    # are the intended data source for the "PCAP" plots (Packets/sec,
+    # Bytes/sec, etc.) on Quest.
     #
-    # The dropped artefacts are the mirrored server-side stats/events
-    # CSVs: `server_godot_*_events_*.csv` and
-    # `server_godot_*_profiler_stats_*.csv`.
+    # The dropped artefacts are every other "*_server_*" stats/events
+    # CSV: `*_server_profiler_stats-*.csv`, `*_server_events_*.csv`,
+    # `server_godot_*.csv`, etc., across every tech (Photon, FishNet,
+    # NGO, NetcodeEntities, Godot). See data_loader.is_quest_server_artefact
+    # -- shared with the offline analysis pipeline (ccl/analyze_data.py)
+    # so both tools agree on what belongs to Quest.
     if source_label == "Quest":
-        def _is_quest_godot_server_artefact(name: str) -> bool:
-            lowered = name.lower()
-            # PCAP captures are kept — they are the only PCAP data for
-            # the Godot benchmark on Quest.
-            if lowered.endswith(".pcap.csv") or ".pcap.csv" in lowered:
-                return False
-            # The mirrored server-side stats/events CSVs are dropped.
-            if "godot" not in lowered or "server" not in lowered:
-                return False
-            return True
-
-        stats = [(n, df) for n, df in stats if not _is_quest_godot_server_artefact(n)]
-        events = [(n, df) for n, df in events if not _is_quest_godot_server_artefact(n)]
+        stats = [(n, df) for n, df in stats if not is_quest_server_artefact(n)]
+        events = [(n, df) for n, df in events if not is_quest_server_artefact(n)]
 
     return stats, events, errors
 
 
-for data_type in selected_data:
-    if data_type == "PC" and pc_folder:
-        st.info(f"Loading PC data from: {pc_folder.name}")
-        pc_stats, pc_events, pc_errors = _load_source_files(pc_folder, "PC")
-        for file_name, err in pc_errors:
-            st.warning(f"Failed to read {file_name}: {err}")
-        stats_files.extend(pc_stats)
-        events_files.extend(pc_events)
-    elif data_type == "Quest" and quest_folder:
-        st.info(f"Loading Quest data from: {quest_folder.name}")
-        quest_stats, quest_events, quest_errors = _load_source_files(quest_folder, "Quest")
-        for file_name, err in quest_errors:
-            st.warning(f"Failed to read {file_name}: {err}")
-        stats_files.extend(quest_stats)
-        events_files.extend(quest_events)
+for folder in selected_pc_folders:
+    st.info(f"Loading PC data from: {folder.name}")
+    pc_stats, pc_events, pc_errors = _load_source_files(folder, "PC")
+    for file_name, err in pc_errors:
+        st.warning(f"Failed to read {file_name}: {err}")
+    stats_files.extend(pc_stats)
+    events_files.extend(pc_events)
+for folder in selected_quest_folders:
+    st.info(f"Loading Quest data from: {folder.name}")
+    quest_stats, quest_events, quest_errors = _load_source_files(folder, "Quest")
+    for file_name, err in quest_errors:
+        st.warning(f"Failed to read {file_name}: {err}")
+    stats_files.extend(quest_stats)
+    events_files.extend(quest_events)
 
 # Verify we have data
 if assemble is None:
@@ -554,6 +758,18 @@ if stats_files or events_files:
                 st.write(f"{sname}: error computing FPS diagnostics: {e}")
 
 per_gameobject = st.checkbox("Aggregate per GameObject using events (FinishedInstantiation/StartedInstantiation)", value=True)
+
+average_runs = st.checkbox(
+    "Average across selected runs (per system)",
+    value=True,
+    disabled=not per_gameobject,
+    help=(
+        "Combine repeated runs of the same platform/subsystem/role "
+        "(e.g. multiple PC runs of Photon Client) into one averaged line. "
+        "Requires per-GameObject aggregation, since runs are aligned on "
+        "the shared GameObjects milestones."
+    ),
+)
 
 # Show pairing UI if per-GameObject is enabled
 if per_gameobject and stats_files and events_files:
@@ -690,7 +906,7 @@ with col1:
     selected_metrics = st.multiselect(
         "Choose metrics to display (empty = show all)",
         list(metric_options.keys()),
-        default=["FPS"],
+        default=list(available_metrics),
         disabled=False
     )
     if unavailable_metrics:
@@ -780,7 +996,36 @@ def _collapse_datasets(datasets: list[tuple[str, pd.DataFrame]]) -> list[tuple[s
     return collapsed
 
 
-line_filter_options = _dedupe_candidates(line_filter_candidates)
+def _dedupe_candidates_by_group(candidates: set[str]) -> list[str]:
+    """One representative raw label per (platform, subsystem, role) group.
+
+    Used for the Line Filter dropdown in aggregated mode: once runs get
+    averaged into a single line per group, listing every individual run
+    (each with its own timestamp) just floods the dropdown with entries
+    that all collapse into the same plotted line anyway. Picking one
+    canonical representative per group keeps the options list matching
+    what's actually going to be drawn -- one entry per averaged line.
+    """
+    groups: dict[tuple[str, str, str], list[str]] = {}
+    for label in candidates:
+        groups.setdefault(_run_group_key(label), []).append(label)
+    representatives = [
+        _pick_canonical(siblings) if len(siblings) > 1 else siblings[0]
+        for siblings in groups.values()
+    ]
+    return sorted(representatives, key=lambda lbl: _group_key_to_display(_run_group_key(lbl)))
+
+
+# In aggregated mode (averaging runs together), the dropdown should show
+# one option per averaged line, not one per individual run -- see
+# _dedupe_candidates_by_group. Non-aggregated mode keeps the original
+# per-run behaviour so a specific capture can still be picked out.
+aggregated_line_filter = average_runs and per_gameobject
+line_filter_options = (
+    _dedupe_candidates_by_group(line_filter_candidates)
+    if aggregated_line_filter
+    else _dedupe_candidates(line_filter_candidates)
+)
 if "line_filter_choices" not in st.session_state:
     st.session_state.line_filter_choices = []
 if "active_line_filters" not in st.session_state:
@@ -801,7 +1046,11 @@ with filter_col1:
         "Choose lines to display on all plots",
         options=line_filter_options,
         default=st.session_state.line_filter_choices,
-        format_func=lambda label: short_label(label, line_filter_options),
+        format_func=(
+            (lambda label: _group_key_to_display(_run_group_key(label)))
+            if aggregated_line_filter
+            else (lambda label: short_label(label, line_filter_options))
+        ),
     )
     st.session_state.line_filter_choices = selected_line_filters
 with filter_col2:
@@ -836,56 +1085,6 @@ def _is_network_label(label: str) -> bool:
     if "_capture_" in lowered or lowered.endswith(".pcap.csv"):
         return True
     return any(token in lowered for token in _NETWORK_TOKENS)
-
-
-def _is_pc_label(label: str) -> bool:
-    return label.startswith("[PC]")
-
-
-def _is_quest_label(label: str) -> bool:
-    return label.startswith("[Quest]")
-
-
-def _is_client_label(label: str) -> bool:
-    """Return True only when the label carries an explicit client marker.
-
-    Matches both the profiler-stats naming convention (`..._client_...`)
-    and the event-style naming convention (`..._client_events_...`).
-    Quest Android traces (`com.IMT_Atlantique.*`) carry no role token
-    and are matched separately via `_is_quest_label` — they are NOT
-    treated as client by this predicate so that the "Quest clients" /
-    "Client only" quick filters stay focused on network-stack captures.
-
-    PC baseline files (dots / gpu / events / generic `profiler_stats`
-    without a client/server token) are role-agnostic and intentionally
-    excluded: they are still selectable via "PC only" / "Non-network"
-    presets or the manual multiselect.
-    """
-    lowered = label.lower()
-    return (
-        "_client_" in lowered
-        or "_client_events_" in lowered
-        or "_client_profiler_" in lowered
-    )
-
-
-def _is_server_label(label: str) -> bool:
-    """Return True only when the label belongs to a real server-side role.
-
-    In this dataset, the Quest device never acts as a server: any
-    `*_server_*` file coming from the Quest is actually a PCAP capture of
-    *server-bound* traffic observed on the Quest, not a server hosted on
-    the device. To avoid surfacing misleading "server" lines, this
-    predicate is intentionally scoped to PC files only.
-    """
-    if not _is_pc_label(label):
-        return False
-    lowered = label.lower()
-    return (
-        "_server_" in lowered
-        or "_server_events_" in lowered
-        or "_server_profiler_" in lowered
-    )
 
 
 def _quick_filter(matcher):
@@ -1025,13 +1224,14 @@ def create_network_plot(net_datasets, selected_labels, per_gameobject, xcol, log
     return fig
 
 
-def create_standard_plot(datasets, selected_labels, metric_label, metric_key, per_gameobject, xcol, log_scale=False):
+def create_standard_plot(datasets, selected_labels, metric_label, metric_key, per_gameobject, xcol, log_scale=False, average_runs=False):
     """Create a standard line plot for non-network metrics."""
     combined = []
     plot_ycol = None
+    run_groups = {}  # (platform, subsystem, role) -> [(raw_label, temp_df), ...]
 
     # No movement-phase-specific trimming; keep series as-is
-    
+
     for label, df in datasets:
         if label not in selected_labels:
             continue
@@ -1040,9 +1240,37 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
             continue
         if plot_ycol is None and "_ycol" in temp.columns:
             plot_ycol = temp["_ycol"].iloc[0]
-        temp["label"] = short_label(label, [lbl for lbl, _ in datasets]);
-        combined.append(temp)
-    
+        if average_runs:
+            run_groups.setdefault(_run_group_key(label), []).append((label, temp))
+        else:
+            temp["label"] = short_label(label, [lbl for lbl, _ in datasets])
+            combined.append(temp)
+
+    if average_runs:
+        for (platform, subsystem, role), entries in run_groups.items():
+            # A group with only one contributing run has nothing to
+            # average -- plot it exactly like the non-averaged path.
+            if len(entries) > 1:
+                sample_df = entries[0][1]
+                ycol_group = sample_df["_ycol"].iloc[0] if "_ycol" in sample_df.columns else plot_ycol
+                x_col_group = "GameObjects" if "GameObjects" in sample_df.columns else xcol
+                if ycol_group is not None and x_col_group in sample_df.columns:
+                    avg_df = average_series_across_runs(
+                        [d for _, d in entries], x_col=x_col_group, y_col=ycol_group
+                    )
+                    if not avg_df.empty:
+                        role_suffix = f" {role}" if role else ""
+                        avg_df = avg_df.rename(columns={"mean": ycol_group})
+                        avg_df["label"] = f"{platform} · {subsystem}{role_suffix} (avg of {len(entries)} runs)"
+                        avg_df["_ycol"] = ycol_group
+                        combined.append(avg_df[[x_col_group, ycol_group, "label", "_ycol"]])
+                        continue
+                # Couldn't determine a common x/y column for this group;
+                # fall back to plotting each run separately below.
+            for run_label, run_df in entries:
+                run_df["label"] = short_label(run_label, [lbl for lbl, _ in datasets])
+                combined.append(run_df)
+
     if not combined:
         return None
     def _uniform_time_bins(frame: pd.DataFrame, x_column: str, y_column: str, target_points: int = 120):
@@ -1185,6 +1413,10 @@ def _label_has_server_role(label: str) -> bool:
     `20260605` must not pull in the Photon *server* capture that happens
     to share the same Unity capture date.
     """
+    if _is_quest_routed_capture(label):
+        # Its "_server_capture_" token describes traffic direction, not
+        # an actual server role -- see _run_group_key/_is_quest_routed_capture.
+        return False
     lowered = label.lower()
     return (
         "_server_" in lowered
@@ -1260,6 +1492,7 @@ def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame", log_
     for metric_key in selected_metric_keys:
         metric_label = [k for k, v in metric_options.items() if v == metric_key][0]
         use_per_gameobject = per_gameobject if per_gameobject_override is None else per_gameobject_override
+        use_average_runs = average_runs and use_per_gameobject
         datasets, _ = build_datasets(
             stats_files=stats_files,
             events_files=events_files,
@@ -1275,7 +1508,7 @@ def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame", log_
             datasets = [
                 (label, df)
                 for label, df in datasets
-                if _is_quest_network_series(label)
+                if _is_networked_tech_label(label)
             ]
 
         # Filter out non-com.IMT_Atlantique Quest files for standard metrics (FPS, Memory, CPU, GPU).
@@ -1283,13 +1516,31 @@ def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame", log_
         # However, we also need to include godot-quest data in the plots like godot-pc ones.
         standard_metric_keys = ("fps", "memory", "cpu", "gpu")
         if metric_key in standard_metric_keys and datasets:
+            def _keep_for_quest_standard_metric(label: str) -> bool:
+                if not label.startswith("[Quest] "):
+                    return True
+                if _is_godot_label(label):
+                    # Godot is exempted from the "trace files only" rule
+                    # below so it uses the same profiler_stats source as
+                    # every other platform/tech. But its Android trace
+                    # re-export of that same run (com.IMT_Atlantique...#GodotApp-*.csv)
+                    # must still be dropped here rather than left to
+                    # _collapse_datasets: that dedupe only merges siblings
+                    # whose short_label() timestamps round to the same
+                    # minute, which is a coincidence that fails for
+                    # roughly one run in five (profiler_stats and the
+                    # trace routinely start a couple seconds apart,
+                    # straddling a minute boundary) -- when it fails, the
+                    # trace survives as an unmerged, unaveraged singleton
+                    # line instead of quietly disappearing like its
+                    # siblings. Dropping every Godot trace file here,
+                    # unconditionally, makes the outcome deterministic.
+                    return _type_tag_for(label) != "trace"
+                return "com.IMT_Atlantique" in label
+
             datasets = [
                 (label, df) for label, df in datasets
-                if not (
-                    label.startswith("[Quest] ") 
-                    and "com.IMT_Atlantique" not in label 
-                    and not _is_godot_label(label)
-                )
+                if _keep_for_quest_standard_metric(label)
             ]
 
         if datasets:
@@ -1299,16 +1550,31 @@ def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame", log_
             datasets = _collapse_datasets(datasets)
             labels = [t[0] for t in datasets]
             if active_line_filters:
-                # Expand each selected dropdown label back to every sibling
-                # file that shares the same short_label() (or the same
-                # capture timestamp when display names diverge between
-                # stats and trace files).
-                expanded = _expand_filter_labels(
-                    active_line_filters,
-                    list(line_filter_candidates),
-                    labels,
-                )
-                labels = [label for label in labels if label in expanded]
+                if use_average_runs:
+                    # Aggregated mode: the dropdown holds one
+                    # representative label per (platform, subsystem,
+                    # role) group (see _dedupe_candidates_by_group), so
+                    # expand each selection to every run sharing that
+                    # exact group key -- the same grouping
+                    # create_standard_plot uses to build the averaged
+                    # line, so the filter and the plot always agree.
+                    wanted_keys = {_run_group_key(sel) for sel in active_line_filters}
+                    labels = [
+                        label for label in labels
+                        if _run_group_key(label) in wanted_keys
+                    ]
+                else:
+                    # Per-run mode: expand each selected dropdown label
+                    # back to every sibling file that shares the same
+                    # short_label() (or the same capture timestamp when
+                    # display names diverge between stats and trace
+                    # files).
+                    expanded = _expand_filter_labels(
+                        active_line_filters,
+                        list(line_filter_candidates),
+                        labels,
+                    )
+                    labels = [label for label in labels if label in expanded]
             if not labels:
                 skipped_by_filter.append(metric_label)
                 continue
@@ -1320,6 +1586,7 @@ def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame", log_
                 use_per_gameobject,
                 "GameObjects" if use_per_gameobject else ("Time" if x_axis_mode == "time" else "Frame"),
                 log_scale=log_scale,
+                average_runs=use_average_runs,
             )
             if fig:
                 metric_figures[metric_label] = fig

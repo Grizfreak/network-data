@@ -116,6 +116,34 @@ def _extract_source_label(file_name: str):
     return None
 
 
+def is_quest_server_artefact(name: str) -> bool:
+    """Return True for a stats/events CSV that should be dropped when
+    loading a Quest benchmark folder.
+
+    The Quest headset never hosts a server, for any tech -- the server
+    always runs on the PC. When a trial is recorded, the PC-hosted
+    server's own profiler_stats/events CSVs routinely get dropped into
+    the same benchmark folder as the Quest client's data for
+    convenience, so without this filter they get tagged "[Quest]" and
+    corrupt any analysis that groups by (platform, subsystem): the
+    PC server's telemetry has nothing to do with what the headset
+    measured.
+
+    PCAP captures are exempt: they're the PC observing traffic while it
+    routes the headset's connection, so they genuinely describe the
+    Quest client's network activity (see `_is_quest_routed_capture`),
+    even though their filename also carries a "server" token.
+
+    Shared by the Streamlit app (`_load_source_files` in app.py) and the
+    offline analysis pipeline (`ccl/analyze_data.py`) so both draw from
+    the same definition of "this file doesn't belong on Quest".
+    """
+    lowered = name.lower()
+    if lowered.endswith(".pcap.csv") or ".pcap.csv" in lowered:
+        return False
+    return "server" in lowered
+
+
 def _preferred_event_patterns(stat_file_name: str):
     """Return ordered event filename patterns preferred for this stats file."""
     lower = stat_file_name.lower()
@@ -151,6 +179,34 @@ def _preferred_event_patterns(stat_file_name: str):
     return []
 
 
+def _is_quest_routed_capture(name: str) -> bool:
+    """Return True for a PCAP capture of Quest-client traffic taken on the
+    PC side while it routes the headset's connection.
+
+    Every capture dropped into a Quest benchmark folder follows
+    `<tech>_server_capture[_quest_capture]_<ts>.pcap[.csv]` -- the
+    `_quest_capture_` infix was only added to the naming convention
+    partway through data collection, so the earliest captures
+    (`benchmarkQuest#1`, e.g. `ngo_server_capture_20260604_154052.pcap`)
+    lack it. Matching is therefore done on the "[Quest] " tag plus a bare
+    "capture" + ".pcap" check instead of that infix, since no Quest
+    folder has ever contained a client-side capture file -- every one of
+    them is this same routed-traffic case regardless of exact filename.
+
+    The `server` token in these names describes the traffic *direction*
+    (captured en route to the server), not an actual server role -- the
+    Quest headset never hosts a server, so this data genuinely describes
+    the Quest client's own network activity. Without this exception, the
+    literal "server" token makes `_pairing_score` reject pairing against
+    the (correct) client events file via the client/server mismatch
+    guard below.
+    """
+    lower = name.lower()
+    if not lower.startswith("[quest]"):
+        return False
+    return ".pcap" in lower and "capture" in lower
+
+
 def _pairing_score(stat_name: str, event_name: str, stat_dt: datetime | None, event_dt: datetime | None):
     """Compute pairing score. Higher is better."""
     score = 0.0
@@ -174,6 +230,10 @@ def _pairing_score(stat_name: str, event_name: str, stat_dt: datetime | None, ev
 
     stat_tokens = _tokens(stat_name)
     event_tokens = _tokens(event_name)
+
+    if _is_quest_routed_capture(stat_name):
+        stat_tokens.discard("server")
+        stat_tokens.add("client")
 
     # If one is 'client' and the other is 'server', reject pairing
     if ("client" in stat_tokens and "server" in event_tokens) or ("server" in stat_tokens and "client" in event_tokens):
@@ -207,9 +267,86 @@ def _pairing_score(stat_name: str, event_name: str, stat_dt: datetime | None, ev
     return score
 
 
+def classify_subsystem(name: str) -> str:
+    """Return a short subsystem tag (Photon/NGO/DOTS/Godot Network/Godot/Base) for a stat filename."""
+    lower = name.lower()
+    # Callers often pass a "[PC] "/"[Quest] " tagged label rather than a
+    # bare filename; strip the tag so prefix checks below (baseline
+    # detection) see the actual file name.
+    lower = re.sub(r"^\[pc\]\s*|^\[quest\]\s*", "", lower)
+    if "photon" in lower:
+        return "Photon"
+    if "fishnet" in lower:
+        return "FishNet"
+    if "ngo" in lower:
+        return "NGO"
+    if "netcodeentities" in lower:
+        return "NetcodeEntities"
+    if "godot" in lower:
+        if any(token in lower for token in ("client", "server")):
+            return "Godot Network"
+        return "Godot"
+    if "dots" in lower:
+        return "DOTS"
+    if "gpu" in lower:
+        return "Base-GPU"
+    if "base" in lower:
+        return "Base"
+    # The PC baseline stat/event pair has no "base" token at all --
+    # it's just `profiler_stats-*.csv` / `events_*.csv` (see the
+    # `_siblings` mapping in assemble.py). Every other stats/events
+    # family is prefixed (dots_/gpu_/ngo_.../photon_.../netcodeEntities_...)
+    # and already returned above, so this is unambiguous.
+    if lower.startswith("profiler_stats-") or lower.startswith("events_"):
+        return "Base"
+    return "Other"
+
+
+NETWORKED_SUBSYSTEMS = {"Photon", "FishNet", "NGO", "NetcodeEntities", "Godot Network"}
+
+
+def is_networked_subsystem(subsystem: str) -> bool:
+    """Return True when `subsystem` (a `classify_subsystem()` result) is an
+    actually-networked tech.
+
+    Non-networked baseline scenes (Base, Base-GPU, DOTS, solo Godot) can
+    still carry an RTT/Upload/Download column in their exported CSV --
+    some captures had a stray network-stats provider wired into the
+    ProfilerStatsToCSVExporter component on the Unity side even though
+    the scene never opens a connection, so the numbers exist but are
+    meaningless. Column-presence checks alone (`_has_network_columns`)
+    can't tell the difference; this goes by tech identity instead. Shared
+    by the Streamlit app and the offline analysis pipeline so neither
+    reports fabricated "network" stats for a baseline run.
+    """
+    return subsystem in NETWORKED_SUBSYSTEMS
+
+
 def _is_quest_folder(folder_path: Path) -> bool:
     csv_files = list(folder_path.glob("*.csv"))
     return any("com.IMT_Atlantique" in csv_file.name for csv_file in csv_files)
+
+
+def list_pc_and_quest_folders(data_root: Path):
+    """List every non-empty PC and Quest data folder, most recently
+    modified first.
+
+    Returns: (pc_folders, quest_folders), each a list[Path] (possibly empty).
+    """
+    if not data_root.exists():
+        return [], []
+
+    all_folders = sorted(
+        (folder for folder in data_root.iterdir() if folder.is_dir() and any(folder.glob("*.csv"))),
+        key=lambda folder: folder.stat().st_mtime,
+        reverse=True,
+    )
+
+    pc_folders, quest_folders = [], []
+    for folder in all_folders:
+        (quest_folders if _is_quest_folder(folder) else pc_folders).append(folder)
+
+    return pc_folders, quest_folders
 
 
 def get_pc_and_quest_folders(data_root: Path):
@@ -217,28 +354,9 @@ def get_pc_and_quest_folders(data_root: Path):
 
     Returns: (pc_folder, quest_folder) where each can be None if not found.
     """
-    if not data_root.exists():
-        return None, None
-
-    all_folders = sorted(
-        [folder for folder in data_root.iterdir() if folder.is_dir()],
-        key=lambda folder: folder.stat().st_mtime,
-        reverse=True,
-    )
-
-    pc_folder = None
-    quest_folder = None
-
-    for folder in all_folders:
-        is_quest = _is_quest_folder(folder)
-        if is_quest and quest_folder is None:
-            quest_folder = folder
-        elif not is_quest and pc_folder is None:
-            pc_folder = folder
-
-        if pc_folder and quest_folder:
-            break
-
+    pc_folders, quest_folders = list_pc_and_quest_folders(data_root)
+    pc_folder = pc_folders[0] if pc_folders else None
+    quest_folder = quest_folders[0] if quest_folders else None
     return pc_folder, quest_folder
 
 

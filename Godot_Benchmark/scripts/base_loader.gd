@@ -13,7 +13,7 @@ func _ready():
 	if OS.get_name() == "Android":
 		OS.request_permission("android.permission.READ_EXTERNAL_STORAGE")
 		# Create the conf_resources directory if it doesn't exist
-		var userDir = "/storage/emulated/0/Android/data/com.example.godot_benchmark/files"
+		var userDir = "/storage/emulated/0/Android/data/com.IMT_Atlantique.godot_benchmark/files"
 		var confResourcesDir = userDir.path_join("conf_resources")
 		
 		# Ensure the directory exists using proper Godot API

@@ -16,4 +16,3 @@ data/*
 !data/BenchmarkQuest#4
 !data/BenchmarkQuest#5
 *.pcap
-ccl/

@@ -147,6 +147,16 @@ def short_label(label: str, all_labels: list[str] | None = None) -> str:
         # events/stats CSVs all already have explicit `client`/`server`
         # tokens, so they are unaffected.
         tech += " Client"
+    elif platform == "Quest" and is_networked_subsystem(tech) and _type_tag_for(label) == "trace":
+        # Same situation as the Godot branch above, generalized: FishNet /
+        # NGO / Photon / NetcodeEntities have no non-networked baseline
+        # mode, so their bare Quest trace (`com.IMT_Atlantique.<tech>#...`,
+        # no `_client_`/`_server_` token) is unambiguously the client run
+        # -- unlike Godot there's no unrelated baseline group it could
+        # collide with. Without this branch it rendered as a separate,
+        # confusingly-named `Quest · FishNet` line next to
+        # `Quest · FishNet Client`, as if they were two different runs.
+        tech += " Client"
 
     # Append a compact timestamp so files from different captures remain
     # distinguishable in the legend / dropdown. The label may carry either
@@ -284,18 +294,25 @@ def _run_group_key(label: str) -> tuple[str, str, str]:
         # Every Quest tech is exported twice per run: once as a
         # profiler_stats CSV and once as the on-device Android trace
         # (`com.IMT_Atlantique...#GodotApp-*.csv` / `#UnityPlayerGameActivity-*.csv`).
-        # For NGO/FishNet/Photon/NetcodeEntities the trace's role=""
-        # never collides with the real "Client"/"Server" groups, so it
-        # just sits harmlessly as its own separate line. Godot is the
-        # only tech with a *legitimate* role="" group (the single-player
-        # baseline), so without this branch the trace collides with it
-        # -- and for the networked-run trace specifically, that silently
-        # mixes networked-client data into the baseline average. Giving
-        # the trace its own non-colliding role keeps Godot consistent
-        # with how every other tech already behaves: the trace is a
-        # separate, ignorable line, never averaged into profiler-stats
-        # data.
+        # Godot is the only tech with a *legitimate* role="" group (the
+        # single-player baseline) that the trace could collide with -- and
+        # for the networked-run trace specifically, colliding would
+        # silently mix networked-client data into the baseline average.
+        # Giving the trace its own non-colliding role avoids that. (Every
+        # other networked tech's trace is handled by the branch below,
+        # which folds it straight into "Client" instead -- see there for
+        # why that's safe for them but not for Godot.)
         role = "Trace (network run)" if "network" in lowered else "Trace"
+    elif platform == "Quest" and is_networked_subsystem(subsystem) and _type_tag_for(label) == "trace":
+        # FishNet / NGO / Photon / NetcodeEntities have no non-networked
+        # baseline mode, so their bare Quest trace (no `_client_`/
+        # `_server_` token) is unambiguously the client run -- there's no
+        # unrelated role="" group it could wrongly get averaged into, so
+        # unlike Godot it can just join the real "Client" group instead of
+        # needing its own separate "Trace" bucket. This collapses the
+        # previous `Quest · FishNet` / `Quest · FishNet Client` split
+        # (same physical run, two exports) into a single line.
+        role = "Client"
     else:
         role = ""
     return platform, subsystem, role
@@ -324,6 +341,34 @@ def _is_godot_label(label: str) -> bool:
 
 def _is_godot_file_name(file_name: str) -> bool:
     return "godot" in file_name.lower()
+
+
+STANDARD_METRIC_KEYS = ("fps", "memory", "cpu", "gpu")
+
+
+def _keep_for_quest_standard_metric(label: str) -> bool:
+    """For FPS/Memory/CPU/GPU on Quest, keep only the data source that
+    actually ends up plotted -- see the call site in build_metric_figures
+    for why. Shared with the Line Filter candidate list so the dropdown
+    never offers a label (e.g. "Quest · Godot Trace") that these metrics
+    silently drop later, which used to leave dead entries in the filter."""
+    if not label.startswith("[Quest] "):
+        return True
+    if _is_godot_label(label):
+        # Godot is exempted from the "trace files only" rule below so it
+        # uses the same profiler_stats source as every other platform/tech.
+        # But its Android trace re-export of that same run
+        # (com.IMT_Atlantique...#GodotApp-*.csv) must still be dropped here
+        # rather than left to _collapse_datasets: that dedupe only merges
+        # siblings whose short_label() timestamps round to the same minute,
+        # which is a coincidence that fails for roughly one run in five
+        # (profiler_stats and the trace routinely start a couple seconds
+        # apart, straddling a minute boundary) -- when it fails, the trace
+        # survives as an unmerged, unaveraged singleton line instead of
+        # quietly disappearing like its siblings. Dropping every Godot
+        # trace file here, unconditionally, makes the outcome deterministic.
+        return _type_tag_for(label) != "trace"
+    return "com.IMT_Atlantique" in label
 
 
 # allow importing project helpers (assemble.py)
@@ -938,6 +983,11 @@ for metric_key in selected_metric_keys:
         x_axis_mode="frame",
         include_unpaired=include_unpaired,
     )
+    if metric_key in STANDARD_METRIC_KEYS:
+        preview_datasets = [
+            (label, df) for label, df in preview_datasets
+            if _keep_for_quest_standard_metric(label)
+        ]
     line_filter_candidates.update([label for label, _ in preview_datasets])
 
 # Collapse duplicates that share a capture timestamp: when several CSVs
@@ -1061,10 +1111,10 @@ with filter_col3:
         st.session_state.active_line_filters = []
         st.session_state.line_filter_choices = []
 
-# Quick filters: one-click presets that pre-fill the multiselect and the
-# active filter set. They mutate `line_filter_choices` so the dropdown
-# updates immediately, and they also push into `active_line_filters` so
-# the next plot render reflects the change without an explicit Apply.
+# Quick filters: one-click presets that pre-fill the multiselect only.
+# They mutate `line_filter_choices` so the dropdown updates immediately,
+# but leave `active_line_filters` untouched -- the plots only pick up the
+# preset once the user presses Apply, same as a manual multiselect edit.
 _NETWORK_TOKENS = ("photon", "fishnet", "ngo", "netcodeentities", "server", "client", "pcap", "capture")
 
 
@@ -1094,69 +1144,55 @@ def _quick_filter(matcher):
 quick_row1 = st.columns(5)
 with quick_row1[0]:
     if st.button("All", use_container_width=True):
-        picked = list(line_filter_options)
-        st.session_state.line_filter_choices = picked
-        st.session_state.active_line_filters = picked
+        st.session_state.line_filter_choices = list(line_filter_options)
 with quick_row1[1]:
     if st.button("Non-network", use_container_width=True):
-        picked = _quick_filter(lambda lbl: not _is_network_label(lbl))
-        st.session_state.line_filter_choices = picked
-        st.session_state.active_line_filters = picked
+        st.session_state.line_filter_choices = _quick_filter(lambda lbl: not _is_network_label(lbl))
 with quick_row1[2]:
     if st.button("Network only", use_container_width=True):
-        picked = _quick_filter(_is_network_label)
-        st.session_state.line_filter_choices = picked
-        st.session_state.active_line_filters = picked
+        st.session_state.line_filter_choices = _quick_filter(_is_network_label)
 with quick_row1[3]:
     if st.button("PC only", use_container_width=True):
-        picked = _quick_filter(_is_pc_label)
-        st.session_state.line_filter_choices = picked
-        st.session_state.active_line_filters = picked
+        st.session_state.line_filter_choices = _quick_filter(_is_pc_label)
 with quick_row1[4]:
     if st.button("Quest only", use_container_width=True):
-        picked = _quick_filter(_is_quest_label)
-        st.session_state.line_filter_choices = picked
-        st.session_state.active_line_filters = picked
+        st.session_state.line_filter_choices = _quick_filter(_is_quest_label)
 
 quick_row2 = st.columns(4)
 with quick_row2[0]:
     if st.button("Client only", use_container_width=True):
         # Show every client-side capture across both platforms.
-        picked = _quick_filter(_is_client_label)
-        st.session_state.line_filter_choices = picked
-        st.session_state.active_line_filters = picked
+        st.session_state.line_filter_choices = _quick_filter(_is_client_label)
 with quick_row2[1]:
     if st.button("Quest clients", use_container_width=True):
         # Narrow the client list down to Quest-only captures.
-        picked = _quick_filter(lambda lbl: _is_quest_label(lbl) and _is_client_label(lbl))
-        st.session_state.line_filter_choices = picked
-        st.session_state.active_line_filters = picked
+        st.session_state.line_filter_choices = _quick_filter(
+            lambda lbl: _is_quest_label(lbl) and _is_client_label(lbl)
+        )
 with quick_row2[2]:
     if st.button("PC clients", use_container_width=True):
         # Narrow the client list down to PC-only captures. This replaces
         # the previous "Network clients" preset, which mixed platforms
         # and duplicated what "PC clients" + "Quest clients" already
         # cover for the network stacks.
-        picked = _quick_filter(lambda lbl: _is_pc_label(lbl) and _is_client_label(lbl))
-        st.session_state.line_filter_choices = picked
-        st.session_state.active_line_filters = picked
+        st.session_state.line_filter_choices = _quick_filter(
+            lambda lbl: _is_pc_label(lbl) and _is_client_label(lbl)
+        )
 with quick_row2[3]:
     if st.button("PC network", use_container_width=True):
         # Keep PC + network as a separate, non-client-scoped preset so
         # users can still inspect the full PC network stack (both client
         # and server roles) without going through the client buttons.
-        picked = _quick_filter(lambda lbl: _is_pc_label(lbl) and _is_network_label(lbl))
-        st.session_state.line_filter_choices = picked
-        st.session_state.active_line_filters = picked
+        st.session_state.line_filter_choices = _quick_filter(
+            lambda lbl: _is_pc_label(lbl) and _is_network_label(lbl)
+        )
 
 # Godot is treated like every other benchmark (a tech, not a platform),
 # so this quick filter targets every Godot run across PC and Quest.
 quick_row3 = st.columns(1)
 with quick_row3[0]:
     if st.button("Godot only", use_container_width=True):
-        picked = _quick_filter(_is_godot_label)
-        st.session_state.line_filter_choices = picked
-        st.session_state.active_line_filters = picked
+        st.session_state.line_filter_choices = _quick_filter(_is_godot_label)
 
 active_line_filters = set(st.session_state.active_line_filters)
 if active_line_filters:
@@ -1224,6 +1260,38 @@ def create_network_plot(net_datasets, selected_labels, per_gameobject, xcol, log
     return fig
 
 
+def _drop_truncated_gameobject_runs(entries, x_col_group, min_coverage=0.4, min_points=3):
+    """Drop per-run per-GameObject series whose captured range is much
+    shorter than its sibling runs' in the same average group.
+
+    A Quest on-device trace that stops recording after a few seconds
+    instead of covering the full multi-minute benchmark only yields a
+    handful of early, still-healthy FPS samples pinned to GameObjects
+    values that don't line up with the other runs' milestone grid (their
+    FinishedInstantiation events keep firing off-camera while the trace
+    isn't recording anymore). Averaging that alongside complete runs
+    turns a smooth trend into a jagged sawtooth: at some GameObjects
+    values only the complete runs contribute (showing the real decline),
+    while immediately next to them a lone truncated-run sample sits at
+    ~72 FPS, and the line connecting the two looks like a crash-and-recover
+    cycle that never happened. Filtering on point count (rather than max
+    GameObjects reached) is deliberate: a truncated run can still report a
+    numerically high "GameObjects" value if its events counter kept
+    incrementing quickly, but it will always have far fewer recorded
+    per-GameObject segments than a run that stayed alive for the whole
+    benchmark.
+    """
+    if x_col_group != "GameObjects" or len(entries) <= 2:
+        return entries
+    counts = sorted(len(df) for _, df in entries)
+    mid = len(counts) // 2
+    median_count = counts[mid] if len(counts) % 2 else (counts[mid - 1] + counts[mid]) / 2
+    if median_count < min_points:
+        return entries
+    kept = [(label, df) for label, df in entries if len(df) >= median_count * min_coverage]
+    return kept if kept else entries
+
+
 def create_standard_plot(datasets, selected_labels, metric_label, metric_key, per_gameobject, xcol, log_scale=False, average_runs=False):
     """Create a standard line plot for non-network metrics."""
     combined = []
@@ -1255,13 +1323,14 @@ def create_standard_plot(datasets, selected_labels, metric_label, metric_key, pe
                 ycol_group = sample_df["_ycol"].iloc[0] if "_ycol" in sample_df.columns else plot_ycol
                 x_col_group = "GameObjects" if "GameObjects" in sample_df.columns else xcol
                 if ycol_group is not None and x_col_group in sample_df.columns:
+                    kept_entries = _drop_truncated_gameobject_runs(entries, x_col_group)
                     avg_df = average_series_across_runs(
-                        [d for _, d in entries], x_col=x_col_group, y_col=ycol_group
+                        [d for _, d in kept_entries], x_col=x_col_group, y_col=ycol_group
                     )
                     if not avg_df.empty:
                         role_suffix = f" {role}" if role else ""
                         avg_df = avg_df.rename(columns={"mean": ycol_group})
-                        avg_df["label"] = f"{platform} · {subsystem}{role_suffix} (avg of {len(entries)} runs)"
+                        avg_df["label"] = f"{platform} · {subsystem}{role_suffix} (avg of {len(kept_entries)} runs)"
                         avg_df["_ycol"] = ycol_group
                         combined.append(avg_df[[x_col_group, ycol_group, "label", "_ycol"]])
                         continue
@@ -1514,30 +1583,7 @@ def build_metric_figures(per_gameobject_override=None, x_axis_mode="frame", log_
         # Filter out non-com.IMT_Atlantique Quest files for standard metrics (FPS, Memory, CPU, GPU).
         # We want to use ONLY com.IMT_Atlantique files for these specific metrics on Quest, as requested.
         # However, we also need to include godot-quest data in the plots like godot-pc ones.
-        standard_metric_keys = ("fps", "memory", "cpu", "gpu")
-        if metric_key in standard_metric_keys and datasets:
-            def _keep_for_quest_standard_metric(label: str) -> bool:
-                if not label.startswith("[Quest] "):
-                    return True
-                if _is_godot_label(label):
-                    # Godot is exempted from the "trace files only" rule
-                    # below so it uses the same profiler_stats source as
-                    # every other platform/tech. But its Android trace
-                    # re-export of that same run (com.IMT_Atlantique...#GodotApp-*.csv)
-                    # must still be dropped here rather than left to
-                    # _collapse_datasets: that dedupe only merges siblings
-                    # whose short_label() timestamps round to the same
-                    # minute, which is a coincidence that fails for
-                    # roughly one run in five (profiler_stats and the
-                    # trace routinely start a couple seconds apart,
-                    # straddling a minute boundary) -- when it fails, the
-                    # trace survives as an unmerged, unaveraged singleton
-                    # line instead of quietly disappearing like its
-                    # siblings. Dropping every Godot trace file here,
-                    # unconditionally, makes the outcome deterministic.
-                    return _type_tag_for(label) != "trace"
-                return "com.IMT_Atlantique" in label
-
+        if metric_key in STANDARD_METRIC_KEYS and datasets:
             datasets = [
                 (label, df) for label, df in datasets
                 if _keep_for_quest_standard_metric(label)

@@ -63,28 +63,43 @@ def metric_per_gameobject_series(
     sample_x = valid_samples["Frame"].to_numpy(dtype=float)
     sample_y = valid_samples[metric_col].to_numpy(dtype=float)
 
+    # `stats_df` may not carry a genuine engine `Frame` column at all (e.g.
+    # Quest device-metrics exports only have `Time Stamp`/`Time`). In that
+    # case `metric_series_from_stats` falls back to that column and aliases
+    # it into "Frame" above, so `sample_x` is actually milliseconds (or
+    # seconds) since capture start, not an engine frame count. The events'
+    # `Frame` values ARE genuine engine frame numbers, and their numeric
+    # range (0..tens of thousands) overlaps with a Time Stamp axis in ms, so
+    # looking them up directly against `sample_x` doesn't fail — it just
+    # silently lands every GameObject milestone near the very start of the
+    # capture, flattening the whole per-GameObject curve to the early FPS.
+    # When there's no genuine Frame column, align on Time instead.
+    has_engine_frame_axis = "Frame" in stats_df.columns
+
+    def _lookup_x(row) -> float | None:
+        if not has_engine_frame_axis:
+            if pd.notna(row.get("Time")):
+                t = float(row["Time"])
+                return t * 1000.0 if "Time Stamp" in stats_df.columns else t
+            return None
+        if pd.notna(row.get("Frame")):
+            return float(row["Frame"])
+        if pd.notna(row.get("Time")) and "Time" in stats_df.columns and "Frame" in stats_df.columns:
+            t = float(row["Time"])
+            times = pd.to_numeric(stats_df["Time"], errors="coerce")
+            frames = pd.to_numeric(stats_df["Frame"], errors="coerce")
+            valid = pd.DataFrame({"t": times, "f": frames}).dropna().sort_values("t")
+            if not valid.empty:
+                return float(np.interp(t, valid["t"].to_numpy(dtype=float), valid["f"].to_numpy(dtype=float)))
+        return None
+
     event_points = []
     for _, row in finished_rows.iterrows():
         current_value = row.get("Value")
         if pd.isna(current_value):
             continue
 
-        # Always look up against the Frame axis (the same axis the samples
-        # use). Prefer Frame from the event; fall back to Time only when Frame
-        # is unavailable, converting seconds → Frame via the stats Time/Frame
-        # ratio. This fixes the previous unit-mismatch where event Time (in
-        # seconds) was looked up against a Frame-numbered axis, producing a
-        # constant clamped value of sample_y[0].
-        lookup_frame = None
-        if pd.notna(row.get("Frame")):
-            lookup_frame = float(row["Frame"])
-        elif pd.notna(row.get("Time")) and "Time" in stats_df.columns and "Frame" in stats_df.columns:
-            t = float(row["Time"])
-            times = pd.to_numeric(stats_df["Time"], errors="coerce")
-            frames = pd.to_numeric(stats_df["Frame"], errors="coerce")
-            valid = pd.DataFrame({"t": times, "f": frames}).dropna().sort_values("t")
-            if not valid.empty:
-                lookup_frame = float(np.interp(t, valid["t"].to_numpy(dtype=float), valid["f"].to_numpy(dtype=float)))
+        lookup_frame = _lookup_x(row)
         if lookup_frame is None:
             continue
 
@@ -93,17 +108,7 @@ def metric_per_gameobject_series(
     if not event_points:
         return None, None
 
-    first_event_frame = None
-    first_row = finished_rows.iloc[0]
-    if pd.notna(first_row.get("Frame")):
-        first_event_frame = float(first_row["Frame"])
-    elif pd.notna(first_row.get("Time")) and "Time" in stats_df.columns and "Frame" in stats_df.columns:
-        t = float(first_row["Time"])
-        times = pd.to_numeric(stats_df["Time"], errors="coerce")
-        frames = pd.to_numeric(stats_df["Frame"], errors="coerce")
-        valid = pd.DataFrame({"t": times, "f": frames}).dropna().sort_values("t")
-        if not valid.empty:
-            first_event_frame = float(np.interp(t, valid["t"].to_numpy(dtype=float), valid["f"].to_numpy(dtype=float)))
+    first_event_frame = _lookup_x(finished_rows.iloc[0])
 
     segment_points = []
     if first_event_frame is not None:

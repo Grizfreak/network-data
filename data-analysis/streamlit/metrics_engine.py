@@ -420,7 +420,7 @@ def metric_series_from_stats(df: pd.DataFrame, metric_key: str, stat_name: str |
         break
 
     # Fallback for captures that only expose FPS: derive total frame time in
-    # ms as 1000 / average_frame_rate. This matches what `threadplot.py`
+    # ms as 1000 / average_frame_rate. This matches what `old/threadplot.py`
     # already does for Quest captures, and lets us express CPU in ms even
     # when no explicit frame-time column is available.
     if metric_series is None and metric_key == "cpu" and "average_frame_rate" in df.columns:

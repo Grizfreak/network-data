@@ -120,6 +120,71 @@ scripts) need, so it's defined once instead of drifting out of sync:
   strengths/weaknesses section. Each `render_*.py` script keeps its own
   header/methodology/caveats prose and its own subsystem list.
 
+## Adding a new benchmark type
+
+Dropping in *more runs* of an existing system is already cheap: both
+`analyze_data.py::_discover_run_folders` and `load_analysis.py::discover_runs`
+just glob every folder under `../data/` that contains CSVs, sorted by name —
+no hardcoded count or range anywhere. Add `benchmarkPC#6/` and re-run.
+
+A genuinely *new* benchmark type (a new networking library, or a new engine
+variant) is a different story: `classify_subsystem()` in
+`../streamlit/data_loader.py` is what turns a filename into a subsystem name,
+but recognizing the name is not the same as a report knowing what to do with
+it. A subsystem `classify_subsystem()` can identify but that isn't also
+registered in the lists below is silently dropped from whichever report
+forgot it — no error, no missing row, just absence.
+
+To add one, touch these in order:
+
+1. **`../streamlit/data_loader.py::classify_subsystem()`** — add a keyword
+   branch that returns the new subsystem's name. It's an ordered
+   `if`/`elif` chain doing substring matching, so a new keyword that's a
+   substring of an existing one needs to go *before* it (e.g. don't let a
+   new `"GodotRelay"` fall into the existing `"godot" in lower` branch by
+   accident).
+2. **`../streamlit/data_loader.py::NETWORKED_SUBSYSTEMS`** — add the name
+   here too, *only* if it's an actually-networked tech (vs. a non-networked
+   baseline/engine variant).
+3. **`render_conclusions.py::LIBS`** — add it here if it should appear in
+   the network-library report (`conclusions.md`).
+4. **`render_base_conclusions.py::DISPLAY_LIBS` / `RAW_TO_DISPLAY`** — add
+   it here instead if it's a base-engine variant (`conclusions_base.md`).
+   `RAW_TO_DISPLAY` maps the raw `classify_subsystem()` name to the display
+   name used in that report; `BASE_RAW_LIBS` is derived from it
+   automatically.
+5. **`load_analysis.py::PLANNED_COMPARISONS`** — add the pair(s) it should
+   be tested against (its local baseline, or `Base` for a non-networked
+   variant) so Pipeline B's `--comparisons planned` (the default) includes
+   it.
+
+Then run **`python check_subsystem_coverage.py`** — it re-derives which
+subsystems actually exist in `../data/` straight from the file names and
+diffs that against steps 3–5 above, so it'll tell you exactly which list
+still needs the new name instead of you finding out from a report that's
+just... missing a row:
+
+```bash
+cd ccl
+python check_subsystem_coverage.py
+```
+
+```
+All subsystems found in data/ are registered in every report.
+```
+
+or, with something missing:
+
+```
+2 note(s), 2 warning(s):
+
+[WARN] 'NewLib' (14 file(s)) is networked but missing from render_conclusions.py::LIBS -- it will be silently excluded from conclusions.md.
+[WARN] 'NewLib' (14 file(s)) has no entry in load_analysis.py::PLANNED_COMPARISONS -- no load-based comparison will run for it (unless you pass --comparisons all).
+```
+
+It's read-only and doesn't depend on `analyze_data.py`/`load_analysis.py`
+having run first, so it's safe to run any time.
+
 ## Other files in `analysis_results/`
 
 - **`developer_experience.md`** — hand-written qualitative notes (docs

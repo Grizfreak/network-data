@@ -294,7 +294,7 @@ def classify_subsystem(name: str) -> str:
         return "Base"
     # The PC baseline stat/event pair has no "base" token at all --
     # it's just `profiler_stats-*.csv` / `events_*.csv` (see the
-    # `_siblings` mapping in assemble.py). Every other stats/events
+    # `_siblings` mapping in old/assemble.py). Every other stats/events
     # family is prefixed (dots_/gpu_/ngo_.../photon_.../netcodeEntities_...)
     # and already returned above, so this is unambiguous.
     if lower.startswith("profiler_stats-") or lower.startswith("events_"):

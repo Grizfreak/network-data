@@ -371,12 +371,6 @@ def _keep_for_quest_standard_metric(label: str) -> bool:
     return "com.IMT_Atlantique" in label
 
 
-# allow importing project helpers (assemble.py)
-try:
-    import assemble
-except Exception:
-    assemble = None
-
 st.set_page_config(page_title="Benchmark Metrics Viewer", layout="wide")
 
 st.title("Benchmark Metrics Viewer")
@@ -743,10 +737,6 @@ for folder in selected_quest_folders:
         st.warning(f"Failed to read {file_name}: {err}")
     stats_files.extend(quest_stats)
     events_files.extend(quest_events)
-
-# Verify we have data
-if assemble is None:
-    st.warning("Note: assemble helper not available (some features may be limited).")
 
 st.write(f"**Loaded:** {len(stats_files)} stat file(s), {len(events_files)} event file(s)")
 

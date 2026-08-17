@@ -1,5 +1,6 @@
 from pathlib import Path
 import re
+from dataclasses import dataclass
 from datetime import datetime
 
 import pandas as pd
@@ -267,6 +268,45 @@ def _pairing_score(stat_name: str, event_name: str, stat_dt: datetime | None, ev
     return score
 
 
+@dataclass(frozen=True)
+class _ClassificationRule:
+    """One entry in `_CLASSIFICATION_RULES`. `keyword` is matched as a
+    case-insensitive substring, in list order -- first match wins, so a
+    keyword that's a substring of another rule's keyword (e.g. "base" is a
+    substring of "base_DOTS") must come *after* the more specific one.
+
+    `network_variant`/`network_variant_tokens` cover a subsystem that has
+    both a local/baseline form and a networked form distinguished by an
+    extra token in the filename (Godot: plain "Godot" normally, but
+    "Godot Network" when "client"/"server" also appears) -- a networked
+    variant is assumed to be, definitionally, a networked subsystem.
+    """
+    keyword: str
+    subsystem: str
+    is_networked: bool = False
+    network_variant: str | None = None
+    network_variant_tokens: tuple[str, ...] = ()
+
+
+# Order matches the real ambiguities in the actual filenames (see
+# streamlit/tests/test_data_loader.py for the real-filename cases this
+# order resolves): "base_DOTS" and "base_GPU" both contain "base" as a
+# substring too, so "dots"/"gpu" must be checked before "base".
+_CLASSIFICATION_RULES: list[_ClassificationRule] = [
+    _ClassificationRule("photon", "Photon", is_networked=True),
+    _ClassificationRule("fishnet", "FishNet", is_networked=True),
+    _ClassificationRule("ngo", "NGO", is_networked=True),
+    _ClassificationRule("netcodeentities", "NetcodeEntities", is_networked=True),
+    _ClassificationRule(
+        "godot", "Godot",
+        network_variant="Godot Network", network_variant_tokens=("client", "server"),
+    ),
+    _ClassificationRule("dots", "DOTS"),
+    _ClassificationRule("gpu", "Base-GPU"),
+    _ClassificationRule("base", "Base"),
+]
+
+
 def classify_subsystem(name: str) -> str:
     """Return a short subsystem tag (Photon/NGO/DOTS/Godot Network/Godot/Base) for a stat filename."""
     lower = name.lower()
@@ -274,24 +314,12 @@ def classify_subsystem(name: str) -> str:
     # bare filename; strip the tag so prefix checks below (baseline
     # detection) see the actual file name.
     lower = re.sub(r"^\[pc\]\s*|^\[quest\]\s*", "", lower)
-    if "photon" in lower:
-        return "Photon"
-    if "fishnet" in lower:
-        return "FishNet"
-    if "ngo" in lower:
-        return "NGO"
-    if "netcodeentities" in lower:
-        return "NetcodeEntities"
-    if "godot" in lower:
-        if any(token in lower for token in ("client", "server")):
-            return "Godot Network"
-        return "Godot"
-    if "dots" in lower:
-        return "DOTS"
-    if "gpu" in lower:
-        return "Base-GPU"
-    if "base" in lower:
-        return "Base"
+    for rule in _CLASSIFICATION_RULES:
+        if rule.keyword not in lower:
+            continue
+        if rule.network_variant and any(t in lower for t in rule.network_variant_tokens):
+            return rule.network_variant
+        return rule.subsystem
     # The PC baseline stat/event pair has no "base" token at all --
     # it's just `profiler_stats-*.csv` / `events_*.csv` (see the
     # `_siblings` mapping in old/assemble.py). Every other stats/events
@@ -302,7 +330,9 @@ def classify_subsystem(name: str) -> str:
     return "Other"
 
 
-NETWORKED_SUBSYSTEMS = {"Photon", "FishNet", "NGO", "NetcodeEntities", "Godot Network"}
+NETWORKED_SUBSYSTEMS = {r.subsystem for r in _CLASSIFICATION_RULES if r.is_networked} | {
+    r.network_variant for r in _CLASSIFICATION_RULES if r.network_variant
+}
 
 
 def is_networked_subsystem(subsystem: str) -> bool:

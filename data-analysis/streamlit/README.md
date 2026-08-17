@@ -28,3 +28,13 @@ Usage
 Notes
 
 This is a minimal prototype. If you want more features (searching result folders, automatic grouping by label, event-based GameObject aggregation, presets for the comparison groups), I can add them next.
+
+`data_loader.py` and `metrics_engine.py` are shared with the `../ccl/` batch analysis pipeline (file discovery/pairing/subsystem classification, and metric extraction/unit normalization, respectively) rather than being app-specific — see `../ccl/README.md` for how that pipeline uses them, including what's involved in registering a new benchmark type.
+
+Tests
+
+`classify_subsystem()` (in `data_loader.py`) has a real test suite pinning its current behavior against real filenames from `../data/`, since it's an ordered, order-sensitive matching table used by both this app and the `ccl/` pipeline:
+
+```bash
+python -m unittest discover -s tests -v
+```

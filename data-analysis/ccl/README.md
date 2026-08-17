@@ -147,16 +147,16 @@ forgot it — no error, no missing row, just absence.
 
 To add one, touch these in order:
 
-1. **`../streamlit/data_loader.py::classify_subsystem()`** — add a keyword
-   branch that returns the new subsystem's name. It's an ordered
-   `if`/`elif` chain doing substring matching, so a new keyword that's a
+1. **`../streamlit/data_loader.py::_CLASSIFICATION_RULES`** — add one
+   `_ClassificationRule(keyword, subsystem, is_networked=...)`. Matching is
+   ordered, case-insensitive substring matching, so a keyword that's a
    substring of an existing one needs to go *before* it (e.g. don't let a
-   new `"GodotRelay"` fall into the existing `"godot" in lower` branch by
-   accident).
-2. **`../streamlit/data_loader.py::NETWORKED_SUBSYSTEMS`** — add the name
-   here too, *only* if it's an actually-networked tech (vs. a non-networked
-   baseline/engine variant).
-3. **`subsystem_catalog.py::SUBSYSTEMS`** — add one `SubsystemSpec` entry:
+   new `"GodotRelay"` fall into the existing `"godot"` rule by accident —
+   see the ordering comment above the list, and
+   `../streamlit/tests/test_data_loader.py` for the real-filename cases
+   that ordering exists to resolve). `NETWORKED_SUBSYSTEMS` is derived from
+   `is_networked`, no separate registry to remember.
+2. **`subsystem_catalog.py::SUBSYSTEMS`** — add one `SubsystemSpec` entry:
    its raw `classify_subsystem()` name, the display name the report should
    show, its `category` (`CATEGORY_NETWORK_LIBRARY` puts it in
    `conclusions.md`; `CATEGORY_BASE_ENGINE` puts it in `conclusions_base.md`,
@@ -166,7 +166,7 @@ To add one, touch these in order:
 
 Then run **`python check_subsystem_coverage.py`** — it re-derives which
 subsystems actually exist in `../data/` straight from the file names and
-diffs that against step 3 above, so it'll tell you exactly what's still
+diffs that against step 2 above, so it'll tell you exactly what's still
 missing instead of you finding out from a report that's just... missing a
 row:
 

@@ -21,6 +21,7 @@ import pandas as pd
 
 from metrics_catalog import BASE_ENGINE_KEYS, METRICS as METRIC_CATALOG
 import report_common as rc
+from subsystem_catalog import BASE_ENGINE_DISPLAY as DISPLAY_LIBS, RAW_TO_DISPLAY
 
 
 # ---------------------------------------------------------------------------
@@ -41,13 +42,6 @@ OUT_RAW_PATH = OUT_DIR / "raw_per_file_metrics.csv"
 OUT_SUMMARY_PATH = OUT_DIR / "summary_by_subsystem.csv"
 OUT_MD = OUT_DIR / "conclusions_base.md"
 
-DISPLAY_LIBS = ["Godot", "Unity base", "Unity GPU", "Unity DOTS"]
-RAW_TO_DISPLAY = {
-    "Godot": "Godot",
-    "Base": "Unity base",
-    "Base-GPU": "Unity GPU",
-    "DOTS": "Unity DOTS",
-}
 BASE_RAW_LIBS = set(RAW_TO_DISPLAY.keys())
 PLATFORMS = ["PC", "Quest"]
 

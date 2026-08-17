@@ -4,6 +4,7 @@ import pandas as pd
 from pathlib import Path
 
 import report_common as rc
+from subsystem_catalog import NETWORK_LIBS as LIBS
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -15,7 +16,6 @@ RAW_PATH = OUT_DIR / "raw_per_file_metrics.csv"
 SUMMARY_PATH = OUT_DIR / "summary_by_subsystem.csv"
 OUT_MD = OUT_DIR / "conclusions.md"
 
-LIBS = ["Photon", "NGO", "FishNet", "NetcodeEntities", "Godot Network"]
 PLATFORMS = ["PC", "Quest"]
 
 

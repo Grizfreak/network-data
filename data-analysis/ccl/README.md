@@ -60,11 +60,12 @@ skips pairs too small to test.
 ### `render_conclusions.py` / `render_base_conclusions.py`
 
 Read the CSVs `analyze_data.py` produced, restrict to a subsystem list
-(`LIBS` / `DISPLAY_LIBS`), score "decisive" pairwise wins (p < 0.05 and
-effect size ≥ small) into a weighted per-library ranking, and render it as
-Markdown. They differ only in *which* subsystems and metrics they scope to
-— `render_base_conclusions.py` additionally writes filtered copies of the
-CSVs into `analysis_results/base/` so that subset is self-contained.
+(both sourced from `subsystem_catalog.py`), score "decisive" pairwise wins
+(p < 0.05 and effect size ≥ small) into a weighted per-library ranking, and
+render it as Markdown. They differ only in *which* subsystems and metrics
+they scope to — `render_base_conclusions.py` additionally writes filtered
+copies of the CSVs into `analysis_results/base/` so that subset is
+self-contained.
 
 ## Pipeline B — load-based analysis (`load_analysis.py`)
 
@@ -92,13 +93,13 @@ per-run-per-load rows), `test_results.csv` (the pairwise comparisons),
 `issues.csv` (data-quality flags — coverage gaps, capacity outliers — that
 are surfaced, not silently dropped).
 
-Has a real test suite: `python -m unittest discover -s tests -v` (52 tests,
+Has a real test suite: `python -m unittest discover -s tests -v` (59 tests,
 no pytest dependency by design — see `tests/test_load_analysis.py`'s
 docstring).
 
 ## Shared modules
 
-Three small modules hold logic that both pipelines (or both `render_*.py`
+Four small modules hold logic that both pipelines (or both `render_*.py`
 scripts) need, so it's defined once instead of drifting out of sync:
 
 - **`stats_common.py`** — `cliffs_delta()` and `cliffs_delta_effect_size()`
@@ -114,6 +115,12 @@ scripts) need, so it's defined once instead of drifting out of sync:
   column text `analyze_data.py` writes into its CSVs — `render_base_conclusions.py`
   depends on that exact text to filter. `short_label` is plain (`"CPU"`)
   and matches `load_analysis.py`'s own, separately-computed CSV exports.
+- **`subsystem_catalog.py`** — one canonical `(raw_name, display_name,
+  category)` per subsystem, `category` being `network_library` or
+  `base_engine`. `render_conclusions.py::LIBS` and
+  `render_base_conclusions.py::DISPLAY_LIBS`/`RAW_TO_DISPLAY` are both
+  filtered/derived views of this list instead of two independently
+  hand-maintained ones.
 - **`report_common.py`** — the parts of the two Markdown renderers that
   don't vary between them: decisive-win scoring, the overall-ranking and
   per-metric tables, the median table, and the per-library
@@ -146,21 +153,19 @@ To add one, touch these in order:
 2. **`../streamlit/data_loader.py::NETWORKED_SUBSYSTEMS`** — add the name
    here too, *only* if it's an actually-networked tech (vs. a non-networked
    baseline/engine variant).
-3. **`render_conclusions.py::LIBS`** — add it here if it should appear in
-   the network-library report (`conclusions.md`).
-4. **`render_base_conclusions.py::DISPLAY_LIBS` / `RAW_TO_DISPLAY`** — add
-   it here instead if it's a base-engine variant (`conclusions_base.md`).
-   `RAW_TO_DISPLAY` maps the raw `classify_subsystem()` name to the display
-   name used in that report; `BASE_RAW_LIBS` is derived from it
-   automatically.
-5. **`load_analysis.py::PLANNED_COMPARISONS`** — add the pair(s) it should
+3. **`subsystem_catalog.py::SUBSYSTEMS`** — add one `SubsystemSpec` entry:
+   its raw `classify_subsystem()` name, the display name the report should
+   show, and its `category` (`CATEGORY_NETWORK_LIBRARY` puts it in
+   `conclusions.md`; `CATEGORY_BASE_ENGINE` puts it in
+   `conclusions_base.md`, via `RAW_TO_DISPLAY`).
+4. **`load_analysis.py::PLANNED_COMPARISONS`** — add the pair(s) it should
    be tested against (its local baseline, or `Base` for a non-networked
    variant) so Pipeline B's `--comparisons planned` (the default) includes
    it.
 
 Then run **`python check_subsystem_coverage.py`** — it re-derives which
 subsystems actually exist in `../data/` straight from the file names and
-diffs that against steps 3–5 above, so it'll tell you exactly which list
+diffs that against steps 3–4 above, so it'll tell you exactly which list
 still needs the new name instead of you finding out from a report that's
 just... missing a row:
 

@@ -99,6 +99,7 @@ from metrics_engine import metric_series_from_stats, _has_pcap_columns  # noqa: 
 
 from metrics_catalog import METRICS as METRIC_CATALOG
 from stats_common import cliffs_delta, cliffs_delta_effect_size
+from subsystem_catalog import PLANNED_COMPARISONS
 
 
 # ---------------------------------------------------------------------------
@@ -154,18 +155,9 @@ MIN_RUNS_FOR_OUTLIER_CHECK = 3
 # (2/252 at N=5 vs 5) doesn't make every family structurally
 # non-significant -- see `compare_configurations`'s docstring.
 #
-# Entries are unordered (subsystem, reference) pairs; matching against
-# `all_subsystems` combinations ignores which one comes first.
-PLANNED_COMPARISONS: tuple[tuple[str, str], ...] = (
-    ("FishNet", "Base"),
-    ("NGO", "Base"),
-    ("Photon", "Base"),
-    ("NetcodeEntities", "DOTS"),
-    ("Godot Network", "Godot"),
-    ("Base-GPU", "Base"),
-    ("DOTS", "Base"),
-    ("Godot", "Base"),
-)
+# Sourced from subsystem_catalog.py's `baseline_of` field. Entries are
+# unordered (subsystem, reference) pairs; matching against `all_subsystems`
+# combinations ignores which one comes first.
 _PLANNED_PAIRS = {frozenset(pair) for pair in PLANNED_COMPARISONS}
 
 

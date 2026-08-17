@@ -116,11 +116,14 @@ scripts) need, so it's defined once instead of drifting out of sync:
   depends on that exact text to filter. `short_label` is plain (`"CPU"`)
   and matches `load_analysis.py`'s own, separately-computed CSV exports.
 - **`subsystem_catalog.py`** — one canonical `(raw_name, display_name,
-  category)` per subsystem, `category` being `network_library` or
-  `base_engine`. `render_conclusions.py::LIBS` and
-  `render_base_conclusions.py::DISPLAY_LIBS`/`RAW_TO_DISPLAY` are both
-  filtered/derived views of this list instead of two independently
-  hand-maintained ones.
+  category, baseline_of)` per subsystem, `category` being `network_library`
+  or `base_engine`. `render_conclusions.py::LIBS`,
+  `render_base_conclusions.py::DISPLAY_LIBS`/`RAW_TO_DISPLAY`, and
+  `load_analysis.py::PLANNED_COMPARISONS` are all filtered/derived views of
+  this one list instead of three independently hand-maintained ones.
+  `baseline_of` is the raw name of the subsystem each one is meaningfully
+  compared against (its local baseline, or `"Base"` for a non-networked
+  variant) — `None` only for `"Base"` itself.
 - **`report_common.py`** — the parts of the two Markdown renderers that
   don't vary between them: decisive-win scoring, the overall-ranking and
   per-metric tables, the median table, and the per-library
@@ -155,19 +158,17 @@ To add one, touch these in order:
    baseline/engine variant).
 3. **`subsystem_catalog.py::SUBSYSTEMS`** — add one `SubsystemSpec` entry:
    its raw `classify_subsystem()` name, the display name the report should
-   show, and its `category` (`CATEGORY_NETWORK_LIBRARY` puts it in
-   `conclusions.md`; `CATEGORY_BASE_ENGINE` puts it in
-   `conclusions_base.md`, via `RAW_TO_DISPLAY`).
-4. **`load_analysis.py::PLANNED_COMPARISONS`** — add the pair(s) it should
-   be tested against (its local baseline, or `Base` for a non-networked
-   variant) so Pipeline B's `--comparisons planned` (the default) includes
-   it.
+   show, its `category` (`CATEGORY_NETWORK_LIBRARY` puts it in
+   `conclusions.md`; `CATEGORY_BASE_ENGINE` puts it in `conclusions_base.md`,
+   via `RAW_TO_DISPLAY`), and `baseline_of` — the subsystem it should be
+   tested against, which also feeds `load_analysis.py::PLANNED_COMPARISONS`
+   automatically.
 
 Then run **`python check_subsystem_coverage.py`** — it re-derives which
 subsystems actually exist in `../data/` straight from the file names and
-diffs that against steps 3–4 above, so it'll tell you exactly which list
-still needs the new name instead of you finding out from a report that's
-just... missing a row:
+diffs that against step 3 above, so it'll tell you exactly what's still
+missing instead of you finding out from a report that's just... missing a
+row:
 
 ```bash
 cd ccl

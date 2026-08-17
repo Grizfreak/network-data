@@ -3,73 +3,20 @@ import datetime as _dt
 import pandas as pd
 from pathlib import Path
 
+import report_common as rc
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
 OUT_DIR = Path("analysis_results")
 CROSS_PATH = OUT_DIR / "statistical_comparisons.csv"
-ALL_PATH = OUT_DIR / "statistical_comparisons_significant.csv"
 RAW_PATH = OUT_DIR / "raw_per_file_metrics.csv"
 SUMMARY_PATH = OUT_DIR / "summary_by_subsystem.csv"
 OUT_MD = OUT_DIR / "conclusions.md"
 
 LIBS = ["Photon", "NGO", "FishNet", "NetcodeEntities", "Godot Network"]
 PLATFORMS = ["PC", "Quest"]
-
-# (metric_key, metric_label, unit, lower_is_better, what_it_means)
-METRICS_FOR_REPORT = [
-    ("fps", "FPS", "frames/s", False, "sustained frame rate"),
-    ("cpu", "CPU", "ms", True, "per-frame CPU work (lower = more headroom)"),
-    ("gpu", "GPU", "ms", True, "per-frame GPU work"),
-    ("memory", "Memory", "MB", True, "resident set / working set"),
-    ("network_rtt", "Network RTT", "ms", True, "round-trip latency between peers"),
-    ("network_ping", "Network Ping", "ms", True, "lightweight ping latency"),
-    ("network_download", "Download", "bytes/s", True, "bytes received per second"),
-    ("network_upload", "Upload", "bytes/s", True, "bytes sent per second"),
-    ("pcap_packets", "PCAP Packets/s", "packets/s", True, "PCAP-derived packet rate"),
-    ("pcap_bytes", "PCAP Bytes/s", "bytes/s", True, "PCAP-derived byte rate"),
-]
-
-WEIGHT = {"large": 3.0, "medium": 2.0, "small": 1.0, "negligible": 0.0}
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _winners(row):
-    if row["p_value"] >= 0.05:
-        return set()
-    v = str(row["verdict"])
-    if v.startswith("A "):
-        return {row["A_subsystem"]}
-    if v.startswith("B "):
-        return {row["B_subsystem"]}
-    return set()
-
-
-def _is_crosslib(row):
-    return row["A_subsystem"] in LIBS and row["B_subsystem"] in LIBS
-
-
-def _is_decisive(row):
-    return (row["p_value"] < 0.05) and (row["effect_size"] in ("small", "medium", "large"))
-
-
-def _format_med(value, unit, digits=2):
-    if pd.isna(value):
-        return "—"
-    if abs(value) >= 1000:
-        return f"{value:,.0f} {unit}"
-    return f"{value:,.{digits}f} {unit}"
-
-
-def _effect_arrow(delta: float) -> str:
-    """↑ if A is larger, ↓ if A is smaller."""
-    if pd.isna(delta):
-        return "·"
-    return "↑" if delta > 0 else ("↓" if delta < 0 else "·")
 
 
 # ---------------------------------------------------------------------------
@@ -78,11 +25,7 @@ def _effect_arrow(delta: float) -> str:
 
 def load_data():
     cross = pd.read_csv(CROSS_PATH)
-    cross["winners"] = cross.apply(_winners, axis=1)
-    cross["decisive"] = cross.apply(_is_decisive, axis=1)
-    cross["crosslib"] = cross.apply(_is_crosslib, axis=1)
-    cross["weight"] = cross["effect_size"].map(WEIGHT).fillna(0.0)
-    cross_xl = cross[cross["crosslib"]].copy()
+    cross, cross_xl = rc.annotate_comparisons(cross, LIBS)
 
     raw = pd.read_csv(RAW_PATH)
     raw_libs = raw[raw["subsystem"].isin(LIBS)].copy()
@@ -92,7 +35,7 @@ def load_data():
 
 
 # ---------------------------------------------------------------------------
-# Renderers
+# Renderers specific to this report (header, methodology, use cases, caveats)
 # ---------------------------------------------------------------------------
 
 def render_header(raw: pd.DataFrame):
@@ -139,253 +82,6 @@ def render_methodology():
         "the conclusions.\n\n"
         "---\n"
     )
-
-
-def render_overall_ranking(cross_xl):
-    """Top-level ranking table per platform."""
-    rows_out = []
-    for _, r in cross_xl.iterrows():
-        if not r["decisive"]:
-            continue
-        for w in r["winners"]:
-            rows_out.append({
-                "platform": r["platform"],
-                "metric": r["metric"],
-                "winner": w,
-                "weight": r["weight"],
-            })
-    wins = pd.DataFrame(rows_out)
-    if wins.empty:
-        return "## Overall Ranking\n\n_No decisive cross-library pairs found._\n\n---\n"
-
-    lines = ["## Overall Ranking", ""]
-    lines.append(
-        "The score below is the sum of *weighted decisive wins* per library. "
-        "A win counts 3 for a large effect, 2 for medium, 1 for small "
-        "(negligible effects are ignored). The metric is symmetrical — a "
-        "library that is *worse* on a metric gets 0 there, and a library that "
-        "is *better* on a metric adds to its score.\n"
-    )
-
-    for platform in PLATFORMS:
-        sub = wins[wins["platform"] == platform]
-        if sub.empty:
-            continue
-        scores = (
-            sub.groupby("winner")["weight"].sum().reindex(LIBS, fill_value=0.0)
-        )
-        scores = scores.sort_values(ascending=False)
-        lines.append(f"### {platform}\n")
-        lines.append("| Rank | Library | Score |")
-        lines.append("|:----:|:--------|------:|")
-        for rank, (lib, s) in enumerate(scores.items(), 1):
-            lines.append(f"| {rank} | {lib} | {s:.1f} |")
-        lines.append("")
-
-    return "\n".join(lines) + "\n---\n"
-
-
-def render_per_metric_wins(cross_xl):
-    """Per-metric pivot of weighted wins."""
-    rows = []
-    for _, r in cross_xl.iterrows():
-        if not r["decisive"]:
-            continue
-        for w in r["winners"]:
-            rows.append({"platform": r["platform"], "metric": r["metric"], "winner": w, "weight": r["weight"]})
-    wins = pd.DataFrame(rows)
-    if wins.empty:
-        return ""
-
-    lines = ["## Per-metric Breakdown", ""]
-    lines.append(
-        "Each cell is the weighted-win score of the library in that metric. "
-        "Empty cells mean the library never *won* that metric (i.e. it was "
-        "either beaten by all other libraries with a non-negligible effect, "
-        "or the comparison was not significant).\n"
-    )
-    metrics_in_data = sorted(wins["metric"].unique())
-    for platform in PLATFORMS:
-        sub = wins[wins["platform"] == platform]
-        if sub.empty:
-            continue
-        pivot = (
-            sub.groupby(["metric", "winner"])["weight"].sum().unstack(fill_value=0.0)
-        )
-        for lib in LIBS:
-            if lib not in pivot.columns:
-                pivot[lib] = 0.0
-        pivot = pivot[LIBS]
-        # Filter to metrics that actually appear in the data
-        pivot = pivot.loc[pivot.index.isin(metrics_in_data)]
-        lines.append(f"### {platform}\n")
-        lines.append("| Metric | " + " | ".join(LIBS) + " |")
-        lines.append("|:-------|" + "|".join([":----:"] * len(LIBS)) + "|")
-        for metric, row in pivot.iterrows():
-            cells = [f"**{row[lib]:.0f}**" if row[lib] == row.max() and row[lib] > 0 else f"{row[lib]:.0f}" for lib in LIBS]
-            lines.append(f"| {metric} | " + " | ".join(cells) + " |")
-        lines.append("")
-    return "\n".join(lines) + "\n---\n"
-
-
-def render_per_metric_table(summary_libs):
-    """Side-by-side median table for all libraries × metrics × platforms."""
-    lines = ["## Median Values Per Library (raw numbers)", ""]
-    lines.append(
-        "These are the medians aggregated from "
-        f"`{'/'.join(SUMMARY_PATH.parts)}`. All values are medians in the "
-        "displayed unit. Lower is better for every metric except FPS.\n"
-    )
-
-    for platform in PLATFORMS:
-        lines.append(f"### {platform}\n")
-        # Pivot: rows = metric, columns = library
-        sub = summary_libs[summary_libs["platform"] == platform]
-        if sub.empty:
-            continue
-        pivot = (
-            sub.pivot_table(
-                index="metric",
-                columns="subsystem",
-                values="median_of_medians",
-                aggfunc="first",
-            )
-        )
-        for lib in LIBS:
-            if lib not in pivot.columns:
-                pivot[lib] = float("nan")
-        pivot = pivot[LIBS]
-        # Build the markdown table
-        header = "| Metric | Unit | " + " | ".join(LIBS) + " |"
-        sep = "|:-------|:----:|" + "|".join([":----:"] * len(LIBS)) + "|"
-        lines.append(header)
-        lines.append(sep)
-        # Determine "best" for bolding: higher is better for FPS, otherwise lower.
-        def _is_best(metric, lib, pivot):
-            if metric not in pivot.index or lib not in pivot.columns:
-                return False
-            v = pivot.at[metric, lib]
-            if v == 0 or pd.isna(v):
-                return False
-            row = pivot.loc[metric]
-            if metric == "FPS":
-                return v == row.max() and v > 0
-            return v == row.min() and v > 0
-
-        for metric, row in pivot.iterrows():
-            # Get unit from the summary (per-metric, all rows should share the same)
-            unit = sub[sub["metric"] == metric]["unit"].iloc[0] if not sub[sub["metric"] == metric].empty else ""
-            cells = []
-            for lib in LIBS:
-                v = row[lib]
-                if pd.isna(v):
-                    cell = "—"
-                else:
-                    cell = _format_med(v, unit)
-                if _is_best(metric, lib, pivot):
-                    cell = f"**{cell}**"
-                cells.append(cell)
-            lines.append(f"| {metric} | {unit} | " + " | ".join(cells) + " |")
-        lines.append("")
-    return "\n".join(lines) + "\n---\n"
-
-
-def render_per_library_section(cross_xl, summary_libs):
-    """One section per library describing its strengths and weaknesses."""
-    section_lines = ["## Per-library Analysis", ""]
-    section_lines.append(
-        "Each section lists where the library *wins* (decisive positive effect "
-        "vs at least one other library) and where it *loses* (decisive negative "
-        "effect). Effect sizes follow the Romano et al. (2006) thresholds.\n"
-    )
-
-    # For each library, collect wins/losses from cross-library pairs only
-    for lib in LIBS:
-        section_lines.append(f"### {lib}\n")
-        wins, losses = _collect_strengths_weaknesses(cross_xl, lib)
-        if not wins and not losses:
-            section_lines.append("_No decisive cross-library comparisons._\n")
-            continue
-
-        section_lines.append("**Strengths** (where it beats the others):\n")
-        if wins:
-            for w in sorted(wins, key=lambda x: (x["platform"], x["metric"])):
-                med_a = _format_med(w["median_A"], w["unit"])
-                med_b = _format_med(w["median_B"], w["unit"])
-                section_lines.append(
-                    f"- **{w['platform']} · {w['metric']}** — vs "
-                    f"{w['opponent']} ({med_b} → {med_a}), "
-                    f"δ = {w['delta']:+.2f} ({w['effect_size']}), "
-                    f"p = {w['p_value']:.2e}"
-                )
-        else:
-            section_lines.append("- _(none)_")
-        section_lines.append("")
-
-        section_lines.append("**Weaknesses** (where it loses to the others):\n")
-        if losses:
-            for l in sorted(losses, key=lambda x: (x["platform"], x["metric"])):
-                med_a = _format_med(l["median_A"], l["unit"])
-                med_b = _format_med(l["median_B"], l["unit"])
-                section_lines.append(
-                    f"- **{l['platform']} · {l['metric']}** — vs "
-                    f"{l['opponent']} ({med_a} → {med_b}), "
-                    f"δ = {l['delta']:+.2f} ({l['effect_size']}), "
-                    f"p = {l['p_value']:.2e}"
-                )
-        else:
-            section_lines.append("- _(none)_")
-        section_lines.append("")
-
-    section_lines.append("---\n")
-    return "\n".join(section_lines)
-
-
-def _collect_strengths_weaknesses(cross_xl, lib):
-    """Return (wins, losses) lists for a given library from the cross-library
-    decisive pairs."""
-    wins = []
-    losses = []
-    for _, r in cross_xl.iterrows():
-        if not r["decisive"]:
-            continue
-        if r["A_subsystem"] == lib:
-            opponent = r["B_subsystem"]
-            row = {
-                "platform": r["platform"],
-                "metric": r["metric"],
-                "opponent": opponent,
-                "median_A": r["median_A"],
-                "median_B": r["median_B"],
-                "unit": r["unit"],
-                "delta": r["cliffs_delta"],
-                "p_value": r["p_value"],
-                "effect_size": r["effect_size"],
-            }
-            verdict = str(r["verdict"])
-            if verdict.startswith("A "):
-                wins.append(row)
-            elif verdict.startswith("B "):
-                losses.append(row)
-        elif r["B_subsystem"] == lib:
-            opponent = r["A_subsystem"]
-            row = {
-                "platform": r["platform"],
-                "metric": r["metric"],
-                "opponent": opponent,
-                "median_A": r["median_A"],
-                "median_B": r["median_B"],
-                "unit": r["unit"],
-                "delta": r["cliffs_delta"],
-                "p_value": r["p_value"],
-                "effect_size": r["effect_size"],
-            }
-            verdict = str(r["verdict"])
-            if verdict.startswith("B "):
-                wins.append(row)
-            elif verdict.startswith("A "):
-                losses.append(row)
-    return wins, losses
 
 
 def render_use_cases():
@@ -459,10 +155,43 @@ def main():
     parts = [
         render_header(raw),
         render_methodology(),
-        render_overall_ranking(cross_xl),
-        render_per_metric_wins(cross_xl),
-        render_per_metric_table(summary_libs),
-        render_per_library_section(cross_xl, summary_libs),
+        rc.render_overall_ranking(
+            cross_xl, LIBS, PLATFORMS,
+            note=(
+                "The score below is the sum of *weighted decisive wins* per library. "
+                "A win counts 3 for a large effect, 2 for medium, 1 for small "
+                "(negligible effects are ignored). The metric is symmetrical — a "
+                "library that is *worse* on a metric gets 0 there, and a library that "
+                "is *better* on a metric adds to its score."
+            ),
+        ),
+        rc.render_per_metric_wins(
+            cross_xl, LIBS, PLATFORMS,
+            note=(
+                "Each cell is the weighted-win score of the library in that metric. "
+                "Empty cells mean the library never *won* that metric (i.e. it was "
+                "either beaten by all other libraries with a non-negligible effect, "
+                "or the comparison was not significant)."
+            ),
+        ),
+        rc.render_median_table(
+            summary_libs, LIBS, PLATFORMS,
+            heading="Median Values Per Library (raw numbers)",
+            note=(
+                f"These are the medians aggregated from "
+                f"`{'/'.join(SUMMARY_PATH.parts)}`. All values are medians in the "
+                "displayed unit. Lower is better for every metric except FPS."
+            ),
+        ),
+        rc.render_per_library_section(
+            cross_xl, LIBS,
+            heading="Per-library Analysis",
+            note=(
+                "Each section lists where the library *wins* (decisive positive effect "
+                "vs at least one other library) and where it *loses* (decisive negative "
+                "effect). Effect sizes follow the Romano et al. (2006) thresholds."
+            ),
+        ),
         render_use_cases(),
         render_caveats(cross_xl, raw_libs),
     ]

@@ -97,6 +97,9 @@ from data_loader import (  # noqa: E402
 )
 from metrics_engine import metric_series_from_stats, _has_pcap_columns  # noqa: E402
 
+from metrics_catalog import METRICS as METRIC_CATALOG
+from stats_common import cliffs_delta, cliffs_delta_effect_size
+
 
 # ---------------------------------------------------------------------------
 # Constants (nothing below is meant to be hardcoded elsewhere in this file)
@@ -142,9 +145,6 @@ CAPACITY_OUTLIER_RATIO = 0.5
 # runs' median" to mean anything.
 MIN_RUNS_FOR_OUTLIER_CHECK = 3
 
-# Romano et al. (2006) thresholds for |Cliff's delta|.
-CLIFFS_DELTA_THRESHOLDS = (0.147, 0.33, 0.474)
-
 # Which configuration pairs are meaningful to test, matching how the
 # benchmark is actually designed to be read: each networking solution
 # against the local baseline for its own engine/framework, and each
@@ -172,19 +172,10 @@ _PLANNED_PAIRS = {frozenset(pair) for pair in PLANNED_COMPARISONS}
 def is_planned_comparison(subsystem_a: str, subsystem_b: str) -> bool:
     return frozenset((subsystem_a, subsystem_b)) in _PLANNED_PAIRS
 
-# (metric_key, label, unit, lower_is_better)
-METRICS_DEFAULT = [
-    ("fps", "FPS", "frames/s", False),
-    ("cpu", "CPU", "ms", True),
-    ("gpu", "GPU", "ms", True),
-    ("memory", "Memory", "MB", True),
-    ("network_ping", "Network Ping", "ms", True),
-    ("network_rtt", "Network RTT", "ms", True),
-    ("network_upload", "Network Upload", "bytes/s", True),
-    ("network_download", "Network Download", "bytes/s", True),
-    ("pcap_packets", "PCAP Packets/s", "packets/s", True),
-    ("pcap_bytes", "PCAP Bytes/s", "bytes/s", True),
-]
+# (metric_key, label, unit, lower_is_better), sourced from the shared
+# metrics_catalog (short-label convention -- this module's own CSV exports
+# use plain labels like "CPU", not "CPU (ms)").
+METRICS_DEFAULT = [(m.key, m.short_label, m.unit, m.lower_is_better) for m in METRIC_CATALOG]
 
 
 # ---------------------------------------------------------------------------
@@ -376,28 +367,6 @@ def mannwhitney_exact(x: list[float], y: list[float]) -> MannWhitneyResult:
         u=observed_u, p_value=p_value, n_x=n_x, n_y=n_y,
         n_arrangements=n_arrangements, p_floor=1.0 / n_arrangements,
     )
-
-
-def cliffs_delta(x: list[float], y: list[float]) -> float:
-    """Cliff's delta effect size in [-1, 1]; positive means X tends larger."""
-    n_x, n_y = len(x), len(y)
-    if n_x == 0 or n_y == 0:
-        return float("nan")
-    greater = sum(1 for xv in x for yv in y if xv > yv)
-    less = sum(1 for xv in x for yv in y if xv < yv)
-    return (greater - less) / float(n_x * n_y)
-
-
-def cliffs_delta_effect_size(delta: float) -> str:
-    """Romano et al. (2006) thresholds for |delta|."""
-    a = abs(delta)
-    if a < CLIFFS_DELTA_THRESHOLDS[0]:
-        return "negligible"
-    if a < CLIFFS_DELTA_THRESHOLDS[1]:
-        return "small"
-    if a < CLIFFS_DELTA_THRESHOLDS[2]:
-        return "medium"
-    return "large"
 
 
 def holm_correction(p_values: list[float]) -> list[float]:

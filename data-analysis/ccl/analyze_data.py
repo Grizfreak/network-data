@@ -14,6 +14,7 @@ Strategy:
 7. Export everything as structured text + CSV summaries in analysis_results/
 """
 
+import math
 import sys
 from pathlib import Path
 from statistics import mean, median, pstdev
@@ -40,6 +41,8 @@ from metrics_engine import (
     metric_per_gameobject_series,
     metric_series_from_stats,
 )
+from metrics_catalog import METRICS as METRIC_CATALOG
+from stats_common import cliffs_delta, cliffs_delta_effect_size
 
 
 # ---------------------------------------------------------------------------
@@ -52,19 +55,10 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 # Each metric has a friendly label, a unit string, and a list of metric_keys
 # the engine supports. We compute the engine output for each key and report
-# statistics from the first non-empty result.
-METRICS = [
-    ("FPS", "fps", "frames/s"),
-    ("CPU (ms)", "cpu", "ms"),
-    ("GPU (ms)", "gpu", "ms"),
-    ("Memory (MB)", "memory", "MB"),
-    ("Network Ping (ms)", "network_ping", "ms"),
-    ("Network RTT (ms)", "network_rtt", "ms"),
-    ("Network Upload (bytes/s)", "network_upload", "bytes/s"),
-    ("Network Download (bytes/s)", "network_download", "bytes/s"),
-    ("PCAP Packets/s", "pcap_packets", "packets/s"),
-    ("PCAP Bytes/s", "pcap_bytes", "bytes/s"),
-]
+# statistics from the first non-empty result. (label, key, unit), sourced
+# from the shared metrics_catalog so this stays in sync with the other
+# scripts that need the same catalog.
+METRICS = [(m.long_label, m.key, m.unit) for m in METRIC_CATALOG]
 
 # A reasonable minimum number of samples to trust a series. Captures shorter
 # than this are still reported, but flagged as "low confidence" in the output.
@@ -479,40 +473,8 @@ def _mann_whitney_u(x: list, y: list):
     # Continuity correction
     z = (u - mean_u) / (var_u ** 0.5) if u >= mean_u else (u - mean_u) / (var_u ** 0.5)
     # Two-sided p-value via the error function (no SciPy needed).
-    import math
     p = 2.0 * (1.0 - 0.5 * (1.0 + math.erf(abs(z) / math.sqrt(2.0))))
     return float(u), float(p), n_x, n_y
-
-
-def _cliffs_delta(x: list, y: list) -> float:
-    """Cliff's delta effect size in [-1, 1].
-
-    delta = (# of x>y - # of x<y) / (n_x * n_y)
-    Convention: positive delta means X tends to be larger than Y.
-    """
-    n_x, n_y = len(x), len(y)
-    if n_x == 0 or n_y == 0:
-        return float("nan")
-    greater = less = 0
-    for xv in x:
-        for yv in y:
-            if xv > yv:
-                greater += 1
-            elif xv < yv:
-                less += 1
-    return (greater - less) / float(n_x * n_y)
-
-
-def _effect_label(delta: float) -> str:
-    """Romano et al. (2006) thresholds for |delta|."""
-    a = abs(delta)
-    if a < 0.147:
-        return "negligible"
-    if a < 0.33:
-        return "small"
-    if a < 0.474:
-        return "medium"
-    return "large"
 
 
 def _verdict(metric_key: str, delta: float, p_value: float) -> str:
@@ -548,7 +510,7 @@ def _build_stat_tests(observations: dict) -> pd.DataFrame:
                     ):
                         continue
                     u, p, nx, ny = _mann_whitney_u(a_vals, b_vals)
-                    delta = _cliffs_delta(a_vals, b_vals)
+                    delta = cliffs_delta(a_vals, b_vals)
                     rows.append({
                         "metric": METRIC_DISPLAY.get(metric_key, metric_key),
                         "metric_key": metric_key,
@@ -562,7 +524,7 @@ def _build_stat_tests(observations: dict) -> pd.DataFrame:
                         "U": u,
                         "p_value": p,
                         "cliffs_delta": delta,
-                        "effect_size": _effect_label(delta),
+                        "effect_size": cliffs_delta_effect_size(delta),
                         "verdict": _verdict(metric_key, delta, p),
                         "unit": METRIC_UNITS.get(metric_key, ""),
                     })

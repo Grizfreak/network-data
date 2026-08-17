@@ -1,0 +1,670 @@
+<title>ccl Pipeline</title>
+<style>
+  :root {
+    --bg: #f7faf9;
+    --surface: #ffffff;
+    --surface-2: #eef4f2;
+    --border: #d7e1de;
+    --border-strong: #b9c9c4;
+    --text: #16211d;
+    --text-muted: #56655f;
+    --text-faint: #8a978f;
+    --accent: #0f7a6b;
+    --accent-strong: #0b5b50;
+    --accent-soft: #e2f2ee;
+    --warn: #a15a12;
+    --warn-soft: #fbeee0;
+    --warn-border: #e7c79a;
+    --shadow: 0 1px 2px rgba(20, 40, 34, 0.06), 0 8px 24px -12px rgba(20, 40, 34, 0.12);
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1512;
+      --surface: #121c18;
+      --surface-2: #16231e;
+      --border: #24322c;
+      --border-strong: #34443c;
+      --text: #e7eeeb;
+      --text-muted: #9aa8a1;
+      --text-faint: #6d7b74;
+      --accent: #37cba7;
+      --accent-strong: #6adcbe;
+      --accent-soft: #16302a;
+      --warn: #e3a35c;
+      --warn-soft: #2c2214;
+      --warn-border: #4a3a20;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0d1512;
+    --surface: #121c18;
+    --surface-2: #16231e;
+    --border: #24322c;
+    --border-strong: #34443c;
+    --text: #e7eeeb;
+    --text-muted: #9aa8a1;
+    --text-faint: #6d7b74;
+    --accent: #37cba7;
+    --accent-strong: #6adcbe;
+    --accent-soft: #16302a;
+    --warn: #e3a35c;
+    --warn-soft: #2c2214;
+    --warn-border: #4a3a20;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent-strong); text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+  a:hover { text-decoration-color: currentColor; }
+  a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 0;
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  nav.rail {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 40px 20px 40px 32px;
+    border-right: 1px solid var(--border);
+  }
+
+  .rail-brand {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 18px;
+  }
+
+  .rail ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .rail a {
+    display: block;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13.5px;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+  }
+
+  .rail a:hover { color: var(--text); background: var(--surface-2); }
+
+  .rail .sub { padding-left: 22px; font-size: 12.5px; }
+
+  main {
+    padding: 56px 40px 120px;
+    min-width: 0;
+  }
+
+  .content {
+    max-width: 700px;
+  }
+
+  header.hero {
+    max-width: 700px;
+    margin-bottom: 40px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-strong);
+    margin: 0 0 14px;
+  }
+
+  h1 {
+    font-size: 2.35rem;
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    margin: 0 0 16px;
+    text-wrap: balance;
+    font-weight: 700;
+  }
+
+  .dek {
+    font-size: 1.08rem;
+    color: var(--text-muted);
+    margin: 0 0 22px;
+    max-width: 62ch;
+  }
+
+  .statline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 22px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--text-faint);
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+
+  .statline strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  section { margin: 56px 0; scroll-margin-top: 24px; }
+  section:first-of-type { margin-top: 0; }
+
+  h2 {
+    font-size: 1.5rem;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    text-wrap: balance;
+  }
+
+  h2 .num {
+    font-family: var(--mono);
+    font-size: 0.6em;
+    color: var(--text-faint);
+    font-weight: 500;
+  }
+
+  h3 {
+    font-size: 1.05rem;
+    margin: 30px 0 8px;
+    font-weight: 650;
+  }
+
+  h3 code { font-size: 0.92em; }
+
+  .lede {
+    color: var(--text-muted);
+    margin: 0 0 22px;
+    max-width: 66ch;
+  }
+
+  p { margin: 0 0 14px; max-width: 68ch; }
+  ul, ol { margin: 0 0 14px; padding-left: 22px; max-width: 66ch; }
+  li { margin-bottom: 6px; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.87em;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 0.1em 0.4em;
+    border-radius: 4px;
+    color: var(--text);
+  }
+
+  pre {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    margin: 0 0 18px;
+  }
+
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.85em;
+    line-height: 1.65;
+    color: var(--text);
+    white-space: pre;
+  }
+
+  .comment { color: var(--text-faint); }
+
+  figure {
+    margin: 28px 0 32px;
+    padding: 22px 20px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+
+  figure svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  figcaption {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+
+  .diagram-text { font-family: var(--mono); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 22px;
+    font-size: 14px;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  th {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-weight: 600;
+  }
+
+  td code { white-space: nowrap; }
+
+  .callout {
+    display: flex;
+    gap: 12px;
+    padding: 16px 18px;
+    border-radius: 10px;
+    margin: 0 0 16px;
+    max-width: 66ch;
+  }
+
+  .callout.warn {
+    background: var(--warn-soft);
+    border: 1px solid var(--warn-border);
+  }
+
+  .callout .mark {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--warn);
+    flex: none;
+    padding-top: 2px;
+  }
+
+  .callout p, .callout p:last-child { margin-bottom: 0; }
+
+  .filepath { font-family: var(--mono); font-weight: 600; }
+
+  hr.div {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 48px 0;
+  }
+
+  footer {
+    max-width: 700px;
+    color: var(--text-faint);
+    font-size: 13px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 1fr; }
+    nav.rail {
+      position: static;
+      height: auto;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px;
+      overflow-x: auto;
+    }
+    .rail ol { flex-direction: row; flex-wrap: nowrap; gap: 4px; }
+    .rail .sub { display: none; }
+    .rail a { white-space: nowrap; }
+    main { padding: 36px 22px 90px; }
+    h1 { font-size: 1.85rem; }
+  }
+</style>
+
+<div class="shell">
+  <nav class="rail" aria-label="Sections">
+    <div class="rail-brand">ccl/</div>
+    <ol>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#pipeline-a">Pipeline A — per-frame</a></li>
+      <li><a href="#pipeline-b">Pipeline B — load-based</a></li>
+      <li><a href="#shared">Shared modules</a></li>
+      <li><a href="#other-files">Other files</a></li>
+      <li><a href="#caveats">Data caveats</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <div class="content">
+      <header class="hero" id="overview">
+        <p class="eyebrow">ccl/ — benchmark analysis pipeline</p>
+        <h1>How the pieces fit together</h1>
+        <p class="dek">
+          Two independent statistical passes turn the raw per-run captures under
+          <code>../data/</code> into the Markdown conclusions and CSV comparisons this
+          project ships. They don't feed each other — this page is the map of what
+          reads what, and which logic now lives in one place instead of several.
+        </p>
+        <div class="statline">
+          <span><strong>2</strong> independent pipelines</span>
+          <span><strong>3</strong> shared modules</span>
+          <span><strong>52</strong> unit tests</span>
+          <span><strong>0</strong> external dependencies beyond pandas/numpy</span>
+        </div>
+      </header>
+
+      <p>
+        Both pipelines reuse <code>../streamlit/data_loader.py</code> (file discovery,
+        run pairing, subsystem classification) and
+        <code>../streamlit/metrics_engine.py</code> (metric extraction, unit
+        normalization) rather than re-implementing that logic — every script does
+        <code>sys.path.append(.../streamlit)</code> before importing them.
+      </p>
+
+      <figure>
+        <svg viewBox="0 0 900 500" role="img" aria-label="Pipeline map: raw data under ../data/ feeds analyze_data.py and load_analysis.py independently. analyze_data.py writes five CSVs, which feed render_conclusions.py and render_base_conclusions.py, producing conclusions.md and conclusions_base.md. load_analysis.py writes its own eight CSVs under load_based/ with no render step yet. Each script's shared-module imports are noted beneath it.">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor" />
+            </marker>
+          </defs>
+
+          <g class="diagram-text" font-family="var(--mono)" fill="currentColor">
+            <!-- data source -->
+            <rect x="300" y="14" width="300" height="44" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.9"/>
+            <text x="450" y="41" text-anchor="middle" font-size="13" font-weight="600">../data/**/*.csv</text>
+
+            <!-- lane labels -->
+            <text x="190" y="82" text-anchor="middle" font-size="11.5" letter-spacing="0.04em" opacity="0.65">PIPELINE A · PER-FRAME</text>
+            <text x="710" y="82" text-anchor="middle" font-size="11.5" letter-spacing="0.04em" opacity="0.65">PIPELINE B · LOAD-BASED</text>
+
+            <!-- arrows from source -->
+            <line x1="400" y1="58" x2="220" y2="90" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.85"/>
+            <line x1="500" y1="58" x2="680" y2="90" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.85"/>
+
+            <!-- analyze_data.py -->
+            <rect x="60" y="92" width="260" height="54" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.3"/>
+            <text x="190" y="124" text-anchor="middle" font-size="13.5" font-weight="700">analyze_data.py</text>
+            <text x="190" y="166" text-anchor="middle" font-size="11" opacity="0.65">imports stats_common · metrics_catalog</text>
+
+            <!-- load_analysis.py -->
+            <rect x="580" y="92" width="260" height="54" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.3"/>
+            <text x="710" y="124" text-anchor="middle" font-size="13.5" font-weight="700">load_analysis.py</text>
+            <text x="710" y="166" text-anchor="middle" font-size="11" opacity="0.65">imports stats_common · metrics_catalog</text>
+
+            <!-- arrow down to CSV box A -->
+            <line x1="190" y1="146" x2="190" y2="203" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
+            <text x="198" y="180" font-size="11" opacity="0.7">writes 5 CSVs</text>
+
+            <rect x="30" y="205" width="320" height="48" rx="8" fill="none" stroke="currentColor" stroke-width="1.1" stroke-dasharray="3 3" opacity="0.9"/>
+            <text x="190" y="225" text-anchor="middle" font-size="11.5" font-weight="600">analysis_results/*.csv</text>
+            <text x="190" y="241" text-anchor="middle" font-size="9.5" opacity="0.6">raw · per-folder · summary · comparisons ×2</text>
+
+            <!-- arrow down to CSV box B -->
+            <line x1="710" y1="146" x2="710" y2="203" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
+            <text x="718" y="180" font-size="11" opacity="0.7">writes 8 CSVs</text>
+
+            <rect x="560" y="205" width="300" height="48" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.3"/>
+            <text x="710" y="225" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--accent-strong)">analysis_results/load_based/*.csv</text>
+            <text x="710" y="241" text-anchor="middle" font-size="9.5" opacity="0.65">terminal output — no render step yet</text>
+
+            <!-- split arrows from CSV box A -->
+            <line x1="150" y1="253" x2="110" y2="298" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
+            <line x1="230" y1="253" x2="330" y2="298" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+            <!-- render_conclusions.py -->
+            <rect x="20" y="300" width="180" height="52" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.3"/>
+            <text x="110" y="322" text-anchor="middle" font-size="12" font-weight="700">render_</text>
+            <text x="110" y="337" text-anchor="middle" font-size="12" font-weight="700">conclusions.py</text>
+            <text x="110" y="364" text-anchor="middle" font-size="10" opacity="0.65">imports report_common</text>
+
+            <!-- render_base_conclusions.py -->
+            <rect x="230" y="300" width="210" height="52" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.3"/>
+            <text x="335" y="322" text-anchor="middle" font-size="12" font-weight="700">render_base_</text>
+            <text x="335" y="337" text-anchor="middle" font-size="12" font-weight="700">conclusions.py</text>
+            <text x="335" y="364" text-anchor="middle" font-size="9.5" opacity="0.65">imports report_common · metrics_catalog</text>
+
+            <!-- arrows to deliverables -->
+            <line x1="110" y1="382" x2="110" y2="408" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
+            <line x1="335" y1="382" x2="335" y2="408" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+            <rect x="20" y="410" width="180" height="44" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.3"/>
+            <text x="110" y="437" text-anchor="middle" font-size="12" font-weight="700" fill="var(--accent-strong)">conclusions.md</text>
+
+            <rect x="230" y="410" width="210" height="44" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.3"/>
+            <text x="335" y="431" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--accent-strong)">conclusions_base.md</text>
+            <text x="335" y="446" text-anchor="middle" font-size="9" fill="var(--accent-strong)" opacity="0.8">+ filtered base/*.csv</text>
+          </g>
+        </svg>
+        <figcaption>
+          Both pipelines read the raw captures directly and don't share state. Teal
+          boxes are the terminal, human-facing outputs; the text under each script
+          names the shared module(s) it imports rather than defining its own copy.
+        </figcaption>
+      </figure>
+
+      <hr class="div" />
+
+      <section id="pipeline-a">
+        <h2><span class="num">01</span> Pipeline A — per-frame analysis</h2>
+        <p class="lede">
+          Pools every per-frame sample of a run into one bucket per (platform,
+          subsystem, metric) and runs Mann-Whitney U directly on that. Simple and
+          fast — but frames within a run are autocorrelated, and a run can mix
+          multiple scene loads into one bucket, which is exactly what Pipeline B
+          exists to fix. Both reports call this out in their own caveats section.
+        </p>
+
+        <p>Run order matters: <code>analyze_data.py</code> must run first. The two
+        <code>render_*.py</code> scripts just filter and format its CSV output, and
+        can run in either order relative to each other.</p>
+
+        <pre><code><span class="comment"># from ccl/</span>
+python analyze_data.py
+python render_conclusions.py
+python render_base_conclusions.py</code></pre>
+
+        <h3><code>analyze_data.py</code></h3>
+        <p>
+          For every stat file in every <code>../data/benchmark*/</code> folder:
+          extracts each metric's time series, computes descriptive stats
+          (mean/median/p95/p99/std), runs pairwise Mann-Whitney U + Cliff's delta
+          between subsystems on the same platform, and writes it out as CSV.
+          <code>MIN_SAMPLES_FOR_TEST = 5</code> skips pairs too small to test.
+        </p>
+        <table>
+          <tr><th>Writes</th><td></td></tr>
+          <tr><td><code>analysis_results/raw_per_file_metrics.csv</code></td><td>one row per (file, metric)</td></tr>
+          <tr><td><code>analysis_results/per_folder_subsystem_metrics.csv</code></td><td>rolled up per run folder</td></tr>
+          <tr><td><code>analysis_results/summary_by_subsystem.csv</code></td><td>rolled up per (platform, subsystem, metric)</td></tr>
+          <tr><td><code>analysis_results/statistical_comparisons.csv</code></td><td>every pairwise test</td></tr>
+          <tr><td><code>analysis_results/statistical_comparisons_significant.csv</code></td><td>the subset with p &lt; 0.05</td></tr>
+        </table>
+
+        <h3><code>render_conclusions.py</code> / <code>render_base_conclusions.py</code></h3>
+        <p>
+          Both read the CSVs above, restrict to a subsystem list (<code>LIBS</code> for
+          the five network libraries, <code>DISPLAY_LIBS</code> for the four base
+          engines), score "decisive" pairwise wins — p &lt; 0.05 and effect size ≥
+          small — into a weighted per-library ranking, and render it as Markdown.
+          They differ only in <em>which</em> subsystems and metrics they scope to.
+          <code>render_base_conclusions.py</code> additionally writes filtered copies
+          of the CSVs into <span class="filepath">analysis_results/base/</span> so
+          that subset is self-contained.
+        </p>
+      </section>
+
+      <section id="pipeline-b">
+        <h2><span class="num">02</span> Pipeline B — load-based analysis</h2>
+        <p class="lede">
+          Fixes Pipeline A's two problems by making the unit of observation
+          <strong>one run at one load level</strong> ("palier"), not one frame.
+        </p>
+        <p>
+          Each run's frames are segmented by how many entities were instantiated at
+          capture time (via the <code>FinishedInstantiation</code> event trail),
+          each segment collapses to one (median, IQR, n_frames) row, and only
+          <em>then</em> are configurations compared — with N = number of runs, not
+          number of frames. Uses an exact permutation Mann-Whitney (appropriate for
+          the resulting small per-run N ≤ 10), plus Holm / Benjamini–Hochberg
+          correction for testing multiple loads at once.
+        </p>
+        <p>Fully self-contained — reads <code>../data/</code> directly and doesn't
+        depend on <code>analyze_data.py</code>'s output.</p>
+
+        <pre><code><span class="comment"># from ccl/</span>
+python load_analysis.py
+python load_analysis.py --comparisons all --loads 2000 5000 10000 20000</code></pre>
+
+        <p>Key outputs in <span class="filepath">analysis_results/load_based/</span>:</p>
+        <table>
+          <tr><td><code>observations_long.csv</code></td><td>the per-run-per-load rows</td></tr>
+          <tr><td><code>test_results.csv</code></td><td>the pairwise comparisons</td></tr>
+          <tr><td><code>capacity.csv</code> / <code>capacity_headline.csv</code></td><td>max load each run reached</td></tr>
+          <tr><td><code>issues.csv</code></td><td>data-quality flags — coverage gaps, capacity outliers — surfaced, not silently dropped</td></tr>
+        </table>
+
+        <p>
+          Has a real test suite:
+          <code>python -m unittest discover -s tests -v</code> — 52 tests, no
+          pytest dependency by design (see <code>tests/test_load_analysis.py</code>'s
+          docstring).
+        </p>
+      </section>
+
+      <section id="shared">
+        <h2><span class="num">03</span> Shared modules</h2>
+        <p class="lede">
+          Three small modules hold logic that both pipelines — or both
+          <code>render_*.py</code> scripts — need, so it's defined once instead of
+          drifting out of sync across files.
+        </p>
+
+        <h3><code>stats_common.py</code></h3>
+        <p>
+          <code>cliffs_delta()</code> and <code>cliffs_delta_effect_size()</code>
+          (Romano et al. 2006 thresholds). Used by both <code>analyze_data.py</code>
+          and <code>load_analysis.py</code>. Their Mann-Whitney <em>U</em>
+          implementations stay separate on purpose — normal-approximation for
+          large per-frame N vs. exact permutation for small per-run N are
+          genuinely different tests for genuinely different sample-size regimes.
+        </p>
+
+        <h3><code>metrics_catalog.py</code></h3>
+        <p>
+          One canonical <code>(key, long_label, short_label, unit,
+          lower_is_better, description)</code> per metric. Two label conventions
+          are kept as explicit fields rather than derived from one another:
+        </p>
+        <table>
+          <tr><th>Field</th><th>Example</th><th>Used by</th></tr>
+          <tr><td><code>long_label</code></td><td><code>"CPU (ms)"</code></td><td>matches the <code>metric</code> column text <code>analyze_data.py</code> writes into its CSVs — <code>render_base_conclusions.py</code> depends on that exact text to filter</td></tr>
+          <tr><td><code>short_label</code></td><td><code>"CPU"</code></td><td>matches <code>load_analysis.py</code>'s own, separately-computed CSV exports</td></tr>
+        </table>
+
+        <h3><code>report_common.py</code></h3>
+        <p>
+          The parts of the two Markdown renderers that don't vary between them:
+          decisive-win scoring, the overall-ranking and per-metric tables, the
+          median table, and the per-library strengths/weaknesses section. Each
+          <code>render_*.py</code> script keeps its own header/methodology/caveats
+          prose and its own subsystem list.
+        </p>
+      </section>
+
+      <section id="other-files">
+        <h2><span class="num">04</span> Other files</h2>
+        <p>
+          <span class="filepath">analysis_results/developer_experience.md</span> —
+          hand-written qualitative notes (docs quality, community support,
+          learning curve per library). Not generated by any script here; edit it
+          directly.
+        </p>
+      </section>
+
+      <section id="caveats">
+        <h2><span class="num">05</span> Data caveats worth knowing before trusting a number</h2>
+
+        <div class="callout warn">
+          <span class="mark">Clamp</span>
+          <p>
+            <strong>Quest GPU (ms) clamps at 65.535 ms.</strong> The underlying
+            <code>app_gpu_time_microseconds</code> column is a 16-bit microsecond
+            counter (max 65535). During real stalls the true GPU time exceeds
+            that and gets truncated instead of reported — confirmed correlated
+            with genuine stalls (capped rows average ~2.6 FPS vs. ~29 FPS
+            uncapped), not noise. Hits ~75% of Godot-on-Quest samples, ~40–49% of
+            Photon Fusion, ~27–33% of Unity base. Nothing in the pipeline filters
+            or flags this (unlike the RTT sentinel handling in
+            <code>../streamlit/metrics_engine.py</code>), so median/p95/max Quest
+            GPU figures for the worst-performing subsystems are understated
+            lower bounds, not exact values.
+          </p>
+        </div>
+
+        <div class="callout warn">
+          <span class="mark">Wobble</span>
+          <p>
+            <code>raw_per_file_metrics.csv</code> isn't byte-reproducible run to
+            run — a couple hundred bytes of wobble between two
+            <code>analyze_data.py</code> runs on the same data, even with no code
+            changes. The derived statistics
+            (<code>statistical_comparisons*.csv</code>,
+            <code>summary_by_subsystem.csv</code>, and both rendered
+            <code>conclusions*.md</code>) are unaffected and reproduce exactly, so
+            this hasn't been tracked down further.
+          </p>
+        </div>
+      </section>
+
+      <footer>
+        Reflects the state of <code>ccl/</code> after the shared-module extraction
+        pass — see git history for how it looked before.
+      </footer>
+    </div>
+  </main>
+</div>

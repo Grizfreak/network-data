@@ -1,6 +1,6 @@
 # Unity Network Library Benchmark — Conclusions
 
-_Generated on 2026-08-12 from 10 run folders under `data/`._
+_Generated on 2026-08-17 from 10 run folders under `data/`._
 
 All numbers come from [analyze_data.py](../analyze_data.py) and are based on per-frame observations (not per-file medians), so the statistical tests reflect the true distribution of samples.
 
@@ -125,114 +125,114 @@ Each section lists where the library *wins* (decisive positive effect vs at leas
 
 **Strengths** (where it beats the others):
 
-- **PC · CPU (ms)** — vs NGO (15.34 ms → 36.34 ms), δ = +0.42 (medium), p = 0.00e+00
-- **PC · FPS** — vs NGO (64.60 frames/s → 27.49 frames/s), δ = -0.42 (medium), p = 0.00e+00
-- **PC · GPU (ms)** — vs NGO (0.89 ms → 1.53 ms), δ = +0.55 (large), p = 0.00e+00
-- **PC · Network Download (bytes/s)** — vs FishNet (0.00 bytes/s → 179,498 bytes/s), δ = +0.53 (large), p = 0.00e+00
-- **PC · Network RTT (ms)** — vs NGO (128.03 ms → 489.50 ms), δ = +0.47 (medium), p = 0.00e+00
+- **PC · CPU (ms)** — vs NGO (36.34 ms → 15.34 ms), δ = +0.42 (medium), p = 0.00e+00
+- **PC · FPS** — vs NGO (27.49 frames/s → 64.60 frames/s), δ = -0.42 (medium), p = 0.00e+00
+- **PC · GPU (ms)** — vs NGO (1.53 ms → 0.89 ms), δ = +0.55 (large), p = 0.00e+00
+- **PC · Network Download (bytes/s)** — vs FishNet (179,498 bytes/s → 0.00 bytes/s), δ = +0.53 (large), p = 0.00e+00
+- **PC · Network RTT (ms)** — vs NGO (489.50 ms → 128.03 ms), δ = +0.47 (medium), p = 0.00e+00
 - **PC · Network Upload (bytes/s)** — vs FishNet (0.00 bytes/s → 0.00 bytes/s), δ = +0.33 (medium), p = 0.00e+00
-- **PC · PCAP Bytes/s** — vs FishNet (1,960 bytes/s → 1,214,346 bytes/s), δ = +0.94 (large), p = 0.00e+00
-- **PC · PCAP Bytes/s** — vs Godot Network (1,960 bytes/s → 135,441 bytes/s), δ = +0.84 (large), p = 0.00e+00
-- **PC · PCAP Bytes/s** — vs NGO (1,960 bytes/s → 818,686 bytes/s), δ = +0.95 (large), p = 0.00e+00
-- **PC · PCAP Bytes/s** — vs NetcodeEntities (1,960 bytes/s → 182,247 bytes/s), δ = +1.00 (large), p = 0.00e+00
-- **PC · PCAP Packets/s** — vs FishNet (8.00 packets/s → 157.00 packets/s), δ = +0.99 (large), p = 0.00e+00
-- **PC · PCAP Packets/s** — vs Godot Network (8.00 packets/s → 45.00 packets/s), δ = +0.77 (large), p = 0.00e+00
-- **PC · PCAP Packets/s** — vs NGO (8.00 packets/s → 333.00 packets/s), δ = +0.95 (large), p = 0.00e+00
-- **PC · PCAP Packets/s** — vs NetcodeEntities (8.00 packets/s → 248.00 packets/s), δ = +1.00 (large), p = 0.00e+00
-- **Quest · Network Download (bytes/s)** — vs FishNet (0.00 bytes/s → 1,002,144 bytes/s), δ = +0.98 (large), p = 0.00e+00
-- **Quest · Network Download (bytes/s)** — vs NetcodeEntities (0.00 bytes/s → 6,069 bytes/s), δ = +0.49 (large), p = 0.00e+00
-- **Quest · PCAP Bytes/s** — vs FishNet (20,032 bytes/s → 700,118 bytes/s), δ = +0.20 (small), p = 0.00e+00
-- **Quest · PCAP Bytes/s** — vs Godot Network (20,032 bytes/s → 270,833 bytes/s), δ = +0.78 (large), p = 0.00e+00
-- **Quest · PCAP Bytes/s** — vs NGO (20,032 bytes/s → 1,796,225 bytes/s), δ = +0.81 (large), p = 0.00e+00
-- **Quest · PCAP Bytes/s** — vs NetcodeEntities (20,032 bytes/s → 177,538 bytes/s), δ = +0.72 (large), p = 0.00e+00
-- **Quest · PCAP Packets/s** — vs FishNet (26.00 packets/s → 557.00 packets/s), δ = +0.22 (small), p = 0.00e+00
-- **Quest · PCAP Packets/s** — vs Godot Network (26.00 packets/s → 203.00 packets/s), δ = +0.77 (large), p = 0.00e+00
-- **Quest · PCAP Packets/s** — vs NGO (26.00 packets/s → 1,714 packets/s), δ = +0.82 (large), p = 0.00e+00
-- **Quest · PCAP Packets/s** — vs NetcodeEntities (26.00 packets/s → 175.00 packets/s), δ = +0.79 (large), p = 0.00e+00
+- **PC · PCAP Bytes/s** — vs FishNet (1,214,346 bytes/s → 1,960 bytes/s), δ = +0.94 (large), p = 0.00e+00
+- **PC · PCAP Bytes/s** — vs Godot Network (135,441 bytes/s → 1,960 bytes/s), δ = +0.84 (large), p = 0.00e+00
+- **PC · PCAP Bytes/s** — vs NGO (818,686 bytes/s → 1,960 bytes/s), δ = +0.95 (large), p = 0.00e+00
+- **PC · PCAP Bytes/s** — vs NetcodeEntities (182,247 bytes/s → 1,960 bytes/s), δ = +1.00 (large), p = 0.00e+00
+- **PC · PCAP Packets/s** — vs FishNet (157.00 packets/s → 8.00 packets/s), δ = +0.99 (large), p = 0.00e+00
+- **PC · PCAP Packets/s** — vs Godot Network (45.00 packets/s → 8.00 packets/s), δ = +0.77 (large), p = 0.00e+00
+- **PC · PCAP Packets/s** — vs NGO (333.00 packets/s → 8.00 packets/s), δ = +0.95 (large), p = 0.00e+00
+- **PC · PCAP Packets/s** — vs NetcodeEntities (248.00 packets/s → 8.00 packets/s), δ = +1.00 (large), p = 0.00e+00
+- **Quest · Network Download (bytes/s)** — vs FishNet (1,002,144 bytes/s → 0.00 bytes/s), δ = +0.98 (large), p = 0.00e+00
+- **Quest · Network Download (bytes/s)** — vs NetcodeEntities (6,069 bytes/s → 0.00 bytes/s), δ = +0.49 (large), p = 0.00e+00
+- **Quest · PCAP Bytes/s** — vs FishNet (700,118 bytes/s → 20,032 bytes/s), δ = +0.20 (small), p = 0.00e+00
+- **Quest · PCAP Bytes/s** — vs Godot Network (270,833 bytes/s → 20,032 bytes/s), δ = +0.78 (large), p = 0.00e+00
+- **Quest · PCAP Bytes/s** — vs NGO (1,796,225 bytes/s → 20,032 bytes/s), δ = +0.81 (large), p = 0.00e+00
+- **Quest · PCAP Bytes/s** — vs NetcodeEntities (177,538 bytes/s → 20,032 bytes/s), δ = +0.72 (large), p = 0.00e+00
+- **Quest · PCAP Packets/s** — vs FishNet (557.00 packets/s → 26.00 packets/s), δ = +0.22 (small), p = 0.00e+00
+- **Quest · PCAP Packets/s** — vs Godot Network (203.00 packets/s → 26.00 packets/s), δ = +0.77 (large), p = 0.00e+00
+- **Quest · PCAP Packets/s** — vs NGO (1,714 packets/s → 26.00 packets/s), δ = +0.82 (large), p = 0.00e+00
+- **Quest · PCAP Packets/s** — vs NetcodeEntities (175.00 packets/s → 26.00 packets/s), δ = +0.79 (large), p = 0.00e+00
 
 **Weaknesses** (where it loses to the others):
 
-- **PC · CPU (ms)** — vs Godot Network (3.69 ms → 15.34 ms), δ = -0.31 (small), p = 0.00e+00
-- **PC · CPU (ms)** — vs NetcodeEntities (2.31 ms → 15.34 ms), δ = -0.54 (large), p = 0.00e+00
-- **PC · FPS** — vs Godot Network (270.78 frames/s → 64.60 frames/s), δ = +0.31 (small), p = 0.00e+00
-- **PC · FPS** — vs NetcodeEntities (432.34 frames/s → 64.60 frames/s), δ = +0.54 (large), p = 0.00e+00
-- **PC · GPU (ms)** — vs NetcodeEntities (0.27 ms → 0.89 ms), δ = -0.72 (large), p = 0.00e+00
-- **PC · Memory (MB)** — vs FishNet (427.07 MB → 950.26 MB), δ = -0.98 (large), p = 0.00e+00
-- **PC · Memory (MB)** — vs NGO (747.56 MB → 950.26 MB), δ = -0.38 (medium), p = 0.00e+00
-- **PC · Memory (MB)** — vs NetcodeEntities (651.52 MB → 950.26 MB), δ = -0.79 (large), p = 0.00e+00
-- **PC · Network RTT (ms)** — vs FishNet (53.00 ms → 128.03 ms), δ = -0.55 (large), p = 0.00e+00
-- **PC · Network RTT (ms)** — vs NetcodeEntities (10.05 ms → 128.03 ms), δ = -1.00 (large), p = 0.00e+00
-- **Quest · CPU (ms)** — vs FishNet (31.52 ms → 69.88 ms), δ = -0.21 (small), p = 0.00e+00
-- **Quest · CPU (ms)** — vs Godot Network (15.01 ms → 69.88 ms), δ = -0.79 (large), p = 0.00e+00
-- **Quest · CPU (ms)** — vs NetcodeEntities (20.00 ms → 69.88 ms), δ = -0.72 (large), p = 0.00e+00
-- **Quest · FPS** — vs FishNet (31.58 frames/s → 14.31 frames/s), δ = +0.21 (small), p = 0.00e+00
-- **Quest · FPS** — vs Godot Network (66.63 frames/s → 14.31 frames/s), δ = +0.79 (large), p = 0.00e+00
-- **Quest · FPS** — vs NetcodeEntities (49.97 frames/s → 14.31 frames/s), δ = +0.72 (large), p = 0.00e+00
-- **Quest · GPU (ms)** — vs FishNet (20.87 ms → 56.91 ms), δ = -0.46 (medium), p = 0.00e+00
-- **Quest · GPU (ms)** — vs NGO (5.95 ms → 56.91 ms), δ = -0.84 (large), p = 0.00e+00
-- **Quest · GPU (ms)** — vs NetcodeEntities (16.21 ms → 56.91 ms), δ = -0.66 (large), p = 0.00e+00
-- **Quest · Memory (MB)** — vs FishNet (616.30 MB → 1,228 MB), δ = -0.85 (large), p = 0.00e+00
-- **Quest · Memory (MB)** — vs NGO (906.94 MB → 1,228 MB), δ = -0.68 (large), p = 0.00e+00
-- **Quest · Memory (MB)** — vs NetcodeEntities (826.81 MB → 1,228 MB), δ = -0.65 (large), p = 0.00e+00
-- **Quest · Network RTT (ms)** — vs FishNet (70.86 ms → 393.99 ms), δ = -1.00 (large), p = 0.00e+00
-- **Quest · Network RTT (ms)** — vs NGO (228.00 ms → 393.99 ms), δ = -0.57 (large), p = 0.00e+00
-- **Quest · Network RTT (ms)** — vs NetcodeEntities (32.02 ms → 393.99 ms), δ = -1.00 (large), p = 0.00e+00
+- **PC · CPU (ms)** — vs Godot Network (15.34 ms → 3.69 ms), δ = -0.31 (small), p = 0.00e+00
+- **PC · CPU (ms)** — vs NetcodeEntities (15.34 ms → 2.31 ms), δ = -0.54 (large), p = 0.00e+00
+- **PC · FPS** — vs Godot Network (64.60 frames/s → 270.78 frames/s), δ = +0.31 (small), p = 0.00e+00
+- **PC · FPS** — vs NetcodeEntities (64.60 frames/s → 432.34 frames/s), δ = +0.54 (large), p = 0.00e+00
+- **PC · GPU (ms)** — vs NetcodeEntities (0.89 ms → 0.27 ms), δ = -0.72 (large), p = 0.00e+00
+- **PC · Memory (MB)** — vs FishNet (950.26 MB → 427.07 MB), δ = -0.98 (large), p = 0.00e+00
+- **PC · Memory (MB)** — vs NGO (950.26 MB → 747.56 MB), δ = -0.38 (medium), p = 0.00e+00
+- **PC · Memory (MB)** — vs NetcodeEntities (950.26 MB → 651.52 MB), δ = -0.79 (large), p = 0.00e+00
+- **PC · Network RTT (ms)** — vs FishNet (128.03 ms → 53.00 ms), δ = -0.55 (large), p = 0.00e+00
+- **PC · Network RTT (ms)** — vs NetcodeEntities (128.03 ms → 10.05 ms), δ = -1.00 (large), p = 0.00e+00
+- **Quest · CPU (ms)** — vs FishNet (69.88 ms → 31.52 ms), δ = -0.21 (small), p = 0.00e+00
+- **Quest · CPU (ms)** — vs Godot Network (69.88 ms → 15.01 ms), δ = -0.79 (large), p = 0.00e+00
+- **Quest · CPU (ms)** — vs NetcodeEntities (69.88 ms → 20.00 ms), δ = -0.72 (large), p = 0.00e+00
+- **Quest · FPS** — vs FishNet (14.31 frames/s → 31.58 frames/s), δ = +0.21 (small), p = 0.00e+00
+- **Quest · FPS** — vs Godot Network (14.31 frames/s → 66.63 frames/s), δ = +0.79 (large), p = 0.00e+00
+- **Quest · FPS** — vs NetcodeEntities (14.31 frames/s → 49.97 frames/s), δ = +0.72 (large), p = 0.00e+00
+- **Quest · GPU (ms)** — vs FishNet (56.91 ms → 20.87 ms), δ = -0.46 (medium), p = 0.00e+00
+- **Quest · GPU (ms)** — vs NGO (56.91 ms → 5.95 ms), δ = -0.84 (large), p = 0.00e+00
+- **Quest · GPU (ms)** — vs NetcodeEntities (56.91 ms → 16.21 ms), δ = -0.66 (large), p = 0.00e+00
+- **Quest · Memory (MB)** — vs FishNet (1,228 MB → 616.30 MB), δ = -0.85 (large), p = 0.00e+00
+- **Quest · Memory (MB)** — vs NGO (1,228 MB → 906.94 MB), δ = -0.68 (large), p = 0.00e+00
+- **Quest · Memory (MB)** — vs NetcodeEntities (1,228 MB → 826.81 MB), δ = -0.65 (large), p = 0.00e+00
+- **Quest · Network RTT (ms)** — vs FishNet (393.99 ms → 70.86 ms), δ = -1.00 (large), p = 0.00e+00
+- **Quest · Network RTT (ms)** — vs NGO (393.99 ms → 228.00 ms), δ = -0.57 (large), p = 0.00e+00
+- **Quest · Network RTT (ms)** — vs NetcodeEntities (393.99 ms → 32.02 ms), δ = -1.00 (large), p = 0.00e+00
 
 ### NGO
 
 **Strengths** (where it beats the others):
 
 - **PC · Memory (MB)** — vs Photon (950.26 MB → 747.56 MB), δ = -0.38 (medium), p = 0.00e+00
-- **PC · Network Download (bytes/s)** — vs FishNet (0.00 bytes/s → 179,498 bytes/s), δ = +0.53 (large), p = 0.00e+00
+- **PC · Network Download (bytes/s)** — vs FishNet (179,498 bytes/s → 0.00 bytes/s), δ = +0.53 (large), p = 0.00e+00
 - **PC · Network Upload (bytes/s)** — vs FishNet (0.00 bytes/s → 0.00 bytes/s), δ = +0.35 (medium), p = 0.00e+00
-- **PC · PCAP Bytes/s** — vs FishNet (818,686 bytes/s → 1,214,346 bytes/s), δ = +0.33 (small), p = 0.00e+00
-- **Quest · GPU (ms)** — vs FishNet (5.95 ms → 20.87 ms), δ = +0.67 (large), p = 0.00e+00
+- **PC · PCAP Bytes/s** — vs FishNet (1,214,346 bytes/s → 818,686 bytes/s), δ = +0.33 (small), p = 0.00e+00
+- **Quest · GPU (ms)** — vs FishNet (20.87 ms → 5.95 ms), δ = +0.67 (large), p = 0.00e+00
 - **Quest · GPU (ms)** — vs NetcodeEntities (16.21 ms → 5.95 ms), δ = -0.75 (large), p = 0.00e+00
 - **Quest · GPU (ms)** — vs Photon (56.91 ms → 5.95 ms), δ = -0.84 (large), p = 0.00e+00
 - **Quest · Memory (MB)** — vs Photon (1,228 MB → 906.94 MB), δ = -0.68 (large), p = 0.00e+00
-- **Quest · Network Download (bytes/s)** — vs FishNet (0.00 bytes/s → 1,002,144 bytes/s), δ = +0.99 (large), p = 0.00e+00
+- **Quest · Network Download (bytes/s)** — vs FishNet (1,002,144 bytes/s → 0.00 bytes/s), δ = +0.99 (large), p = 0.00e+00
 - **Quest · Network Download (bytes/s)** — vs NetcodeEntities (6,069 bytes/s → 0.00 bytes/s), δ = -0.51 (large), p = 0.00e+00
 - **Quest · Network RTT (ms)** — vs Photon (393.99 ms → 228.00 ms), δ = -0.57 (large), p = 0.00e+00
 
 **Weaknesses** (where it loses to the others):
 
-- **PC · CPU (ms)** — vs FishNet (15.93 ms → 36.34 ms), δ = -0.37 (medium), p = 0.00e+00
-- **PC · CPU (ms)** — vs Godot Network (3.69 ms → 36.34 ms), δ = -0.66 (large), p = 0.00e+00
+- **PC · CPU (ms)** — vs FishNet (36.34 ms → 15.93 ms), δ = -0.37 (medium), p = 0.00e+00
+- **PC · CPU (ms)** — vs Godot Network (36.34 ms → 3.69 ms), δ = -0.66 (large), p = 0.00e+00
 - **PC · CPU (ms)** — vs NetcodeEntities (36.34 ms → 2.31 ms), δ = +0.91 (large), p = 0.00e+00
 - **PC · CPU (ms)** — vs Photon (36.34 ms → 15.34 ms), δ = +0.42 (medium), p = 0.00e+00
-- **PC · FPS** — vs FishNet (62.41 frames/s → 27.49 frames/s), δ = +0.37 (medium), p = 0.00e+00
-- **PC · FPS** — vs Godot Network (270.78 frames/s → 27.49 frames/s), δ = +0.66 (large), p = 0.00e+00
+- **PC · FPS** — vs FishNet (27.49 frames/s → 62.41 frames/s), δ = +0.37 (medium), p = 0.00e+00
+- **PC · FPS** — vs Godot Network (27.49 frames/s → 270.78 frames/s), δ = +0.66 (large), p = 0.00e+00
 - **PC · FPS** — vs NetcodeEntities (27.49 frames/s → 432.34 frames/s), δ = -0.91 (large), p = 0.00e+00
 - **PC · FPS** — vs Photon (27.49 frames/s → 64.60 frames/s), δ = -0.42 (medium), p = 0.00e+00
-- **PC · GPU (ms)** — vs FishNet (0.78 ms → 1.53 ms), δ = -0.62 (large), p = 0.00e+00
+- **PC · GPU (ms)** — vs FishNet (1.53 ms → 0.78 ms), δ = -0.62 (large), p = 0.00e+00
 - **PC · GPU (ms)** — vs NetcodeEntities (1.53 ms → 0.27 ms), δ = +0.83 (large), p = 0.00e+00
 - **PC · GPU (ms)** — vs Photon (1.53 ms → 0.89 ms), δ = +0.55 (large), p = 0.00e+00
-- **PC · Memory (MB)** — vs FishNet (427.07 MB → 747.56 MB), δ = -0.56 (large), p = 0.00e+00
+- **PC · Memory (MB)** — vs FishNet (747.56 MB → 427.07 MB), δ = -0.56 (large), p = 0.00e+00
 - **PC · Memory (MB)** — vs NetcodeEntities (747.56 MB → 651.52 MB), δ = +0.40 (medium), p = 0.00e+00
-- **PC · Network RTT (ms)** — vs FishNet (53.00 ms → 489.50 ms), δ = -0.77 (large), p = 0.00e+00
+- **PC · Network RTT (ms)** — vs FishNet (489.50 ms → 53.00 ms), δ = -0.77 (large), p = 0.00e+00
 - **PC · Network RTT (ms)** — vs NetcodeEntities (489.50 ms → 10.05 ms), δ = +1.00 (large), p = 0.00e+00
 - **PC · Network RTT (ms)** — vs Photon (489.50 ms → 128.03 ms), δ = +0.47 (medium), p = 0.00e+00
-- **PC · PCAP Bytes/s** — vs Godot Network (135,441 bytes/s → 818,686 bytes/s), δ = -0.78 (large), p = 0.00e+00
+- **PC · PCAP Bytes/s** — vs Godot Network (818,686 bytes/s → 135,441 bytes/s), δ = -0.78 (large), p = 0.00e+00
 - **PC · PCAP Bytes/s** — vs NetcodeEntities (818,686 bytes/s → 182,247 bytes/s), δ = +0.92 (large), p = 0.00e+00
 - **PC · PCAP Bytes/s** — vs Photon (818,686 bytes/s → 1,960 bytes/s), δ = +0.95 (large), p = 0.00e+00
-- **PC · PCAP Packets/s** — vs Godot Network (45.00 packets/s → 333.00 packets/s), δ = -0.67 (large), p = 0.00e+00
+- **PC · PCAP Packets/s** — vs Godot Network (333.00 packets/s → 45.00 packets/s), δ = -0.67 (large), p = 0.00e+00
 - **PC · PCAP Packets/s** — vs NetcodeEntities (333.00 packets/s → 248.00 packets/s), δ = +0.23 (small), p = 0.00e+00
 - **PC · PCAP Packets/s** — vs Photon (333.00 packets/s → 8.00 packets/s), δ = +0.95 (large), p = 0.00e+00
-- **Quest · CPU (ms)** — vs FishNet (31.52 ms → 74.26 ms), δ = -0.30 (small), p = 0.00e+00
-- **Quest · CPU (ms)** — vs Godot Network (15.01 ms → 74.26 ms), δ = -0.97 (large), p = 0.00e+00
+- **Quest · CPU (ms)** — vs FishNet (74.26 ms → 31.52 ms), δ = -0.30 (small), p = 0.00e+00
+- **Quest · CPU (ms)** — vs Godot Network (74.26 ms → 15.01 ms), δ = -0.97 (large), p = 0.00e+00
 - **Quest · CPU (ms)** — vs NetcodeEntities (74.26 ms → 20.00 ms), δ = +0.93 (large), p = 0.00e+00
-- **Quest · FPS** — vs FishNet (31.58 frames/s → 13.24 frames/s), δ = +0.31 (small), p = 0.00e+00
-- **Quest · FPS** — vs Godot Network (66.63 frames/s → 13.24 frames/s), δ = +0.97 (large), p = 0.00e+00
+- **Quest · FPS** — vs FishNet (13.24 frames/s → 31.58 frames/s), δ = +0.31 (small), p = 0.00e+00
+- **Quest · FPS** — vs Godot Network (13.24 frames/s → 66.63 frames/s), δ = +0.97 (large), p = 0.00e+00
 - **Quest · FPS** — vs NetcodeEntities (13.24 frames/s → 49.97 frames/s), δ = -0.93 (large), p = 0.00e+00
-- **Quest · Memory (MB)** — vs FishNet (616.30 MB → 906.94 MB), δ = -0.23 (small), p = 0.00e+00
-- **Quest · Network RTT (ms)** — vs FishNet (70.86 ms → 228.00 ms), δ = -0.92 (large), p = 0.00e+00
+- **Quest · Memory (MB)** — vs FishNet (906.94 MB → 616.30 MB), δ = -0.23 (small), p = 0.00e+00
+- **Quest · Network RTT (ms)** — vs FishNet (228.00 ms → 70.86 ms), δ = -0.92 (large), p = 0.00e+00
 - **Quest · Network RTT (ms)** — vs NetcodeEntities (228.00 ms → 32.02 ms), δ = +1.00 (large), p = 0.00e+00
-- **Quest · PCAP Bytes/s** — vs FishNet (700,118 bytes/s → 1,796,225 bytes/s), δ = -0.29 (small), p = 0.00e+00
-- **Quest · PCAP Bytes/s** — vs Godot Network (270,833 bytes/s → 1,796,225 bytes/s), δ = -0.69 (large), p = 0.00e+00
+- **Quest · PCAP Bytes/s** — vs FishNet (1,796,225 bytes/s → 700,118 bytes/s), δ = -0.29 (small), p = 0.00e+00
+- **Quest · PCAP Bytes/s** — vs Godot Network (1,796,225 bytes/s → 270,833 bytes/s), δ = -0.69 (large), p = 0.00e+00
 - **Quest · PCAP Bytes/s** — vs NetcodeEntities (1,796,225 bytes/s → 177,538 bytes/s), δ = +0.82 (large), p = 0.00e+00
 - **Quest · PCAP Bytes/s** — vs Photon (1,796,225 bytes/s → 20,032 bytes/s), δ = +0.81 (large), p = 0.00e+00
-- **Quest · PCAP Packets/s** — vs FishNet (557.00 packets/s → 1,714 packets/s), δ = -0.38 (medium), p = 0.00e+00
-- **Quest · PCAP Packets/s** — vs Godot Network (203.00 packets/s → 1,714 packets/s), δ = -0.74 (large), p = 0.00e+00
+- **Quest · PCAP Packets/s** — vs FishNet (1,714 packets/s → 557.00 packets/s), δ = -0.38 (medium), p = 0.00e+00
+- **Quest · PCAP Packets/s** — vs Godot Network (1,714 packets/s → 203.00 packets/s), δ = -0.74 (large), p = 0.00e+00
 - **Quest · PCAP Packets/s** — vs NetcodeEntities (1,714 packets/s → 175.00 packets/s), δ = +0.82 (large), p = 0.00e+00
 - **Quest · PCAP Packets/s** — vs Photon (1,714 packets/s → 26.00 packets/s), δ = +0.82 (large), p = 0.00e+00
 
@@ -300,58 +300,58 @@ Each section lists where the library *wins* (decisive positive effect vs at leas
 
 **Strengths** (where it beats the others):
 
-- **PC · CPU (ms)** — vs FishNet (2.31 ms → 15.93 ms), δ = +0.65 (large), p = 0.00e+00
-- **PC · CPU (ms)** — vs Godot Network (2.31 ms → 3.69 ms), δ = +0.48 (large), p = 0.00e+00
-- **PC · CPU (ms)** — vs NGO (2.31 ms → 36.34 ms), δ = +0.91 (large), p = 0.00e+00
+- **PC · CPU (ms)** — vs FishNet (15.93 ms → 2.31 ms), δ = +0.65 (large), p = 0.00e+00
+- **PC · CPU (ms)** — vs Godot Network (3.69 ms → 2.31 ms), δ = +0.48 (large), p = 0.00e+00
+- **PC · CPU (ms)** — vs NGO (36.34 ms → 2.31 ms), δ = +0.91 (large), p = 0.00e+00
 - **PC · CPU (ms)** — vs Photon (15.34 ms → 2.31 ms), δ = -0.54 (large), p = 0.00e+00
-- **PC · FPS** — vs FishNet (432.34 frames/s → 62.41 frames/s), δ = -0.66 (large), p = 0.00e+00
-- **PC · FPS** — vs Godot Network (432.34 frames/s → 270.78 frames/s), δ = -0.48 (large), p = 0.00e+00
-- **PC · FPS** — vs NGO (432.34 frames/s → 27.49 frames/s), δ = -0.91 (large), p = 0.00e+00
+- **PC · FPS** — vs FishNet (62.41 frames/s → 432.34 frames/s), δ = -0.66 (large), p = 0.00e+00
+- **PC · FPS** — vs Godot Network (270.78 frames/s → 432.34 frames/s), δ = -0.48 (large), p = 0.00e+00
+- **PC · FPS** — vs NGO (27.49 frames/s → 432.34 frames/s), δ = -0.91 (large), p = 0.00e+00
 - **PC · FPS** — vs Photon (64.60 frames/s → 432.34 frames/s), δ = +0.54 (large), p = 0.00e+00
-- **PC · GPU (ms)** — vs FishNet (0.27 ms → 0.78 ms), δ = +0.71 (large), p = 0.00e+00
-- **PC · GPU (ms)** — vs NGO (0.27 ms → 1.53 ms), δ = +0.83 (large), p = 0.00e+00
+- **PC · GPU (ms)** — vs FishNet (0.78 ms → 0.27 ms), δ = +0.71 (large), p = 0.00e+00
+- **PC · GPU (ms)** — vs NGO (1.53 ms → 0.27 ms), δ = +0.83 (large), p = 0.00e+00
 - **PC · GPU (ms)** — vs Photon (0.89 ms → 0.27 ms), δ = -0.72 (large), p = 0.00e+00
-- **PC · Memory (MB)** — vs NGO (651.52 MB → 747.56 MB), δ = +0.40 (medium), p = 0.00e+00
+- **PC · Memory (MB)** — vs NGO (747.56 MB → 651.52 MB), δ = +0.40 (medium), p = 0.00e+00
 - **PC · Memory (MB)** — vs Photon (950.26 MB → 651.52 MB), δ = -0.79 (large), p = 0.00e+00
-- **PC · Network Download (bytes/s)** — vs FishNet (0.00 bytes/s → 179,498 bytes/s), δ = +0.45 (medium), p = 0.00e+00
-- **PC · Network RTT (ms)** — vs FishNet (10.05 ms → 53.00 ms), δ = +0.96 (large), p = 0.00e+00
-- **PC · Network RTT (ms)** — vs NGO (10.05 ms → 489.50 ms), δ = +1.00 (large), p = 0.00e+00
+- **PC · Network Download (bytes/s)** — vs FishNet (179,498 bytes/s → 0.00 bytes/s), δ = +0.45 (medium), p = 0.00e+00
+- **PC · Network RTT (ms)** — vs FishNet (53.00 ms → 10.05 ms), δ = +0.96 (large), p = 0.00e+00
+- **PC · Network RTT (ms)** — vs NGO (489.50 ms → 10.05 ms), δ = +1.00 (large), p = 0.00e+00
 - **PC · Network RTT (ms)** — vs Photon (128.03 ms → 10.05 ms), δ = -1.00 (large), p = 0.00e+00
 - **PC · Network Upload (bytes/s)** — vs FishNet (0.00 bytes/s → 0.00 bytes/s), δ = +0.35 (medium), p = 0.00e+00
-- **PC · PCAP Bytes/s** — vs FishNet (182,247 bytes/s → 1,214,346 bytes/s), δ = +0.88 (large), p = 0.00e+00
-- **PC · PCAP Bytes/s** — vs NGO (182,247 bytes/s → 818,686 bytes/s), δ = +0.92 (large), p = 0.00e+00
-- **PC · PCAP Packets/s** — vs NGO (248.00 packets/s → 333.00 packets/s), δ = +0.23 (small), p = 0.00e+00
-- **Quest · CPU (ms)** — vs FishNet (20.00 ms → 31.52 ms), δ = +0.39 (medium), p = 0.00e+00
-- **Quest · CPU (ms)** — vs NGO (20.00 ms → 74.26 ms), δ = +0.93 (large), p = 0.00e+00
+- **PC · PCAP Bytes/s** — vs FishNet (1,214,346 bytes/s → 182,247 bytes/s), δ = +0.88 (large), p = 0.00e+00
+- **PC · PCAP Bytes/s** — vs NGO (818,686 bytes/s → 182,247 bytes/s), δ = +0.92 (large), p = 0.00e+00
+- **PC · PCAP Packets/s** — vs NGO (333.00 packets/s → 248.00 packets/s), δ = +0.23 (small), p = 0.00e+00
+- **Quest · CPU (ms)** — vs FishNet (31.52 ms → 20.00 ms), δ = +0.39 (medium), p = 0.00e+00
+- **Quest · CPU (ms)** — vs NGO (74.26 ms → 20.00 ms), δ = +0.93 (large), p = 0.00e+00
 - **Quest · CPU (ms)** — vs Photon (69.88 ms → 20.00 ms), δ = -0.72 (large), p = 0.00e+00
-- **Quest · FPS** — vs FishNet (49.97 frames/s → 31.58 frames/s), δ = -0.39 (medium), p = 0.00e+00
-- **Quest · FPS** — vs NGO (49.97 frames/s → 13.24 frames/s), δ = -0.93 (large), p = 0.00e+00
+- **Quest · FPS** — vs FishNet (31.58 frames/s → 49.97 frames/s), δ = -0.39 (medium), p = 0.00e+00
+- **Quest · FPS** — vs NGO (13.24 frames/s → 49.97 frames/s), δ = -0.93 (large), p = 0.00e+00
 - **Quest · FPS** — vs Photon (14.31 frames/s → 49.97 frames/s), δ = +0.72 (large), p = 0.00e+00
 - **Quest · GPU (ms)** — vs Photon (56.91 ms → 16.21 ms), δ = -0.66 (large), p = 0.00e+00
-- **Quest · GPU (ms)** — vs FishNet (16.21 ms → 20.87 ms), δ = +0.21 (small), p = 1.79e-13
+- **Quest · GPU (ms)** — vs FishNet (20.87 ms → 16.21 ms), δ = +0.21 (small), p = 1.79e-13
 - **Quest · Memory (MB)** — vs Photon (1,228 MB → 826.81 MB), δ = -0.65 (large), p = 0.00e+00
-- **Quest · Network Download (bytes/s)** — vs FishNet (6,069 bytes/s → 1,002,144 bytes/s), δ = +0.69 (large), p = 0.00e+00
-- **Quest · Network RTT (ms)** — vs FishNet (32.02 ms → 70.86 ms), δ = +0.89 (large), p = 0.00e+00
-- **Quest · Network RTT (ms)** — vs NGO (32.02 ms → 228.00 ms), δ = +1.00 (large), p = 0.00e+00
+- **Quest · Network Download (bytes/s)** — vs FishNet (1,002,144 bytes/s → 6,069 bytes/s), δ = +0.69 (large), p = 0.00e+00
+- **Quest · Network RTT (ms)** — vs FishNet (70.86 ms → 32.02 ms), δ = +0.89 (large), p = 0.00e+00
+- **Quest · Network RTT (ms)** — vs NGO (228.00 ms → 32.02 ms), δ = +1.00 (large), p = 0.00e+00
 - **Quest · Network RTT (ms)** — vs Photon (393.99 ms → 32.02 ms), δ = -1.00 (large), p = 0.00e+00
-- **Quest · PCAP Bytes/s** — vs FishNet (177,538 bytes/s → 700,118 bytes/s), δ = +0.18 (small), p = 0.00e+00
-- **Quest · PCAP Bytes/s** — vs Godot Network (177,538 bytes/s → 270,833 bytes/s), δ = +0.57 (large), p = 0.00e+00
-- **Quest · PCAP Bytes/s** — vs NGO (177,538 bytes/s → 1,796,225 bytes/s), δ = +0.82 (large), p = 0.00e+00
-- **Quest · PCAP Packets/s** — vs FishNet (175.00 packets/s → 557.00 packets/s), δ = +0.18 (small), p = 0.00e+00
-- **Quest · PCAP Packets/s** — vs Godot Network (175.00 packets/s → 203.00 packets/s), δ = +0.18 (small), p = 0.00e+00
-- **Quest · PCAP Packets/s** — vs NGO (175.00 packets/s → 1,714 packets/s), δ = +0.82 (large), p = 0.00e+00
+- **Quest · PCAP Bytes/s** — vs FishNet (700,118 bytes/s → 177,538 bytes/s), δ = +0.18 (small), p = 0.00e+00
+- **Quest · PCAP Bytes/s** — vs Godot Network (270,833 bytes/s → 177,538 bytes/s), δ = +0.57 (large), p = 0.00e+00
+- **Quest · PCAP Bytes/s** — vs NGO (1,796,225 bytes/s → 177,538 bytes/s), δ = +0.82 (large), p = 0.00e+00
+- **Quest · PCAP Packets/s** — vs FishNet (557.00 packets/s → 175.00 packets/s), δ = +0.18 (small), p = 0.00e+00
+- **Quest · PCAP Packets/s** — vs Godot Network (203.00 packets/s → 175.00 packets/s), δ = +0.18 (small), p = 0.00e+00
+- **Quest · PCAP Packets/s** — vs NGO (1,714 packets/s → 175.00 packets/s), δ = +0.82 (large), p = 0.00e+00
 
 **Weaknesses** (where it loses to the others):
 
-- **PC · Memory (MB)** — vs FishNet (427.07 MB → 651.52 MB), δ = -0.34 (medium), p = 0.00e+00
+- **PC · Memory (MB)** — vs FishNet (651.52 MB → 427.07 MB), δ = -0.34 (medium), p = 0.00e+00
 - **PC · PCAP Bytes/s** — vs Photon (182,247 bytes/s → 1,960 bytes/s), δ = +1.00 (large), p = 0.00e+00
-- **PC · PCAP Packets/s** — vs Godot Network (45.00 packets/s → 248.00 packets/s), δ = -0.75 (large), p = 0.00e+00
+- **PC · PCAP Packets/s** — vs Godot Network (248.00 packets/s → 45.00 packets/s), δ = -0.75 (large), p = 0.00e+00
 - **PC · PCAP Packets/s** — vs Photon (248.00 packets/s → 8.00 packets/s), δ = +1.00 (large), p = 0.00e+00
-- **Quest · CPU (ms)** — vs Godot Network (15.01 ms → 20.00 ms), δ = -0.28 (small), p = 0.00e+00
-- **Quest · FPS** — vs Godot Network (66.63 frames/s → 49.97 frames/s), δ = +0.28 (small), p = 0.00e+00
-- **Quest · GPU (ms)** — vs NGO (5.95 ms → 16.21 ms), δ = -0.75 (large), p = 0.00e+00
-- **Quest · Memory (MB)** — vs FishNet (616.30 MB → 826.81 MB), δ = -0.60 (large), p = 0.00e+00
-- **Quest · Network Download (bytes/s)** — vs NGO (0.00 bytes/s → 6,069 bytes/s), δ = -0.51 (large), p = 0.00e+00
+- **Quest · CPU (ms)** — vs Godot Network (20.00 ms → 15.01 ms), δ = -0.28 (small), p = 0.00e+00
+- **Quest · FPS** — vs Godot Network (49.97 frames/s → 66.63 frames/s), δ = +0.28 (small), p = 0.00e+00
+- **Quest · GPU (ms)** — vs NGO (16.21 ms → 5.95 ms), δ = -0.75 (large), p = 0.00e+00
+- **Quest · Memory (MB)** — vs FishNet (826.81 MB → 616.30 MB), δ = -0.60 (large), p = 0.00e+00
+- **Quest · Network Download (bytes/s)** — vs NGO (6,069 bytes/s → 0.00 bytes/s), δ = -0.51 (large), p = 0.00e+00
 - **Quest · Network Download (bytes/s)** — vs Photon (6,069 bytes/s → 0.00 bytes/s), δ = +0.49 (large), p = 0.00e+00
 - **Quest · PCAP Bytes/s** — vs Photon (177,538 bytes/s → 20,032 bytes/s), δ = +0.72 (large), p = 0.00e+00
 - **Quest · PCAP Packets/s** — vs Photon (175.00 packets/s → 26.00 packets/s), δ = +0.79 (large), p = 0.00e+00
@@ -360,22 +360,22 @@ Each section lists where the library *wins* (decisive positive effect vs at leas
 
 **Strengths** (where it beats the others):
 
-- **PC · CPU (ms)** — vs FishNet (3.69 ms → 15.93 ms), δ = +0.42 (medium), p = 0.00e+00
+- **PC · CPU (ms)** — vs FishNet (15.93 ms → 3.69 ms), δ = +0.42 (medium), p = 0.00e+00
 - **PC · CPU (ms)** — vs NGO (36.34 ms → 3.69 ms), δ = -0.66 (large), p = 0.00e+00
 - **PC · CPU (ms)** — vs Photon (15.34 ms → 3.69 ms), δ = -0.31 (small), p = 0.00e+00
-- **PC · FPS** — vs FishNet (270.78 frames/s → 62.41 frames/s), δ = -0.42 (medium), p = 0.00e+00
+- **PC · FPS** — vs FishNet (62.41 frames/s → 270.78 frames/s), δ = -0.42 (medium), p = 0.00e+00
 - **PC · FPS** — vs NGO (27.49 frames/s → 270.78 frames/s), δ = +0.66 (large), p = 0.00e+00
 - **PC · FPS** — vs Photon (64.60 frames/s → 270.78 frames/s), δ = +0.31 (small), p = 0.00e+00
-- **PC · PCAP Bytes/s** — vs FishNet (135,441 bytes/s → 1,214,346 bytes/s), δ = +0.78 (large), p = 0.00e+00
+- **PC · PCAP Bytes/s** — vs FishNet (1,214,346 bytes/s → 135,441 bytes/s), δ = +0.78 (large), p = 0.00e+00
 - **PC · PCAP Bytes/s** — vs NGO (818,686 bytes/s → 135,441 bytes/s), δ = -0.78 (large), p = 0.00e+00
-- **PC · PCAP Packets/s** — vs FishNet (45.00 packets/s → 157.00 packets/s), δ = +0.54 (large), p = 0.00e+00
+- **PC · PCAP Packets/s** — vs FishNet (157.00 packets/s → 45.00 packets/s), δ = +0.54 (large), p = 0.00e+00
 - **PC · PCAP Packets/s** — vs NGO (333.00 packets/s → 45.00 packets/s), δ = -0.67 (large), p = 0.00e+00
 - **PC · PCAP Packets/s** — vs NetcodeEntities (248.00 packets/s → 45.00 packets/s), δ = -0.75 (large), p = 0.00e+00
-- **Quest · CPU (ms)** — vs FishNet (15.01 ms → 31.52 ms), δ = +0.50 (large), p = 0.00e+00
+- **Quest · CPU (ms)** — vs FishNet (31.52 ms → 15.01 ms), δ = +0.50 (large), p = 0.00e+00
 - **Quest · CPU (ms)** — vs NGO (74.26 ms → 15.01 ms), δ = -0.97 (large), p = 0.00e+00
 - **Quest · CPU (ms)** — vs NetcodeEntities (20.00 ms → 15.01 ms), δ = -0.28 (small), p = 0.00e+00
 - **Quest · CPU (ms)** — vs Photon (69.88 ms → 15.01 ms), δ = -0.79 (large), p = 0.00e+00
-- **Quest · FPS** — vs FishNet (66.63 frames/s → 31.58 frames/s), δ = -0.51 (large), p = 0.00e+00
+- **Quest · FPS** — vs FishNet (31.58 frames/s → 66.63 frames/s), δ = -0.51 (large), p = 0.00e+00
 - **Quest · FPS** — vs NGO (13.24 frames/s → 66.63 frames/s), δ = +0.97 (large), p = 0.00e+00
 - **Quest · FPS** — vs NetcodeEntities (49.97 frames/s → 66.63 frames/s), δ = +0.28 (small), p = 0.00e+00
 - **Quest · FPS** — vs Photon (14.31 frames/s → 66.63 frames/s), δ = +0.79 (large), p = 0.00e+00

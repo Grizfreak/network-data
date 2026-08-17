@@ -1,6 +1,6 @@
 # Unity Base Engine Benchmark — Conclusions
 
-_Generated on 2026-08-12 from the base-engine subset of the analysis outputs in `analysis_results`._
+_Generated on 2026-08-17 from the base-engine subset of the analysis outputs in `analysis_results`._
 
 This report keeps only the non-network engine metrics (FPS, CPU, GPU, Memory). Network and PCAP metrics are excluded because this pass is specifically for the base-engine comparison.
 

@@ -280,18 +280,35 @@ class _ClassificationRule:
     extra token in the filename (Godot: plain "Godot" normally, but
     "Godot Network" when "client"/"server" also appears) -- a networked
     variant is assumed to be, definitionally, a networked subsystem.
+
+    `short_label_tech` is the display text `../streamlit/label_formatting.py::short_label()`
+    uses for this rule's tech tag in the UI legend/dropdown, when it needs
+    to differ from `subsystem` (e.g. "Base GPU" with a space, vs. the
+    `subsystem`/`raw_name` convention "Base-GPU" with a hyphen that
+    `subsystem_catalog.py` also keys off). Defaults to `subsystem` when
+    unset. Always the *base* form even for a rule with a `network_variant`
+    -- `short_label()` appends its own Client/Server role suffix
+    separately, so it must never see "Godot Network" here.
     """
     keyword: str
     subsystem: str
     is_networked: bool = False
     network_variant: str | None = None
     network_variant_tokens: tuple[str, ...] = ()
+    short_label_tech: str | None = None
 
 
 # Order matches the real ambiguities in the actual filenames (see
 # streamlit/tests/test_data_loader.py for the real-filename cases this
 # order resolves): "base_DOTS" and "base_GPU" both contain "base" as a
 # substring too, so "dots"/"gpu" must be checked before "base".
+#
+# This is the single source of truth for tech keyword matching, shared by
+# `classify_subsystem()` below (used by the `ccl/` pipeline and for
+# run-grouping) and `base_tech_label()` (used by
+# `../streamlit/label_formatting.py::short_label()` for the UI display
+# tag) -- see ../README.md's "Adding a new benchmark type" section for
+# what else needs registering alongside a new rule here.
 _CLASSIFICATION_RULES: list[_ClassificationRule] = [
     _ClassificationRule("photon", "Photon", is_networked=True),
     _ClassificationRule("fishnet", "FishNet", is_networked=True),
@@ -302,7 +319,7 @@ _CLASSIFICATION_RULES: list[_ClassificationRule] = [
         network_variant="Godot Network", network_variant_tokens=("client", "server"),
     ),
     _ClassificationRule("dots", "DOTS"),
-    _ClassificationRule("gpu", "Base-GPU"),
+    _ClassificationRule("gpu", "Base-GPU", short_label_tech="Base GPU"),
     _ClassificationRule("base", "Base"),
 ]
 
@@ -329,6 +346,31 @@ def classify_subsystem(name: str) -> str:
         return "Base"
     return "Other"
 
+
+def base_tech_label(name: str) -> str:
+    """Return the UI display "tech" tag for a stat filename -- e.g. "Base
+    GPU" for a gpu_* file, "Godot" for any Godot file regardless of
+    client/server role.
+
+    Uses the same ordered `_CLASSIFICATION_RULES` table as
+    `classify_subsystem()`, but -- unlike `classify_subsystem()` -- never
+    returns a `network_variant` (e.g. "Godot Network"): callers of this
+    function (`short_label()`) append their own Client/Server role suffix
+    afterwards, so seeing the variant name here would double up the role
+    information. Falls back to `"Base"` for anything unmatched, matching
+    `short_label()`'s pre-refactor fallback (deliberately not
+    `classify_subsystem()`'s `"Other"` -- this function existed to keep
+    `short_label()`'s old behavior, not to change it).
+    """
+    lower = name.lower()
+    lower = re.sub(r"^\[pc\]\s*|^\[quest\]\s*", "", lower)
+    for rule in _CLASSIFICATION_RULES:
+        if rule.keyword in lower:
+            return rule.short_label_tech or rule.subsystem
+    return "Base"
+
+
+NETWORKED_TECH_KEYWORDS = tuple(r.keyword for r in _CLASSIFICATION_RULES if r.is_networked)
 
 NETWORKED_SUBSYSTEMS = {r.subsystem for r in _CLASSIFICATION_RULES if r.is_networked} | {
     r.network_variant for r in _CLASSIFICATION_RULES if r.network_variant

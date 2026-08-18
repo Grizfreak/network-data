@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from check_subsystem_coverage import check, evaluate  # noqa: E402
+from check_subsystem_coverage import check, evaluate, streamlit_display_gaps  # noqa: E402
 
 
 # A minimal, self-consistent set of registries standing in for the real
@@ -92,6 +92,41 @@ class CheckAgainstRealDataTests(unittest.TestCase):
         messages = check()
         warnings = [m for m in messages if m.startswith("[WARN]")]
         self.assertEqual(warnings, [])
+
+
+class StreamlitDisplayGapsTests(unittest.TestCase):
+    """`streamlit_display_gaps()` guards against a *regression*: since
+    base_tech_label() derives from the same _CLASSIFICATION_RULES table as
+    classify_subsystem(), they should never disagree on a real filename.
+    """
+
+    def test_recognized_real_filenames_produce_no_gaps(self):
+        examples = {
+            "Photon": "photon_client_profiler_stats-2026.05.20-16.29.csv",
+            "FishNet": "fishNet_client_events_20260529_095244.csv",
+            "DOTS": "dots_profiler_stats-2026.05.20-16.38.csv",
+            "Godot Network": "client_godot_events_20260716_160226.csv",
+            "Base-GPU": "gpu_profiler_stats-2026.05.20-16.29.csv",
+            "Base": "profiler_stats-2026.05.20-16.19.csv",
+            "Other": "some_totally_unknown_capture_file.csv",
+        }
+        self.assertEqual(streamlit_display_gaps(examples), [])
+
+    def test_unrecognized_example_filename_is_flagged(self):
+        # A subsystem name paired with a filename base_tech_label() can't
+        # actually match (simulating the two lists having drifted apart)
+        # must be reported, not silently ignored.
+        examples = {"NewLib": "some_file_with_no_matching_keyword.csv"}
+        messages = streamlit_display_gaps(examples)
+        self.assertEqual(len(messages), 1)
+        self.assertIn("NewLib", messages[0])
+        self.assertIn("base_tech_label()", messages[0])
+
+    def test_real_data_has_no_display_gaps(self):
+        from check_subsystem_coverage import DATA_ROOT, _observed_subsystem_examples
+
+        examples = _observed_subsystem_examples(DATA_ROOT)
+        self.assertEqual(streamlit_display_gaps(examples), [])
 
 
 if __name__ == "__main__":

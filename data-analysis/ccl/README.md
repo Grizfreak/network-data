@@ -188,6 +188,22 @@ or, with something missing:
 [WARN] 'NewLib' (14 file(s)) has no entry in load_analysis.py::PLANNED_COMPARISONS -- no load-based comparison will run for it (unless you pass --comparisons all).
 ```
 
+**This checklist and `check_subsystem_coverage.py` primarily cover the
+`ccl/` reports** — step 1 above is enough for the Streamlit app
+(`../streamlit/app.py`) to recognize and correctly label a new subsystem
+too: `short_label()`'s tech tag and the "Network only" quick filter both
+derive from `_CLASSIFICATION_RULES` directly (`base_tech_label()` /
+`NETWORKED_TECH_KEYWORDS` in `data_loader.py`) rather than keeping their
+own separate lists, and `check_subsystem_coverage.py` also flags it if
+those two views of `_CLASSIFICATION_RULES` ever disagree.
+
+One gap remains, in a different domain: if the new benchmark exports
+metric columns under names not already recognized,
+`app.py::get_available_metrics()` and `metrics_engine.py`'s per-metric
+column candidates are two independently hand-maintained lists of "which
+columns imply metric X exists," and nothing here checks that they agree.
+See `../streamlit/README.md#adding-a-new-benchmark-type` for that part.
+
 It's read-only and doesn't depend on `analyze_data.py`/`load_analysis.py`
 having run first, so it's safe to run any time.
 

@@ -28,6 +28,8 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from data_loader import (  # noqa: E402
     NETWORKED_SUBSYSTEMS,
+    NETWORKED_TECH_KEYWORDS,
+    base_tech_label,
     classify_subsystem,
     is_networked_subsystem,
 )
@@ -177,6 +179,55 @@ class NetworkedSubsystemTests(unittest.TestCase):
             self.assertTrue(is_networked_subsystem(name))
         for name in ("Godot", "Base", "Base-GPU", "DOTS", "Other"):
             self.assertFalse(is_networked_subsystem(name))
+
+    def test_networked_tech_keywords_are_exactly_the_four_networked_rules(self):
+        # Godot is deliberately excluded: its rule has no is_networked=True
+        # (only its "Godot Network" *variant* is networked), and it has no
+        # dedicated networking library keyword of its own on the wire --
+        # see app.py::_NETWORK_TOKENS' docstring for how its traffic is
+        # still surfaced (generic "server"/"client"/"pcap"/"capture" tokens).
+        self.assertEqual(
+            NETWORKED_TECH_KEYWORDS, ("photon", "fishnet", "ngo", "netcodeentities")
+        )
+
+
+class BaseTechLabelTests(unittest.TestCase):
+    """`base_tech_label()` backs `label_formatting.short_label()`'s tech
+    tag -- it must return the *base* form even for a rule with a
+    network_variant, since short_label() appends its own Client/Server
+    suffix separately (see the docstring on _ClassificationRule)."""
+
+    def test_matches_classify_subsystem_for_non_variant_rules(self):
+        for name, expected in (
+            ("photon_client_profiler_stats-2026.05.20-16.29.csv", "Photon"),
+            ("fishNet_client_events_20260529_095244.csv", "FishNet"),
+            ("dots_profiler_stats-2026.05.20-16.38.csv", "DOTS"),
+            ("com.IMT_Atlantique.BenchmarkBase#UnityPlayerGameActivity-x.csv", "Base"),
+        ):
+            self.assertEqual(base_tech_label(name), classify_subsystem(name))
+
+    def test_godot_network_file_returns_base_godot_not_the_variant(self):
+        # classify_subsystem() returns the "Godot Network" variant for this
+        # file; base_tech_label() must return plain "Godot" so
+        # short_label() doesn't double up the role information when it
+        # appends " Client"/" Server" afterwards.
+        name = "client_godot_events_20260716_160226.csv"
+        self.assertEqual(classify_subsystem(name), "Godot Network")
+        self.assertEqual(base_tech_label(name), "Godot")
+
+    def test_gpu_display_text_differs_from_raw_subsystem_name(self):
+        # Deliberate divergence: subsystem_catalog.py/classify_subsystem()
+        # use the hyphenated "Base-GPU" raw name; the UI legend uses a
+        # space, "Base GPU".
+        self.assertEqual(classify_subsystem("gpu_profiler_stats-x.csv"), "Base-GPU")
+        self.assertEqual(base_tech_label("gpu_profiler_stats-x.csv"), "Base GPU")
+
+    def test_unrecognized_name_falls_back_to_base_not_other(self):
+        # Deliberately different from classify_subsystem()'s "Other"
+        # fallback -- this preserves short_label()'s pre-refactor behavior
+        # of always falling back to "Base" for the tech tag.
+        self.assertEqual(classify_subsystem("some_totally_unknown_capture_file.csv"), "Other")
+        self.assertEqual(base_tech_label("some_totally_unknown_capture_file.csv"), "Base")
 
 
 if __name__ == "__main__":

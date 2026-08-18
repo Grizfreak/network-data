@@ -713,6 +713,43 @@ def build_datasets(
     return datasets, warnings
 
 
+def get_available_metrics(stats_files, metric_options):
+    """Scan loaded files and return only metrics that actually produce a
+    parseable series for at least one loaded file.
+
+    `metric_options` is a `{display_label: metric_key}` dict, e.g.
+    `app.py`'s module-level `metric_options`.
+
+    Calls `metric_series_from_stats()` -- the real extractor -- per
+    file/metric instead of hand-maintaining a second, parallel list of
+    "which columns imply this metric is available". That second list (see
+    git history; it used to live in `app.py`) had drifted from what the
+    extractor actually reads in several concrete ways: extra columns that
+    are never read (Memory's `app_pss_MB`/`app_uss_MB`, CPU's
+    `cpu_utilization_percentage`, which `metric_series_from_stats`
+    deliberately ignores -- see its comment -- RTT's `Ping (ns)`, which
+    only feeds the unexposed `network_ping` metric, not `network_rtt`),
+    columns *missing* that the extractor DOES support via its
+    cumulative-counter fallback (Upload/Download), and two hardcoded
+    labels ("PCAP - Cumulative Packets"/"PCAP - Cumulative Bytes") that
+    didn't match any real key in `metric_options` at all -- so "PCAP -
+    Packets/Bytes per GameObject (delta)" always showed as unavailable
+    regardless of the data. Calling the extractor directly can't drift out
+    of sync with itself.
+    """
+    available = set()
+    for sname, df in stats_files:
+        for label, metric_key in metric_options.items():
+            if label in available:
+                continue
+            series, ycol = metric_series_from_stats(df, metric_key, sname, x_axis_mode="frame")
+            if series is not None and ycol is not None and not series.empty:
+                available.add(label)
+        if len(available) == len(metric_options):
+            break
+    return [label for label in metric_options.keys() if label in available]
+
+
 def average_series_across_runs(
     series_list: list,
     x_col: str,

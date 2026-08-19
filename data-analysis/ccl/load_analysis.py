@@ -99,7 +99,7 @@ from metrics_engine import metric_series_from_stats, _has_pcap_columns  # noqa: 
 
 from metrics_catalog import METRICS as METRIC_CATALOG
 from stats_common import cliffs_delta, cliffs_delta_effect_size
-from subsystem_catalog import PLANNED_COMPARISONS
+from subsystem_catalog import CATEGORY_NETWORK_LIBRARY, PLANNED_COMPARISONS, SUBSYSTEMS
 
 
 # ---------------------------------------------------------------------------
@@ -146,23 +146,191 @@ CAPACITY_OUTLIER_RATIO = 0.5
 # runs' median" to mean anything.
 MIN_RUNS_FOR_OUTLIER_CHECK = 3
 
+# Runs to exclude from the CAPACITY calculation specifically (never from
+# observations_long.csv -- a run stays available there for every palier it
+# has valid data at). Meant for cases where the *capacity signal itself* is
+# known bad for a documented, verified reason -- e.g. a profiling tool's
+# export was confirmed truncated against the run's own event log -- not a
+# place to quietly drop an inconvenient result. Every entry here also
+# produces an issues.csv row (see `compute_capacity`), so the exclusion is
+# never silent.
+#
+# Keyed by (platform, subsystem, role, run_id) -- the same tuple
+# `compute_capacity` already dedups on.
+#
+# Investigated 2026-08-19 for (Quest, DOTS, "", benchmarkQuest#4)
+# (max_entities_reached=1600 vs. 20000 for its four sibling runs): the
+# hypothesis was that OVR Metrics Tool's export was cut short while the
+# app kept going. Checked against the run's OWN event log
+# (dots_events_20260811_100725.csv, produced by the app itself, not OVR):
+# it shows only 4/50 FinishedInstantiation waves (400/800/1200/1600) and
+# no closing PhaseFinished after the last one -- i.e. the app's own
+# instantiation trail stops at 1600 too. The OVR device stats file's
+# capture, meanwhile, continues to t=262s, well past the last wave at
+# t=30s -- the opposite of a truncated export. So the hypothesis did NOT
+# hold: this is a genuine incomplete run (the existing run_complete=False
+# / capacity-outlier machinery already reflects that correctly), not a
+# tooling artifact. No entry added for it; left as a worked example of how
+# to document a rejected hypothesis here rather than silently doing
+# nothing.
+CAPACITY_EXCLUSIONS: dict[tuple[str, str, str, str], str] = {}
+
+# A run's stats capture ending at least this many seconds before the last
+# FinishedInstantiation in its OWN event log is treated as a likely
+# export/capture truncation rather than a genuine capacity ceiling (see
+# `detect_capture_truncation`) -- large enough to not fire on ordinary
+# end-of-capture jitter, small enough to still catch a capture cut short
+# mid-run.
+CAPTURE_TRUNCATION_TOLERANCE_SECONDS = 5.0
+
+# ---------------------------------------------------------------------------
+# Role as a configuration-identity dimension
+# ---------------------------------------------------------------------------
+#
+# The server is headless (no rendering, no stereo output): its workload is
+# not the same thing as the client's, so a networked subsystem's client and
+# server sides must never be pooled into one series. `config_identity`
+# turns (subsystem, role) into the identity actually used for every
+# cross-configuration comparison, curve, and capacity summary downstream --
+# "NetcodeEntities-client" and "NetcodeEntities-server" are two distinct
+# configurations from here on. Local baselines (role is "" or NaN -- they
+# never open a connection) keep their bare name, unsuffixed.
+
+_NETWORK_LIBRARY_RAW_NAMES = {s.raw_name for s in SUBSYSTEMS if s.category == CATEGORY_NETWORK_LIBRARY}
+
+
+def config_identity(subsystem: str, role) -> str:
+    if role == "client":
+        return f"{subsystem}-client"
+    if role == "server":
+        return f"{subsystem}-server"
+    return subsystem
+
+
+def _is_server_identity(config_id: str) -> bool:
+    return config_id.endswith("-server")
+
+
+def _client_identity(raw_name: str) -> str:
+    """The identity a raw subsystem name resolves to on the client side --
+    suffixed for network libraries (they have a distinct server side),
+    unchanged for local baselines (they have no role at all)."""
+    return f"{raw_name}-client" if raw_name in _NETWORK_LIBRARY_RAW_NAMES else raw_name
+
+
 # Which configuration pairs are meaningful to test, matching how the
-# benchmark is actually designed to be read: each networking solution
-# against the local baseline for its own engine/framework, and each
-# non-networked baseline against Base (the reference implementation).
-# Restricting the family to these pairs (via --comparisons planned) keeps
-# correction families small enough that the exact test's floor p-value
-# (2/252 at N=5 vs 5) doesn't make every family structurally
-# non-significant -- see `compare_configurations`'s docstring.
+# benchmark is actually designed to be read: each networking solution's
+# CLIENT side against the local baseline for its own engine/framework, and
+# each non-networked baseline against Base (the reference implementation).
+# The server never appears here -- comparing a headless process to a
+# rendered one is not meaningful (see `compare_configurations`'s
+# role-mismatch check). Restricting the family to these pairs (via
+# --comparisons planned) also keeps correction families small enough that
+# the exact test's floor p-value (2/252 at N=5 vs 5) doesn't make every
+# family structurally non-significant -- see
+# `benjamini_hochberg_correction`'s docstring.
 #
 # Sourced from subsystem_catalog.py's `baseline_of` field. Entries are
 # unordered (subsystem, reference) pairs; matching against `all_subsystems`
 # combinations ignores which one comes first.
-_PLANNED_PAIRS = {frozenset(pair) for pair in PLANNED_COMPARISONS}
+_BASELINE_FAMILY_PAIRS = {
+    frozenset((_client_identity(a), _client_identity(b))) for a, b in PLANNED_COMPARISONS
+}
+
+# Network solutions' server sides are comparable to each other (they're all
+# headless processes doing the same kind of work), just never to a local
+# baseline. Kept as a separate correction family from `_BASELINE_FAMILY_PAIRS`
+# so the two don't dilute each other's family size.
+_SERVER_NETWORK_FAMILY_PAIRS = {
+    frozenset((f"{a}-server", f"{b}-server"))
+    for a, b in itertools.combinations(sorted(_NETWORK_LIBRARY_RAW_NAMES), 2)
+}
+
+# Network solutions' CLIENT sides against each other, for network/PCAP
+# metrics only (see NETWORK_METRIC_KEYS below) -- a local baseline never
+# opens a connection, so it has no counterpart for these metrics; the only
+# meaningful comparison is one network solution against another, at
+# matched load, client side (consistent with the client/server separation
+# used everywhere else). Kept as its own correction family, distinct from
+# both `_BASELINE_FAMILY_PAIRS` (render metrics) and
+# `_SERVER_NETWORK_FAMILY_PAIRS` (server-side render/engineering metrics).
+_CLIENT_NETWORK_FAMILY_PAIRS = {
+    frozenset((f"{a}-client", f"{b}-client"))
+    for a, b in itertools.combinations(sorted(_NETWORK_LIBRARY_RAW_NAMES), 2)
+}
+
+_FAMILY_BY_PAIR: dict[frozenset, str] = {}
+_FAMILY_BY_PAIR.update({pair: "baseline" for pair in _BASELINE_FAMILY_PAIRS})
+_FAMILY_BY_PAIR.update({pair: "server_network" for pair in _SERVER_NETWORK_FAMILY_PAIRS})
+
+# The five network/PCAP metrics that are only ever meaningful between two
+# network solutions (see `_CLIENT_NETWORK_FAMILY_PAIRS`). `network_ping`
+# is deliberately excluded -- unlike the other five, it has no meaningful
+# coverage in this dataset, so it stays out of the planned-comparison
+# machinery rather than being force-included on principle.
+NETWORK_METRIC_KEYS = {
+    "network_rtt", "network_upload", "network_download", "pcap_bytes", "pcap_packets",
+}
+
+# Structural (not data-driven) reasons a specific network solution can
+# never be compared on a specific network metric, regardless of how much
+# data it has. Keyed by the solution's raw (unsuffixed) name so it applies
+# uniformly to whichever side of a pair it lands on.
+NETWORK_METRIC_EXCLUSIONS: dict[str, dict[str, str]] = {
+    "Godot Network": {
+        "network_rtt": "Godot Network's stats export has no RTT metric -- only PCAP-derived packets/bytes",
+        "network_upload": "Godot Network's stats export has no upload/download throughput metric -- only PCAP-derived packets/bytes",
+        "network_download": "Godot Network's stats export has no upload/download throughput metric -- only PCAP-derived packets/bytes",
+    },
+    "Photon": {
+        "network_rtt": "Photon Fusion relays through third-party cloud infrastructure rather than the "
+                        "locally-hosted dedicated server the other solutions use -- its RTT is not "
+                        "comparable to a LAN round-trip",
+        "pcap_bytes": "Photon Fusion transits through third-party cloud infrastructure, not the local "
+                      "server captured by Wireshark -- its traffic was never captured, so PCAP metrics "
+                      "aren't comparable",
+        "pcap_packets": "Photon Fusion transits through third-party cloud infrastructure, not the local "
+                        "server captured by Wireshark -- its traffic was never captured, so PCAP metrics "
+                        "aren't comparable",
+    },
+}
 
 
-def is_planned_comparison(subsystem_a: str, subsystem_b: str) -> bool:
-    return frozenset((subsystem_a, subsystem_b)) in _PLANNED_PAIRS
+def _is_local_identity(config_id: str) -> bool:
+    return not (config_id.endswith("-client") or config_id.endswith("-server"))
+
+
+def _network_metric_exclusion_reason(config_id: str, metric_key: str) -> Optional[str]:
+    """The structural reason `config_id` can't be compared on `metric_key`,
+    if any -- e.g. Godot Network has no RTT metric, Photon's traffic isn't
+    locally captured. Only applies to network/PCAP metrics on client-side
+    network-solution identities; returns None for everything else."""
+    if metric_key not in NETWORK_METRIC_KEYS or not config_id.endswith("-client"):
+        return None
+    raw_name = config_id[: -len("-client")]
+    return NETWORK_METRIC_EXCLUSIONS.get(raw_name, {}).get(metric_key)
+
+
+def comparison_family_for(subsystem_a: str, subsystem_b: str, metric_key: str) -> str:
+    """Which correction family (if any) a pair of configuration identities
+    belongs to under --comparisons planned, for a given metric:
+    "baseline" (a networked client vs. its local reference, or a local
+    variant vs. Base), "server_network" (two network solutions' server
+    sides against each other), "network_metrics" (two network solutions'
+    client sides against each other, network/PCAP metrics only -- see
+    `NETWORK_METRIC_KEYS`), or "" (not a planned pair for this metric --
+    still computed, never corrected under planned mode)."""
+    pair = frozenset((subsystem_a, subsystem_b))
+    family = _FAMILY_BY_PAIR.get(pair, "")
+    if family:
+        return family
+    if metric_key in NETWORK_METRIC_KEYS and pair in _CLIENT_NETWORK_FAMILY_PAIRS:
+        return "network_metrics"
+    return ""
+
+
+def is_planned_comparison(subsystem_a: str, subsystem_b: str, metric_key: str) -> bool:
+    return comparison_family_for(subsystem_a, subsystem_b, metric_key) != ""
 
 # (metric_key, label, unit, lower_is_better), sourced from the shared
 # metrics_catalog (short-label convention -- this module's own CSV exports
@@ -247,6 +415,7 @@ class CapacityRow:
     platform: str
     subsystem: str
     role: str
+    config_id: str
     run_id: str
     max_entities_reached: int
     run_complete: bool
@@ -286,6 +455,7 @@ class ComparisonRow:
     comparable: bool
     reason: str
     planned: bool
+    comparison_family: str
 
 
 # ---------------------------------------------------------------------------
@@ -904,7 +1074,7 @@ def build_observations(
 # Capacity
 # ---------------------------------------------------------------------------
 
-def compute_capacity(runs: list[RunData]) -> pd.DataFrame:
+def compute_capacity(runs: list[RunData]) -> tuple[pd.DataFrame, list[LoadIssue]]:
     """One row per (platform, subsystem, role, run): the max entity count
     that run's event log reached, and whether it did so before a normal
     (non-crash) end of benchmark.
@@ -914,20 +1084,80 @@ def compute_capacity(runs: list[RunData]) -> pd.DataFrame:
     of the events log, not of which stats file we're looking at, so
     duplicates are collapsed to one row per (platform, subsystem, role,
     run_id).
+
+    A run listed in `CAPACITY_EXCLUSIONS` is left out of the returned
+    table entirely (it never contributes a capacity ceiling), but this
+    never touches `observations_long.csv` -- only its capacity-log
+    contribution is suppressed, and the exclusion is recorded in the
+    returned issue list rather than applied silently.
     """
     columns = list(CapacityRow.__annotations__.keys())
     seen: dict[tuple[str, str, str, str], CapacityRow] = {}
+    issues: list[LoadIssue] = []
+    excluded_keys: set[tuple[str, str, str, str]] = set()
     for run in runs:
         if not run.waves:
             continue
         dedup_key = (run.key.platform, run.key.subsystem, run.key.role, run.key.run_id)
+        exclusion_reason = CAPACITY_EXCLUSIONS.get(dedup_key)
+        if exclusion_reason is not None:
+            if dedup_key not in excluded_keys:
+                excluded_keys.add(dedup_key)
+                issues.append(LoadIssue(
+                    run_id=run.key.run_id,
+                    stat_name=f"{run.key.platform}/{run.key.subsystem}/{run.key.role or 'role-less'}",
+                    reason=f"excluded from capacity.csv (CAPACITY_EXCLUSIONS): {exclusion_reason}",
+                ))
+            continue
         seen.setdefault(dedup_key, CapacityRow(
-            run.key.platform, run.key.subsystem, run.key.role, run.key.run_id,
+            run.key.platform, run.key.subsystem, run.key.role,
+            config_identity(run.key.subsystem, run.key.role), run.key.run_id,
             max(w.entities for w in run.waves), run.run_complete,
         ))
     if not seen:
-        return pd.DataFrame(columns=columns)
-    return pd.DataFrame([asdict(r) for r in seen.values()], columns=columns)
+        return pd.DataFrame(columns=columns), issues
+    return pd.DataFrame([asdict(r) for r in seen.values()], columns=columns), issues
+
+
+def detect_capture_truncation(runs: list[RunData]) -> list[LoadIssue]:
+    """Flag every run whose stats capture ends more than
+    `CAPTURE_TRUNCATION_TOLERANCE_SECONDS` before the last
+    FinishedInstantiation in that SAME run's own event log.
+
+    This is the generic version of the check behind `CAPACITY_EXCLUSIONS`:
+    stats ending well before the event log's last recorded wave is the
+    signature of a profiling export cut short mid-capture (the event log
+    is produced by the app itself, independent of whichever stats
+    exporter was used) -- as opposed to stats extending to or past the
+    last wave, which is what a genuinely-stalled run looks like instead
+    (see the CAPACITY_EXCLUSIONS docstring for a worked example where the
+    check does NOT fire, and why that mattered).
+    """
+    issues: list[LoadIssue] = []
+    for run in runs:
+        if not run.waves:
+            continue
+        last_wave = run.waves[-1]
+        time_col = _time_axis_priority_column(run.stats_df)
+        if time_col is None:
+            continue
+        divisor = _seconds_divisor(time_col)
+        times = pd.to_numeric(run.stats_df[time_col], errors="coerce") / divisor
+        times = times.dropna()
+        if times.empty:
+            continue
+        capture_end = float(times.max())
+        if capture_end < last_wave.time - CAPTURE_TRUNCATION_TOLERANCE_SECONDS:
+            issues.append(LoadIssue(
+                run_id=run.key.run_id, stat_name=run.key.stat_name,
+                reason=(
+                    f"stats capture ends at t={capture_end:.2f}s, {last_wave.time - capture_end:.2f}s "
+                    f"before this run's own event log's last FinishedInstantiation (t={last_wave.time:.2f}s, "
+                    f"{last_wave.entities} entities) -- suggests the stats export was cut short rather than "
+                    f"the run genuinely stopping there; consider CAPACITY_EXCLUSIONS if confirmed"
+                ),
+            ))
+    return issues
 
 
 def detect_capacity_outliers(capacity_df: pd.DataFrame) -> list[LoadIssue]:
@@ -1103,40 +1333,62 @@ def compare_configurations(
     """Pairwise Mann-Whitney + Cliff's delta between configurations, at
     each resolved reference load, within each (metric, platform) family.
 
-    A run contributes at most one value per (config, load): the median of
-    its palier-level medians nearest that load (there's normally exactly
-    one, since a run reaches each `entities` value once). Server-role rows
-    are excluded from cross-configuration comparisons -- the server rarely
-    fails, so its numbers describe "how hard the server worked", not the
-    steady-state experience the comparison is meant to capture; client
-    (or role-less baseline) rows are used instead.
+    Role is part of a configuration's identity here (see
+    `config_identity`): `subsystem_a`/`subsystem_b` hold identities like
+    "NetcodeEntities-client" and "NetcodeEntities-server", never a bare
+    "NetcodeEntities" that would silently mix the two. A run contributes
+    at most one value per (config identity, load): the median of its
+    palier-level medians nearest that load (there's normally exactly one,
+    since a run reaches each `entities` value once).
 
-    A pair is `comparable=False` (with a `reason`) whenever either side
-    never reached the resolved load, has too few runs, or the exact test's
-    arrangement count would be impractical -- never silently dropped. When
-    `capacity_df` is given, a side with zero observations is checked
-    against it: if the event log shows the load *was* reached in one or
-    more runs, the reason says so explicitly (pointing to issues.csv)
-    instead of the misleading "never reached" -- see
+    A pair straddling the client/server frontier (one identity ending in
+    "-server", the other not) is always `comparable=False` -- the server
+    is headless (no rendering, no stereo output), so its workload is not
+    the same thing as a client's or a local baseline's, and no sample size
+    would make that comparison meaningful. For network/PCAP metrics (see
+    `NETWORK_METRIC_KEYS`), a pair with exactly one local (role-less) side
+    is likewise always `comparable=False` -- local configurations never
+    open a network connection, so they have no counterpart for these
+    metrics -- and a network solution structurally missing a given metric
+    (Godot Network has no RTT/throughput; Photon's traffic isn't captured
+    locally -- see `NETWORK_METRIC_EXCLUSIONS`) is excluded with that
+    reason regardless of how much data it has. Beyond these structural
+    rules, a pair is `comparable=False` (with a `reason`) whenever either
+    side never reached the resolved load, has too few runs, or the exact
+    test's arrangement count would be impractical -- never silently
+    dropped. When `capacity_df` is given, a side with zero observations is
+    checked against it: if the event log shows the load *was* reached in
+    one or more runs, the reason says so explicitly (pointing to
+    issues.csv) instead of the misleading "never reached" -- see
     `aggregate_run_metric` for why a fully successful run can still leave
     its highest palier with no usable observation.
 
-    EVERY subsystem pair is always computed and exported, regardless of
-    `comparisons`. `comparisons` only controls which pairs feed the
-    correction families:
+    EVERY comparable-by-role identity pair is always computed and
+    exported, regardless of `comparisons`. `comparisons` only controls
+    which pairs feed the correction families:
 
-    - "planned" (default): only pairs in `PLANNED_COMPARISONS` (each
-      networking solution vs. its local baseline, each non-networked
-      baseline vs. Base) form correction families. This keeps family size
-      small -- up to 8 in this dataset -- so the exact test's floor
-      p-value doesn't make whole families structurally non-significant
-      (see `benjamini_hochberg_correction`'s docstring). Every pair not in
-      that set is still computed and appears in the output with
+    - "planned" (default): only pairs in one of three planned families
+      form correction families, kept separate from each other via the
+      `comparison_family` column (see `comparison_family_for`):
+        * "baseline" -- each networking solution's CLIENT side vs. its
+          local baseline, each non-networked variant vs. Base.
+        * "server_network" -- each pair of network solutions' SERVER
+          sides against each other (purely descriptive/exploratory; never
+          against a local baseline).
+        * "network_metrics" -- each pair of network solutions' CLIENT
+          sides against each other, for `NETWORK_METRIC_KEYS` only (RTT,
+          upload/download, PCAP packets/bytes); never against a local
+          baseline, since locals produce none of these metrics.
+      This keeps family size small so the exact test's floor p-value
+      doesn't make a whole family structurally non-significant (see
+      `benjamini_hochberg_correction`'s docstring). Every pair in none of
+      these families is still computed and appears in the output with
       `planned=False`, but its `p_value_holm`/`p_value_bh`/`significant`
       are left unset (NaN/False) -- it was never a member of any tested
       family.
     - "all": every comparable pair for a (metric, platform, target_load)
-      forms one family, `planned` is informational only.
+      forms one family (families are not split by `comparison_family` in
+      this mode); `planned` is informational only.
 
     `correction` selects which adjusted column drives `significant`
     ("holm", "bh", or "none" for raw p < alpha); both `p_value_holm` and
@@ -1155,23 +1407,40 @@ def compare_configurations(
     if observations.empty:
         return pd.DataFrame(columns=output_columns)
 
+    observations = observations.copy()
+    observations["config_id"] = [
+        config_identity(s, r) for s, r in zip(observations["subsystem"], observations["role"])
+    ]
+    # Every config_id ever observed on a platform, across ALL metrics --
+    # used below so a config with zero rows for one particular metric
+    # (e.g. Godot Network has no network_rtt observations at all: its
+    # stats export simply has no RTT column) still gets paired up and
+    # exported as an explicit comparable=False row instead of being
+    # silently absent from test_results.csv.
+    known_configs_by_platform: dict[str, set[str]] = (
+        observations.groupby("platform")["config_id"].agg(set).to_dict()
+    )
+
     capacity_by_config: dict[tuple[str, str], pd.Series] = {}
     if capacity_df is not None and not capacity_df.empty:
-        non_server_capacity = capacity_df[capacity_df["role"] != "server"]
-        for (cap_platform, cap_subsystem), group in non_server_capacity.groupby(["platform", "subsystem"]):
-            capacity_by_config[(cap_platform, cap_subsystem)] = group.set_index("run_id")["max_entities_reached"]
+        capacity_df = capacity_df.copy()
+        capacity_df["config_id"] = [
+            config_identity(s, r) for s, r in zip(capacity_df["subsystem"], capacity_df["role"])
+        ]
+        for (cap_platform, cap_config), group in capacity_df.groupby(["platform", "config_id"]):
+            capacity_by_config[(cap_platform, cap_config)] = group.set_index("run_id")["max_entities_reached"]
 
-    def _never_reached_reason(platform: str, subsystem: str, resolved_load: int) -> str:
-        series = capacity_by_config.get((platform, subsystem))
+    def _never_reached_reason(platform: str, config_id: str, resolved_load: int) -> str:
+        series = capacity_by_config.get((platform, config_id))
         if series is not None:
             reached = int((series >= resolved_load).sum())
             if reached:
                 return (
-                    f"{subsystem} reached load {resolved_load} in {reached}/{len(series)} run(s)' "
+                    f"{config_id} reached load {resolved_load} in {reached}/{len(series)} run(s)' "
                     f"capacity log, but none produced a usable steady-state observation there "
                     f"(see issues.csv)"
                 )
-        return f"{subsystem} never reached load {resolved_load} in any run"
+        return f"{config_id} never reached load {resolved_load} in any run"
 
     for metric_key, metric_obs in observations.groupby("metric_key"):
         label = metric_obs["metric_label"].iloc[0]
@@ -1179,24 +1448,41 @@ def compare_configurations(
         lib = metric_key in lower_is_better
 
         for platform, plat_obs in metric_obs.groupby("platform"):
-            all_subsystems = sorted(plat_obs["subsystem"].unique())
-            non_server = plat_obs[plat_obs["role"] != "server"]
+            all_configs = sorted(known_configs_by_platform.get(platform, set(plat_obs["config_id"].unique())))
 
             for target, resolved_load in resolved.items():
                 per_config_values: dict[str, pd.Series] = {}
-                for subsystem in all_subsystems:
-                    sub_obs = non_server[
-                        (non_server["subsystem"] == subsystem) & (non_server["entities"] == resolved_load)
+                for config_id in all_configs:
+                    sub_obs = plat_obs[
+                        (plat_obs["config_id"] == config_id) & (plat_obs["entities"] == resolved_load)
                     ]
-                    per_config_values[subsystem] = sub_obs.groupby("run_id")["median"].mean()
+                    per_config_values[config_id] = sub_obs.groupby("run_id")["median"].mean()
 
-                for a, b in itertools.combinations(all_subsystems, 2):
+                for a, b in itertools.combinations(all_configs, 2):
                     va, vb = per_config_values[a], per_config_values[b]
                     n_a, n_b = len(va), len(vb)
-                    planned = is_planned_comparison(a, b)
+                    family = comparison_family_for(a, b, metric_key)
+                    planned = family != ""
+
+                    exclusion_a = _network_metric_exclusion_reason(a, metric_key)
+                    exclusion_b = _network_metric_exclusion_reason(b, metric_key)
 
                     comparable, reason = True, ""
-                    if n_a == 0:
+                    if _is_server_identity(a) != _is_server_identity(b):
+                        comparable, reason = False, (
+                            f"{a if _is_server_identity(a) else b} is a server-role configuration -- "
+                            f"not comparable to a client/local configuration (headless vs. rendered "
+                            f"workload)"
+                        )
+                    elif metric_key in NETWORK_METRIC_KEYS and _is_local_identity(a) != _is_local_identity(b):
+                        comparable, reason = False, (
+                            f"{a if _is_local_identity(a) else b} is a local configuration -- it never "
+                            f"opens a network connection, so {label} has no comparable local counterpart"
+                        )
+                    elif exclusion_a is not None or exclusion_b is not None:
+                        excluded_id = a if exclusion_a is not None else b
+                        comparable, reason = False, f"{excluded_id} excluded from {label}: {exclusion_a or exclusion_b}"
+                    elif n_a == 0:
                         comparable, reason = False, _never_reached_reason(platform, a, resolved_load)
                     elif n_b == 0:
                         comparable, reason = False, _never_reached_reason(platform, b, resolved_load)
@@ -1217,7 +1503,7 @@ def compare_configurations(
                             median_b=float(vb.median()) if n_b else float("nan"),
                             median_ratio=float("nan"), u_statistic=float("nan"), p_value=float("nan"),
                             n_arrangements=0, cliffs_delta=float("nan"), effect_size="n/a",
-                            comparable=False, reason=reason, planned=planned,
+                            comparable=False, reason=reason, planned=planned, comparison_family=family,
                         ))
                         continue
 
@@ -1232,7 +1518,7 @@ def compare_configurations(
                         median_ratio=(median_a / median_b) if median_b else float("nan"),
                         u_statistic=mw.u, p_value=mw.p_value, n_arrangements=mw.n_arrangements,
                         cliffs_delta=delta, effect_size=cliffs_delta_effect_size(delta),
-                        comparable=True, reason="", planned=planned,
+                        comparable=True, reason="", planned=planned, comparison_family=family,
                     ))
 
     df = pd.DataFrame([asdict(r) for r in rows], columns=list(ComparisonRow.__annotations__.keys()))
@@ -1241,7 +1527,11 @@ def compare_configurations(
     df["significant"] = False
 
     family_mask = df["comparable"] & (df["planned"] if comparisons == "planned" else True)
-    for _, group in df[family_mask].groupby(["metric_key", "platform", "target_load"]):
+    group_keys = (
+        ["metric_key", "platform", "target_load", "comparison_family"]
+        if comparisons == "planned" else ["metric_key", "platform", "target_load"]
+    )
+    for _, group in df[family_mask].groupby(group_keys):
         raw_p = group["p_value"].tolist()
         df.loc[group.index, "p_value_holm"] = holm_correction(raw_p)
         df.loc[group.index, "p_value_bh"] = benjamini_hochberg_correction(raw_p)
@@ -1260,12 +1550,18 @@ def compare_configurations(
 # ---------------------------------------------------------------------------
 
 def metric_vs_load_curve(observations: pd.DataFrame) -> pd.DataFrame:
-    """One row per (platform, subsystem, role, metric, entities): the
+    """One row per (platform, config_id, metric, entities): the
     median-of-medians across runs plus the IQR of per-run medians, ready to
-    drive a metric-vs-load line with an IQR band across executions."""
+    drive a metric-vs-load line with an IQR band across executions.
+
+    `config_id` (see `config_identity`) is the role-aware configuration
+    identity -- e.g. "NetcodeEntities-client" and "NetcodeEntities-server"
+    never share a row here. `subsystem`/`role` are kept alongside it for
+    readers who want to filter/pivot on the raw dimensions directly."""
     group_cols = ["platform", "subsystem", "role", "metric_key", "metric_label", "unit", "entities"]
+    output_cols = ["platform", "config_id", "subsystem", "role", "metric_key", "metric_label", "unit", "entities"]
     if observations.empty:
-        return pd.DataFrame(columns=group_cols + ["n_runs", "median_of_medians", "q1_of_medians", "q3_of_medians", "iqr_of_medians"])
+        return pd.DataFrame(columns=output_cols + ["n_runs", "median_of_medians", "q1_of_medians", "q3_of_medians", "iqr_of_medians"])
 
     per_run = (
         observations.groupby(group_cols + ["run_id"])["median"].mean().reset_index()
@@ -1277,7 +1573,9 @@ def metric_vs_load_curve(observations: pd.DataFrame) -> pd.DataFrame:
         q3_of_medians=lambda s: s.quantile(0.75),
     ).reset_index()
     curve["iqr_of_medians"] = curve["q3_of_medians"] - curve["q1_of_medians"]
-    return curve.sort_values(["metric_key", "platform", "subsystem", "role", "entities"]).reset_index(drop=True)
+    curve["config_id"] = [config_identity(s, r) for s, r in zip(curve["subsystem"], curve["role"])]
+    curve = curve[output_cols + ["n_runs", "median_of_medians", "q1_of_medians", "q3_of_medians", "iqr_of_medians"]]
+    return curve.sort_values(["metric_key", "platform", "config_id", "entities"]).reset_index(drop=True)
 
 
 def forest_plot_data(comparisons: pd.DataFrame) -> pd.DataFrame:
@@ -1288,6 +1586,151 @@ def forest_plot_data(comparisons: pd.DataFrame) -> pd.DataFrame:
     return comparable.sort_values(
         ["metric_key", "platform", "target_load", "cliffs_delta"]
     ).reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# Server-side descriptive analysis
+# ---------------------------------------------------------------------------
+#
+# The server is headless: it never opens a rendering pipeline, so its
+# workload has no local-baseline counterpart to be tested against. What it
+# IS worth reporting, on its own terms, is how each network solution's
+# server behaves as load increases (CPU, memory, capacity) -- e.g. the
+# server reaching 20000 entities on PC for every solution while some
+# clients cap out far lower (Godot Network at 4800, NGO at 12000).
+
+def server_metrics_table(observations: pd.DataFrame) -> pd.DataFrame:
+    """Per-load CPU/memory/etc. descriptive table for the server role of
+    each network solution -- the same median-of-medians aggregation as
+    `metric_vs_load_curve`, restricted to `role == "server"`. Purely
+    descriptive: no significance testing against local configurations
+    (see `compare_configurations`'s role-mismatch rule for why)."""
+    if observations.empty:
+        return metric_vs_load_curve(observations)
+    return metric_vs_load_curve(observations[observations["role"] == "server"])
+
+
+def server_capacity_table(capacity_df: pd.DataFrame) -> pd.DataFrame:
+    """One descriptive row per (platform, subsystem): how many server-role
+    runs exist for each network solution, how many completed normally, and
+    the spread of the max entity count each one reached. Not compared
+    against any local configuration -- see module notes above."""
+    columns = [
+        "platform", "subsystem", "n_runs", "runs_complete",
+        "median_max_entities", "min_max_entities", "max_max_entities",
+    ]
+    if capacity_df.empty:
+        return pd.DataFrame(columns=columns)
+    server_cap = capacity_df[capacity_df["role"] == "server"]
+    if server_cap.empty:
+        return pd.DataFrame(columns=columns)
+
+    rows = []
+    for (platform, subsystem), group in server_cap.groupby(["platform", "subsystem"]):
+        rows.append({
+            "platform": platform, "subsystem": subsystem,
+            "n_runs": int(group["run_id"].nunique()),
+            "runs_complete": int(group["run_complete"].sum()),
+            "median_max_entities": float(group["max_entities_reached"].median()),
+            "min_max_entities": int(group["max_entities_reached"].min()),
+            "max_max_entities": int(group["max_entities_reached"].max()),
+        })
+    return pd.DataFrame(rows, columns=columns).sort_values(["platform", "subsystem"]).reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# Cross-output consistency checks
+# ---------------------------------------------------------------------------
+
+def check_metric_vs_load_consistency(curve: pd.DataFrame, comparisons: pd.DataFrame) -> list[LoadIssue]:
+    """Flag any (metric, platform, config_id, resolved_load) where
+    `compare_configurations`'s per-config median disagrees with
+    `metric_vs_load_curve`'s `median_of_medians` for the same identity.
+
+    Both are the median, across runs, of that run's palier-level median --
+    the same quantity computed twice along two different code paths (one
+    grouped by pairwise comparison, one grouped by curve point). They must
+    always agree; any numeric drift means the two aggregations silently
+    diverged (e.g. one still mixing roles the other correctly isolated),
+    which is exactly the class of bug this check exists to catch.
+    """
+    issues: list[LoadIssue] = []
+    if comparisons.empty or curve.empty:
+        return issues
+
+    curve_lookup = curve.set_index(["metric_key", "platform", "config_id", "entities"])["median_of_medians"]
+    tol = 1e-6
+    comparable = comparisons[comparisons["comparable"]]
+
+    for row in comparable.itertuples(index=False):
+        for config_id, median in ((row.subsystem_a, row.median_a), (row.subsystem_b, row.median_b)):
+            key = (row.metric_key, row.platform, config_id, row.resolved_load)
+            if key not in curve_lookup.index:
+                issues.append(LoadIssue(
+                    run_id=f"{row.platform}/{config_id}",
+                    stat_name=f"{row.metric_key}@{row.resolved_load}",
+                    reason=(
+                        "metric_vs_load/test_results mismatch: test_results.csv has a median "
+                        "for this (metric, platform, config, load) but metric_vs_load.csv has no "
+                        "matching row"
+                    ),
+                ))
+                continue
+            curve_value = curve_lookup.loc[key]
+            if isinstance(curve_value, pd.Series):  # duplicate index defensively -- shouldn't happen
+                curve_value = curve_value.iloc[0]
+            if abs(float(curve_value) - float(median)) > tol * max(1.0, abs(float(median))):
+                issues.append(LoadIssue(
+                    run_id=f"{row.platform}/{config_id}",
+                    stat_name=f"{row.metric_key}@{row.resolved_load}",
+                    reason=(
+                        f"metric_vs_load/test_results mismatch: test_results.csv median="
+                        f"{median:.6g}, metric_vs_load.csv median_of_medians={curve_value:.6g}"
+                    ),
+                ))
+    return issues
+
+
+def detect_role_count_mismatches(observations: pd.DataFrame) -> list[LoadIssue]:
+    """Flag every (platform, subsystem, metric, entities) where the number
+    of runs contributing a client-side observation differs from the number
+    contributing a server-side one.
+
+    Client and server are logged and segmented independently (separate
+    stats files, separate event-driven palier windows), so their counts
+    can legitimately diverge -- this isn't an error to auto-correct, but a
+    standing mismatch is worth a human's attention before treating the two
+    series as directly comparable in shape.
+    """
+    issues: list[LoadIssue] = []
+    if observations.empty:
+        return issues
+    role_obs = observations[observations["role"].isin(["client", "server"])]
+    if role_obs.empty:
+        return issues
+
+    counts = (
+        role_obs.groupby(["platform", "subsystem", "metric_key", "entities", "role"])["run_id"]
+        .nunique()
+        .unstack("role", fill_value=0)
+    )
+    if "client" not in counts.columns or "server" not in counts.columns:
+        return issues
+
+    mismatched = counts[counts["client"] != counts["server"]]
+    for (platform, subsystem, metric_key, entities), row in mismatched.iterrows():
+        issues.append(LoadIssue(
+            run_id=f"{platform}/{subsystem}",
+            stat_name=f"{metric_key}@{entities}",
+            reason=(
+                f"client/server observation count mismatch: {int(row['client'])} run(s) with a "
+                f"client-side observation vs {int(row['server'])} with a server-side observation "
+                f"for this (metric, load) -- roles are logged/segmented independently and can "
+                f"legitimately diverge, but review before treating the two series as directly "
+                f"comparable"
+            ),
+        ))
+    return issues
 
 
 # ---------------------------------------------------------------------------
@@ -1321,7 +1764,16 @@ def main(argv: Optional[list[str]] = None) -> None:
     issues.extend(obs_issues)
     print(f"Built {len(observations)} (run, metric, palier) observations; {len(obs_issues)} extraction issues.")
 
-    capacity = compute_capacity(runs)
+    capacity, capacity_exclusion_issues = compute_capacity(runs)
+    issues.extend(capacity_exclusion_issues)
+    if capacity_exclusion_issues:
+        print(f"Excluded {len(capacity_exclusion_issues)} run(s) from capacity.csv (CAPACITY_EXCLUSIONS) -- see issues.csv.")
+
+    truncation_issues = detect_capture_truncation(runs)
+    issues.extend(truncation_issues)
+    if truncation_issues:
+        print(f"Flagged {len(truncation_issues)} possible stats-capture truncation(s) -- see issues.csv.")
+
     headline = capacity_headline(capacity)
     outlier_issues = detect_capacity_outliers(capacity)
     issues.extend(outlier_issues)
@@ -1340,6 +1792,19 @@ def main(argv: Optional[list[str]] = None) -> None:
     if coverage_gap_issues:
         print(f"Flagged {len(coverage_gap_issues)} (platform, load, subsystem) coverage gap(s) -- see issues.csv.")
 
+    server_metrics = server_metrics_table(observations)
+    server_capacity = server_capacity_table(capacity)
+
+    consistency_issues = check_metric_vs_load_consistency(curve, comparisons)
+    issues.extend(consistency_issues)
+    if consistency_issues:
+        print(f"Flagged {len(consistency_issues)} metric_vs_load/test_results mismatch(es) -- see issues.csv.")
+
+    role_count_issues = detect_role_count_mismatches(observations)
+    issues.extend(role_count_issues)
+    if role_count_issues:
+        print(f"Flagged {len(role_count_issues)} client/server observation count mismatch(es) -- see issues.csv.")
+
     observations.to_csv(args.output_dir / "observations_long.csv", index=False)
     capacity.to_csv(args.output_dir / "capacity.csv", index=False)
     headline.to_csv(args.output_dir / "capacity_headline.csv", index=False)
@@ -1347,16 +1812,30 @@ def main(argv: Optional[list[str]] = None) -> None:
     curve.to_csv(args.output_dir / "metric_vs_load.csv", index=False)
     forest.to_csv(args.output_dir / "cliffs_delta_forest.csv", index=False)
     coverage.to_csv(args.output_dir / "load_coverage.csv", index=False)
+    server_metrics.to_csv(args.output_dir / "server_metrics.csv", index=False)
+    server_capacity.to_csv(args.output_dir / "server_capacity.csv", index=False)
 
     issues_df = pd.DataFrame([asdict(i) for i in issues], columns=list(LoadIssue.__annotations__.keys()))
     issues_df.to_csv(args.output_dir / "issues.csv", index=False)
 
     n_sig = int(comparisons["significant"].sum()) if not comparisons.empty else 0
     n_comparable = int(comparisons["comparable"].sum()) if not comparisons.empty else 0
+    n_planned = int(comparisons["planned"].sum()) if not comparisons.empty else 0
     n_planned_comparable = int((comparisons["comparable"] & comparisons["planned"]).sum()) if not comparisons.empty else 0
+    max_family_size = 0
+    if not comparisons.empty:
+        family_mask = comparisons["comparable"] & comparisons["planned"]
+        if family_mask.any():
+            max_family_size = int(
+                comparisons[family_mask]
+                .groupby(["metric_key", "platform", "target_load", "comparison_family"])
+                .size()
+                .max()
+            )
     print(
-        f"{n_comparable} comparable pairs ({n_planned_comparable} planned), "
-        f"{n_sig} significant (correction={args.correction}, comparisons={args.comparisons}, alpha={args.alpha})."
+        f"{n_planned} planned pairs, {n_comparable} comparable ({n_planned_comparable} planned & comparable), "
+        f"{n_sig} significant (correction={args.correction}, comparisons={args.comparisons}, alpha={args.alpha}); "
+        f"largest correction family: {max_family_size}."
     )
     print(f"Wrote outputs to {args.output_dir}")
 

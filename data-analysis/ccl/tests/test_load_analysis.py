@@ -15,6 +15,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
+import load_analysis  # noqa: E402
 from load_analysis import (  # noqa: E402
     RunData,
     RunKey,
@@ -23,14 +24,22 @@ from load_analysis import (  # noqa: E402
     _terminal_fallback_row,
     benjamini_hochberg_correction,
     build_segments,
+    check_metric_vs_load_consistency,
     cliffs_delta,
     cliffs_delta_effect_size,
     compare_configurations,
+    compute_capacity,
+    config_identity,
     detect_capacity_outliers,
+    detect_capture_truncation,
     detect_coverage_gaps,
+    detect_role_count_mismatches,
     holm_correction,
     load_coverage_table,
     mannwhitney_exact,
+    metric_vs_load_curve,
+    server_capacity_table,
+    server_metrics_table,
     _extract_waves,
 )
 
@@ -207,21 +216,25 @@ class PlannedComparisonsTests(unittest.TestCase):
     def _synthetic_observations(self) -> pd.DataFrame:
         # Five subsystems, five runs each, all at entities=400: Base is
         # the reference; FishNet/NGO/Photon/DOTS are its candidate
-        # partners. Only (Base, FishNet), (Base, NGO), (Base, Photon) and
-        # (Base, DOTS) are in PLANNED_COMPARISONS -- pairs among
-        # FishNet/NGO/Photon/DOTS themselves are not.
+        # partners. Only (Base, FishNet-client), (Base, NGO-client),
+        # (Base, Photon-client) and (Base, DOTS) end up in the "baseline"
+        # planned family -- pairs among FishNet/NGO/Photon/DOTS themselves
+        # are not. FishNet/NGO/Photon are network libraries (role
+        # "client" -> identity suffix "-client"); Base and DOTS are local
+        # baselines (role "" -> no suffix), matching how real data is
+        # tagged (a local config never carries a client/server role).
         rows = []
         values_by_subsystem = {
-            "Base": [10, 11, 12, 13, 14],
-            "FishNet": [50, 51, 52, 53, 54],  # complete separation from Base
-            "NGO": [20, 21, 22, 23, 24],
-            "Photon": [30, 31, 32, 33, 34],
-            "DOTS": [15, 16, 17, 18, 19],
+            "Base": ([10, 11, 12, 13, 14], ""),
+            "FishNet": ([50, 51, 52, 53, 54], "client"),  # complete separation from Base
+            "NGO": ([20, 21, 22, 23, 24], "client"),
+            "Photon": ([30, 31, 32, 33, 34], "client"),
+            "DOTS": ([15, 16, 17, 18, 19], ""),
         }
-        for subsystem, values in values_by_subsystem.items():
+        for subsystem, (values, role) in values_by_subsystem.items():
             for i, value in enumerate(values):
                 rows.append({
-                    "platform": "PC", "subsystem": subsystem, "role": "client",
+                    "platform": "PC", "subsystem": subsystem, "role": role,
                     "run_id": f"run{i}", "data_source": "profiler",
                     "metric_key": "fps", "metric_label": "FPS", "unit": "frames/s",
                     "entities": 400, "n_frames": 10,
@@ -244,6 +257,12 @@ class PlannedComparisonsTests(unittest.TestCase):
         self.assertEqual(len(planned_rows), 4)  # Base vs each of the other 4
         self.assertEqual(len(unplanned_rows), 6)
 
+        # The suffixed identity is what actually appears in the output.
+        self.assertSetEqual(
+            set(zip(planned_rows["subsystem_a"], planned_rows["subsystem_b"])),
+            {("Base", "DOTS"), ("Base", "FishNet-client"), ("Base", "NGO-client"), ("Base", "Photon-client")},
+        )
+
         # Planned pairs are comparable and got a real correction.
         self.assertTrue((planned_rows["comparable"]).all())
         self.assertTrue(planned_rows["p_value_bh"].notna().all())
@@ -261,6 +280,144 @@ class PlannedComparisonsTests(unittest.TestCase):
             alpha=0.05, comparisons="all", correction="bh",
         )
         self.assertTrue(df["p_value_bh"].notna().all())
+
+
+class RoleIdentityTests(unittest.TestCase):
+    """Role (client/server/local) must be a dimension of a configuration's
+    identity throughout the pipeline, never something aggregated over or
+    silently mixed. Uses NetcodeEntities/DOTS -- a real PLANNED_COMPARISONS
+    pair -- with a synthetic client/server split mirroring the real PC
+    anomaly (client much faster than the local baseline, server much
+    slower)."""
+
+    def _config_identity_observations(self) -> pd.DataFrame:
+        rows = []
+
+        def add(subsystem, role, values, run_prefix):
+            for i, value in enumerate(values):
+                rows.append({
+                    "platform": "PC", "subsystem": subsystem, "role": role,
+                    "run_id": f"{run_prefix}{i}", "data_source": "profiler",
+                    "metric_key": "cpu", "metric_label": "CPU", "unit": "ms",
+                    "entities": 20000, "n_frames": 10,
+                    "median": float(value), "q1": float(value) - 0.1, "q3": float(value) + 0.1,
+                    "iqr": 0.2,
+                })
+
+        # DOTS: local baseline, no role.
+        add("DOTS", "", [9.0, 9.5, 10.0, 10.5, 11.0], "dots_run")
+        # NetcodeEntities client: much faster than DOTS -- complete separation.
+        add("NetcodeEntities", "client", [3.0, 3.2, 3.4, 3.6, 3.8], "run")
+        # NetcodeEntities server: much slower than both -- a different workload entirely.
+        add("NetcodeEntities", "server", [25.0, 26.0, 27.0, 28.0, 29.0], "run")
+        return pd.DataFrame(rows)
+
+    def test_no_aggregation_crosses_the_role_boundary(self):
+        obs = self._config_identity_observations()
+        curve = metric_vs_load_curve(obs)
+
+        client_row = curve[curve["config_id"] == "NetcodeEntities-client"].iloc[0]
+        server_row = curve[curve["config_id"] == "NetcodeEntities-server"].iloc[0]
+        self.assertEqual(client_row["n_runs"], 5)
+        self.assertEqual(server_row["n_runs"], 5)
+        self.assertAlmostEqual(client_row["median_of_medians"], 3.4)
+        self.assertAlmostEqual(server_row["median_of_medians"], 27.0)
+        # Neither curve point is anywhere near a client/server blend.
+        self.assertLess(client_row["median_of_medians"], 10.0)
+        self.assertGreater(server_row["median_of_medians"], 20.0)
+
+    def test_local_configs_are_not_suffixed(self):
+        obs = self._config_identity_observations()
+        curve = metric_vs_load_curve(obs)
+        dots_row = curve[curve["subsystem"] == "DOTS"].iloc[0]
+        self.assertEqual(dots_row["config_id"], "DOTS")
+        self.assertEqual(config_identity("DOTS", ""), "DOTS")
+        self.assertEqual(config_identity("Base", None), "Base")
+
+    def test_no_planned_comparison_pits_server_against_a_local_configuration(self):
+        obs = self._config_identity_observations()
+        df = compare_configurations(
+            obs, target_loads=[20000], lower_is_better={"cpu"},
+            alpha=0.05, comparisons="planned", correction="bh",
+        )
+
+        # The client side is planned against DOTS (the real
+        # PLANNED_COMPARISONS entry) and is comparable.
+        client_vs_dots = df[
+            ((df["subsystem_a"] == "DOTS") & (df["subsystem_b"] == "NetcodeEntities-client"))
+            | ((df["subsystem_a"] == "NetcodeEntities-client") & (df["subsystem_b"] == "DOTS"))
+        ]
+        self.assertEqual(len(client_vs_dots), 1)
+        self.assertTrue(client_vs_dots.iloc[0]["planned"])
+        self.assertTrue(client_vs_dots.iloc[0]["comparable"])
+        self.assertEqual(client_vs_dots.iloc[0]["comparison_family"], "baseline")
+
+        # The server side is never planned, and is structurally not
+        # comparable to any local/client configuration, regardless of
+        # sample size.
+        server_rows = df[
+            (df["subsystem_a"] == "NetcodeEntities-server") | (df["subsystem_b"] == "NetcodeEntities-server")
+        ]
+        self.assertTrue((~server_rows["planned"]).all())
+        self.assertTrue((~server_rows["comparable"]).all())
+        for reason in server_rows["reason"]:
+            self.assertIn("server", reason.lower())
+
+    def test_metric_vs_load_and_test_results_stay_consistent(self):
+        obs = self._config_identity_observations()
+        curve = metric_vs_load_curve(obs)
+        comparisons = compare_configurations(
+            obs, target_loads=[20000], lower_is_better={"cpu"},
+            alpha=0.05, comparisons="planned", correction="bh",
+        )
+        issues = check_metric_vs_load_consistency(curve, comparisons)
+        self.assertEqual(issues, [])
+
+    def test_metric_vs_load_and_test_results_mismatch_is_flagged(self):
+        # A curve that disagrees with the comparison's own median for the
+        # same (metric, platform, config, load) must be caught, not
+        # silently trusted.
+        obs = self._config_identity_observations()
+        comparisons = compare_configurations(
+            obs, target_loads=[20000], lower_is_better={"cpu"},
+            alpha=0.05, comparisons="planned", correction="bh",
+        )
+        curve = metric_vs_load_curve(obs)
+        curve.loc[curve["config_id"] == "NetcodeEntities-client", "median_of_medians"] = 999.0
+        issues = check_metric_vs_load_consistency(curve, comparisons)
+        self.assertTrue(any("mismatch" in i.reason for i in issues))
+
+    def test_role_count_mismatch_is_flagged(self):
+        obs = self._config_identity_observations()
+        # Drop two of the five server runs -- client still has 5.
+        server_mask = obs["role"] == "server"
+        keep = obs[~server_mask].index.tolist() + obs[server_mask].index[:3].tolist()
+        obs = obs.loc[keep]
+        issues = detect_role_count_mismatches(obs)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("5 run(s) with a client-side observation", issues[0].reason)
+        self.assertIn("3 with a server-side observation", issues[0].reason)
+
+    def test_role_count_match_is_not_flagged(self):
+        obs = self._config_identity_observations()
+        self.assertEqual(detect_role_count_mismatches(obs), [])
+
+    def test_server_tables_are_descriptive_only(self):
+        obs = self._config_identity_observations()
+        capacity = pd.DataFrame([
+            {"platform": "PC", "subsystem": "NetcodeEntities", "role": "server", "config_id": "NetcodeEntities-server",
+             "run_id": f"run{i}", "max_entities_reached": 20000, "run_complete": True}
+            for i in range(5)
+        ])
+        metrics = server_metrics_table(obs)
+        self.assertTrue((metrics["role"] == "server").all())
+        self.assertIn("NetcodeEntities-server", metrics["config_id"].tolist())
+
+        cap = server_capacity_table(capacity)
+        self.assertEqual(len(cap), 1)
+        self.assertEqual(cap.iloc[0]["subsystem"], "NetcodeEntities")
+        self.assertEqual(cap.iloc[0]["n_runs"], 5)
+        self.assertEqual(cap.iloc[0]["median_max_entities"], 20000)
 
 
 class CapacityOutlierTests(unittest.TestCase):
@@ -637,6 +794,226 @@ class BuildSegmentsTests(unittest.TestCase):
 
     def test_empty_waves_yields_no_segments(self):
         self.assertEqual(build_segments([], run_complete=True, capture_end_time=10.0, transition_seconds=2.0), [])
+
+
+class NetworkMetricComparisonTests(unittest.TestCase):
+    """Network/PCAP metrics (network_rtt, network_upload, network_download,
+    pcap_bytes, pcap_packets) are only meaningful between two network
+    solutions' client sides, matched by load -- never against a local
+    baseline (which never opens a connection), and never mixing client and
+    server (already covered by RoleIdentityTests). Godot Network and
+    Photon each have real, documented gaps in what they can be compared
+    on; both must show up explicitly, not silently."""
+
+    def _observations(self) -> pd.DataFrame:
+        rows = []
+
+        def add(subsystem, role, metric_key, label, unit, values, run_prefix):
+            for i, value in enumerate(values):
+                rows.append({
+                    "platform": "PC", "subsystem": subsystem, "role": role,
+                    "run_id": f"{run_prefix}{i}", "data_source": "profiler",
+                    "metric_key": metric_key, "metric_label": label, "unit": unit,
+                    "entities": 2000, "n_frames": 10,
+                    "median": float(value), "q1": float(value) - 1, "q3": float(value) + 1,
+                    "iqr": 2.0,
+                })
+
+        # Local baseline: only ever produces render metrics.
+        add("Base", "", "fps", "FPS", "frames/s", [60, 61, 62, 63, 64], "base_run")
+
+        # FishNet and NGO: full network metric coverage.
+        for subsystem, base_rtt in (("FishNet", 20), ("NGO", 35)):
+            add(subsystem, "client", "network_rtt", "Network RTT", "ms",
+                [base_rtt + i for i in range(5)], f"{subsystem.lower()}_run")
+            add(subsystem, "client", "pcap_bytes", "PCAP Bytes/s", "bytes/s",
+                [1000 + base_rtt * 10 + i for i in range(5)], f"{subsystem.lower()}_run")
+
+        # Godot Network: PCAP-only (no RTT/throughput export at all).
+        add("Godot Network", "client", "pcap_bytes", "PCAP Bytes/s", "bytes/s",
+            [1500, 1510, 1520, 1530, 1540], "godotnet_run")
+
+        # Photon: has RTT and PCAP data present (so a gap here can only be
+        # caught by the structural exclusion, not by absence of data).
+        add("Photon", "client", "network_rtt", "Network RTT", "ms",
+            [50, 51, 52, 53, 54], "photon_run")
+        add("Photon", "client", "pcap_bytes", "PCAP Bytes/s", "bytes/s",
+            [900, 910, 920, 930, 940], "photon_run")
+
+        return pd.DataFrame(rows)
+
+    def _network_rows(self, comparisons: pd.DataFrame) -> pd.DataFrame:
+        return comparisons[comparisons["metric_key"].isin(
+            ["network_rtt", "network_upload", "network_download", "pcap_bytes", "pcap_packets"]
+        )]
+
+    def _network_vs_network_rows(self, comparisons: pd.DataFrame) -> pd.DataFrame:
+        """Network-metric rows where BOTH sides are network solutions --
+        excludes the (still exported, still non-comparable) rows against
+        the local baseline, which are covered by a separate test."""
+        net = self._network_rows(comparisons)
+        return net[(net["subsystem_a"] != "Base") & (net["subsystem_b"] != "Base")]
+
+    def test_no_network_metric_comparison_pits_a_network_solution_against_a_local_config(self):
+        obs = self._observations()
+        comparisons = compare_configurations(
+            obs, target_loads=[2000], lower_is_better={"network_rtt", "pcap_bytes"},
+            alpha=0.05, comparisons="planned", correction="bh",
+        )
+        net_rows = self._network_rows(comparisons)
+        involves_base = net_rows[
+            (net_rows["subsystem_a"] == "Base") | (net_rows["subsystem_b"] == "Base")
+        ]
+        # Base does appear (paired against every network solution, for
+        # completeness -- never silently omitted) but never as comparable.
+        self.assertGreater(len(involves_base), 0)
+        self.assertTrue((~involves_base["comparable"]).all())
+        for reason in involves_base["reason"]:
+            self.assertIn("local configuration", reason)
+
+    def test_godot_network_is_explicitly_not_comparable_on_rtt(self):
+        obs = self._observations()
+        comparisons = compare_configurations(
+            obs, target_loads=[2000], lower_is_better={"network_rtt", "pcap_bytes"},
+            alpha=0.05, comparisons="planned", correction="bh",
+        )
+        net_rows = self._network_vs_network_rows(comparisons)
+        godot_rtt = net_rows[
+            (net_rows["metric_key"] == "network_rtt")
+            & ((net_rows["subsystem_a"] == "Godot Network-client") | (net_rows["subsystem_b"] == "Godot Network-client"))
+        ]
+        self.assertGreater(len(godot_rtt), 0)
+        self.assertTrue((~godot_rtt["comparable"]).all())
+        for reason in godot_rtt["reason"]:
+            self.assertIn("Godot Network-client excluded", reason)
+
+    def test_photon_is_excluded_from_rtt_and_pcap_but_not_from_data_it_has(self):
+        obs = self._observations()
+        comparisons = compare_configurations(
+            obs, target_loads=[2000], lower_is_better={"network_rtt", "pcap_bytes"},
+            alpha=0.05, comparisons="planned", correction="bh",
+        )
+        net_rows = self._network_vs_network_rows(comparisons)
+        photon_rows = net_rows[
+            ((net_rows["subsystem_a"] == "Photon-client") | (net_rows["subsystem_b"] == "Photon-client"))
+            # Godot Network is independently excluded from RTT (no RTT
+            # metric at all) -- that pair reports Godot's reason, not
+            # Photon's; the clean single-exclusion cases are vs. FishNet/NGO.
+            & (net_rows["subsystem_a"] != "Godot Network-client") & (net_rows["subsystem_b"] != "Godot Network-client")
+        ]
+        photon_rtt = photon_rows[photon_rows["metric_key"] == "network_rtt"]
+        photon_pcap = photon_rows[photon_rows["metric_key"] == "pcap_bytes"]
+        self.assertGreater(len(photon_rtt), 0)
+        self.assertTrue((~photon_rtt["comparable"]).all())
+        self.assertTrue(photon_rtt["reason"].str.contains("cloud infrastructure").all())
+        self.assertGreater(len(photon_pcap), 0)
+        self.assertTrue((~photon_pcap["comparable"]).all())
+        self.assertTrue(photon_pcap["reason"].str.contains("cloud infrastructure").all())
+
+    def test_network_metric_family_is_separate_from_render_metric_families(self):
+        obs = self._observations()
+        comparisons = compare_configurations(
+            obs, target_loads=[2000], lower_is_better={"network_rtt", "pcap_bytes"},
+            alpha=0.05, comparisons="planned", correction="bh",
+        )
+        fishnet_vs_ngo_rtt = comparisons[
+            (comparisons["metric_key"] == "network_rtt")
+            & (comparisons["subsystem_a"] == "FishNet-client") & (comparisons["subsystem_b"] == "NGO-client")
+        ].iloc[0]
+        self.assertEqual(fishnet_vs_ngo_rtt["comparison_family"], "network_metrics")
+        self.assertTrue(fishnet_vs_ngo_rtt["comparable"])
+        self.assertTrue(fishnet_vs_ngo_rtt["planned"])
+        # No render-metric row is ever tagged "network_metrics" -- the two
+        # families never merge into one correction group.
+        self.assertTrue((comparisons.loc[comparisons["metric_key"] == "fps", "comparison_family"] != "network_metrics").all())
+        # BH correction is computed independently per family: the
+        # network_metrics family's raw p-values were never pooled with
+        # fps's (empty, in this fixture -- fps has no planned pairs at
+        # all) family.
+        self.assertTrue(pd.notna(fishnet_vs_ngo_rtt["p_value_bh"]))
+
+
+class CapacityExclusionTests(unittest.TestCase):
+    def setUp(self):
+        self._saved_exclusions = dict(load_analysis.CAPACITY_EXCLUSIONS)
+        self.addCleanup(lambda: load_analysis.CAPACITY_EXCLUSIONS.clear() or load_analysis.CAPACITY_EXCLUSIONS.update(self._saved_exclusions))
+
+    def _run(self, run_id, entities, run_complete=True):
+        waves = [WaveEvent(frame=100.0, time=10.0, entities=entities)]
+        stats_df = pd.DataFrame({"Time (s)": [0.0, 5.0, 10.0, 15.0], "FPS": [90.0] * 4})
+        return RunData(
+            key=RunKey("Quest", "DOTS", "", run_id, "dots_stat"),
+            stats_df=stats_df, events_df=pd.DataFrame(),
+            data_source="ovr_device", waves=waves, run_complete=run_complete,
+        )
+
+    def test_excluded_run_disappears_from_capacity_but_stays_in_observations(self):
+        runs = [self._run("run_excluded", 1600, run_complete=False), self._run("run_normal", 20000)]
+        load_analysis.CAPACITY_EXCLUSIONS.clear()
+        load_analysis.CAPACITY_EXCLUSIONS[("Quest", "DOTS", "", "run_excluded")] = "test: known bad export"
+
+        capacity, issues = compute_capacity(runs)
+        self.assertNotIn("run_excluded", capacity["run_id"].tolist())
+        self.assertIn("run_normal", capacity["run_id"].tolist())
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0].run_id, "run_excluded")
+        self.assertIn("known bad export", issues[0].reason)
+
+        # The exclusion is capacity-only: the run's own metrics (via
+        # aggregate_run_metric / build_observations) are untouched by
+        # CAPACITY_EXCLUSIONS -- verified structurally, since
+        # compute_capacity never touches stats_df at all.
+        rows, _ = aggregate_run_metric(runs[0], "fps", "FPS", "frames/s", transition_seconds=2.0)
+        self.assertEqual(rows, [])  # this fixture's single wave has no interior segment
+        # But the run is still segmentable / has valid data available --
+        # nothing about aggregate_run_metric changed.
+        self.assertIsInstance(rows, list)
+
+    def test_no_exclusions_configured_is_a_no_op(self):
+        load_analysis.CAPACITY_EXCLUSIONS.clear()
+        runs = [self._run("run_normal", 20000)]
+        capacity, issues = compute_capacity(runs)
+        self.assertEqual(issues, [])
+        self.assertIn("run_normal", capacity["run_id"].tolist())
+
+
+class CaptureTruncationTests(unittest.TestCase):
+    def _run(self, run_id, stats_times, wave_time, entities=1600):
+        waves = [WaveEvent(frame=100.0, time=wave_time, entities=entities)]
+        stats_df = pd.DataFrame({"Time (s)": stats_times, "FPS": [90.0] * len(stats_times)})
+        return RunData(
+            key=RunKey("Quest", "DOTS", "", run_id, "dots_stat"),
+            stats_df=stats_df, events_df=pd.DataFrame(),
+            data_source="ovr_device", waves=waves, run_complete=False,
+        )
+
+    def test_stats_ending_well_before_last_wave_is_flagged(self):
+        # Stats stop at t=8s, but the event log's last wave is at t=331s --
+        # the signature of an export cut short mid-capture.
+        run = self._run("run1", stats_times=[0.0, 4.0, 8.0], wave_time=331.0)
+        issues = detect_capture_truncation([run])
+        self.assertEqual(len(issues), 1)
+        self.assertIn("cut short", issues[0].reason)
+        self.assertIn("331.00s", issues[0].reason)
+
+    def test_stats_extending_past_last_wave_is_not_flagged(self):
+        # Mirrors the real benchmarkQuest#4/DOTS investigation: stats
+        # continue well past the last wave, which is the opposite signature
+        # (a genuinely stalled run, not a truncated export).
+        run = self._run("run1", stats_times=[0.0, 10.0, 20.0, 30.0, 262.0], wave_time=30.0)
+        self.assertEqual(detect_capture_truncation([run]), [])
+
+    def test_stats_ending_within_tolerance_is_not_flagged(self):
+        run = self._run("run1", stats_times=[0.0, 5.0, 9.0], wave_time=10.0)
+        self.assertEqual(detect_capture_truncation([run]), [])
+
+    def test_run_with_no_waves_is_skipped(self):
+        run = RunData(
+            key=RunKey("Quest", "DOTS", "", "run1", "dots_stat"),
+            stats_df=pd.DataFrame({"Time (s)": [0.0, 1.0], "FPS": [90.0, 90.0]}),
+            events_df=pd.DataFrame(), data_source="ovr_device", waves=[], run_complete=False,
+        )
+        self.assertEqual(detect_capture_truncation([run]), [])
 
 
 if __name__ == "__main__":

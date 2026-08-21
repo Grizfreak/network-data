@@ -16,7 +16,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from subsystem_catalog import SUBSYSTEMS
+from subsystem_catalog import CATEGORY_BASE_ENGINE, SUBSYSTEMS
 
 # ---------------------------------------------------------------------------
 # Shared style -- validated categorical palette (see dataviz skill,
@@ -44,6 +44,11 @@ LINESTYLES = {name: ("--" if name == "Photon" else "-") for name in PALETTE}
 
 SUBSYSTEM_ORDER = [s.raw_name for s in SUBSYSTEMS]
 DISPLAY_NAME = {s.raw_name: s.display_name for s in SUBSYSTEMS}
+
+# Fig. 1 illustrates "Impact of the rendering architecture" (paper section
+# III.A), which compares only the four base-engine/rendering implementations
+# -- not the network libraries layered on top of them.
+RENDERING_SUBSYSTEM_ORDER = [s.raw_name for s in SUBSYSTEMS if s.category == CATEGORY_BASE_ENGINE]
 
 PLATFORM_COLOR = {"PC": "#2a78d6", "Quest": "#eb6834"}
 
@@ -87,7 +92,7 @@ def make_fig1_cpu_vs_load(metric_vs_load: pd.DataFrame, out_path: Path) -> None:
 
     for ax, platform in zip(axes, platforms):
         sub = df[df["platform"] == platform]
-        for name in SUBSYSTEM_ORDER:
+        for name in RENDERING_SUBSYSTEM_ORDER:
             series = sub[sub["subsystem"] == name].sort_values("entities")
             if series.empty:
                 continue
@@ -112,10 +117,10 @@ def make_fig1_cpu_vs_load(metric_vs_load: pd.DataFrame, out_path: Path) -> None:
 
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(
-        handles, labels, loc="lower center", ncol=5, frameon=False,
+        handles, labels, loc="lower center", ncol=4, frameon=False,
         bbox_to_anchor=(0.5, -0.06), fontsize=8.5,
     )
-    fig.suptitle("CPU cost vs. entity load", fontsize=13, x=0.02, ha="left")
+    fig.suptitle("CPU cost vs. entity load (rendering architectures)", fontsize=13, x=0.02, ha="left")
     fig.tight_layout(rect=(0, 0.06, 1, 0.96))
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     fig.savefig(out_path.with_suffix(".pdf"), bbox_inches="tight")

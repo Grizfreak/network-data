@@ -75,11 +75,3 @@ above):
 - [`../data-analysis/ccl/analysis_results/conclusions.md`](../data-analysis/ccl/analysis_results/conclusions.md)
   and [`conclusions_base.md`](../data-analysis/ccl/analysis_results/base/conclusions_base.md)
   — network libraries vs. base engines.
-
-## Documentation history
-
-The initial documentation pass (2026-08-25) is done — see
-[architecture/README.md#documentation-pass-2026-08-25](architecture/README.md#documentation-pass-2026-08-25)
-for what was missing and how each item was addressed. Check that section
-before adding new documentation to avoid duplicating something that
-already exists.

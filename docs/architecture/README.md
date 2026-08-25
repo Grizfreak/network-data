@@ -61,20 +61,3 @@ See the diagrams for the visual version:
 
 For the *why* behind the structure above, see the
 [Architecture Decision Records](decisions/README.md).
-
-## Documentation pass (2026-08-25)
-
-Before this date the repository had no architecture diagram, no ADRs, no
-data dictionary, no per-variant setup notes, no contribution guide, and no
-Markdown summary of the experimental protocol — all added in one pass at
-the request of the project supervisor: the C4 diagrams
-([context](c4-context.md), [container](c4-container.md),
-[component](c4-component-benchmark-base.md)) and
-[ADRs](decisions/README.md) above, plus
-[data-dictionary.md](../data-dictionary.md),
-[reference.md#running-each-variant-locally](../reference.md#running-each-variant-locally),
-[contributing.md](../contributing.md), and
-[protocol/README.md](../protocol/README.md). A stray, untracked, empty
-`dev/null/` directory at the repo root was also removed. Nothing from that
-pass is still outstanding; new gaps should be added here as they're found
-rather than reviving this section's old checklist format.

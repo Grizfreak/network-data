@@ -38,7 +38,7 @@ flowchart TB
     subgraph ecsGroup["NetcodeEntities — override PhaseManager, bridge to ECS"]
         direction LR
         ECS_PhaseMgr["ECSPhaseManager<br/>: PhaseManager<br/>overrides StartPhase2()/StartPhase3()/Update()<br/>writes an ECS singleton's flags instead"]
-        ECS_Systems["SpawnSystem / ApplyMovementSystem<br/>(ISystem structs — do the actual<br/>spawn/move work, no MonoBehaviour involved)"]
+        ECS_Systems["SpawnSystem / MoveSystem<br/>(ISystem structs — do the actual<br/>spawn/move work, no MonoBehaviour involved)"]
     end
 
     subgraph godotGroup["Godot_Benchmark / Godot_Network_Benchmark"]
@@ -84,7 +84,7 @@ flowchart TB
    `ECSPhaseManager : PhaseManager` overrides `StartPhase2()`/`StartPhase3()`/
    `Update()` to flip flags on an ECS singleton (`BenchmarkConfig`) instead
    of driving `InstantiateManager`/`MoveManager` directly. The actual
-   spawning and movement happen in `SpawnSystem`/`ApplyMovementSystem`
+   spawning and movement happen in `SpawnSystem`/`MoveSystem`
    (`ISystem` structs, Unity DOTS) that poll that singleton every frame —
    `InstantiateManager`/`MoveManager` are still present in the scene but
    their spawn/move mechanics are bypassed entirely. `ECSPhaseManager`

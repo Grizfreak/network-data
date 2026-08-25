@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Base
   m_EditorClassIdentifier: base.model::BaseResource
   mPrefab: {fileID: 295692051021194745, guid: f08f5136baba1b941a3459f9db5b1478, type: 3}
-  mAmount: 20000
+  mAmount: 1200
   mSpawnOnce: 0
   mTimeBeforeEachSpawn: 2
   mNumberPerWave: 400
@@ -22,3 +22,4 @@ MonoBehaviour:
   mWaitingPhase1Time: 5
   mWaitBetweenPhases: 5
   mWaitBeforeQuittingApp: 10
+  moveAndSpawn: 1

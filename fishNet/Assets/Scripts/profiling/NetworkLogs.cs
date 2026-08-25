@@ -1,0 +1,98 @@
+using System;
+using System.Collections;
+using FishNet.Object;
+using UnityEngine;
+
+public class NetworkLogs : NetworkBehaviour
+{
+    // Start is called once before the first execution of Update after the MonoBehaviour is created
+
+    public override void OnStartServer()
+    {
+        LogsManager manager = this.gameObject.GetComponent<LogsManager>();
+        if (manager == null)
+        {
+            Debug.LogWarning("Manager not found");
+        }
+        ProfilerStatsToCsvExporter profiler = this.gameObject.GetComponent<ProfilerStatsToCsvExporter>();
+        if (profiler == null)
+        {
+            Debug.LogWarning("Profiler not found");
+        }
+        StartCoroutine(InitNextFrame());
+        manager.eventsFileName = "fishNet_server_"+ manager.eventsFileName;
+        profiler.outputName = "fishNet_server_" + profiler.outputName;
+    }
+
+    private IEnumerator InitNextFrame()
+    {
+        yield return null; // critical: wait 1 frame for scene sync
+
+        InstantiateManager.Instance.StartingInstantiation += SendClientEventSiRpc;
+        InstantiateManager.Instance.FinishedInstantiation += SendClientEventFiRpc;
+        PhaseManager.Instance.PhaseStarted += SendClientEventPSRpc;
+        PhaseManager.Instance.PhaseFinished += SendClientEventPfRpc;
+        MoveManager.Instance.StartMovingEntities += SendClientEventSmeRpc;
+        MoveManager.Instance.EndMovingEntities += SendClientEventEmeRpc;
+    }
+
+    public override void OnStartClient()
+    {
+        LogsManager manager = this.gameObject.GetComponent<LogsManager>();
+        if (manager == null)
+        {
+            Debug.LogWarning("Manager not found");
+        }
+        ProfilerStatsToCsvExporter profiler = this.gameObject.GetComponent<ProfilerStatsToCsvExporter>();
+        if (profiler == null)
+        {
+            Debug.LogWarning("Profiler not found");
+        }
+
+        manager.eventsFileName = "fishNet_client_"+ manager.eventsFileName;
+        profiler.outputName = "fishNet_client_" + profiler.outputName;
+    }
+
+    [ObserversRpc]
+    private void SendClientEventSiRpc(string msg)
+    {
+        Debug.Log("Invoking StartingInstantiation with msg: " + msg);
+        InstantiateManager.Instance.StartingInstantiation.Invoke(msg);
+    }
+    
+    [ObserversRpc]
+    private void SendClientEventFiRpc(string msg, int value)
+    {
+        Debug.Log("Invoking FinishedInstantiation with msg: " + msg + " and value: " + value);
+        InstantiateManager.Instance.FinishedInstantiation.Invoke(msg, value);
+    }
+    
+    [ObserversRpc]
+    private void SendClientEventPSRpc(string msg)
+    {
+        Debug.Log("Invoking PhaseStarted with msg: " + msg);
+        PhaseManager.Instance.PhaseStarted.Invoke(msg);
+    }
+    
+    [ObserversRpc]
+    private void SendClientEventPfRpc(string msg)
+    {
+        Debug.Log("Invoking PhaseFinished with msg: " + msg);
+        PhaseManager.Instance.PhaseFinished.Invoke(msg);
+    }
+    
+    [ObserversRpc]
+    private void SendClientEventSmeRpc(string msg)
+    {
+        Debug.Log("Invoking StartMovingEntities with msg: " + msg);
+        MoveManager.Instance.StartMovingEntities.Invoke(msg);
+    }
+    
+    [ObserversRpc]
+    private void SendClientEventEmeRpc(string msg)
+    {
+        Debug.Log("Invoking EndMovingEntities with msg: " + msg);
+        MoveManager.Instance.EndMovingEntities.Invoke(msg);
+    }
+    
+}

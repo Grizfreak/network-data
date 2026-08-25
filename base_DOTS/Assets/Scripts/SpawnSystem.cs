@@ -81,8 +81,15 @@ public partial struct SpawnSystem : ISystem
                 e,
                 LocalTransform.FromPosition(
                     new float3(x, 0, z)));
-
-            ecb.AddComponent<StaticTag>(e);
+            
+            if (!PhaseManager.Instance.moveAndSpawn)
+            {
+                ecb.AddComponent<StaticTag>(e);
+            }
+            else
+            {
+                ecb.AddComponent<MovingTag>(e);
+            }
 
             ecb.AddComponent(e, new Velocity
             {

@@ -1,0 +1,97 @@
+[gd_scene format=3 uid="uid://bcoxdoaq4gccb"]
+
+[ext_resource type="Script" uid="uid://dicpcwv468d80" path="res://scripts/instantiate_manager.gd" id="1_gyny8"]
+[ext_resource type="Script" uid="uid://bwyn0ukmgrbfr" path="res://scripts/xr_origin_3d.gd" id="1_pdktp"]
+[ext_resource type="Script" uid="uid://dnvau2vspa4nu" path="res://scripts/phase_manager.gd" id="2_hd43q"]
+[ext_resource type="PackedScene" uid="uid://buv744sdd0fae" path="res://scenes/cube.tscn" id="2_hsk30"]
+[ext_resource type="Script" uid="uid://dbucl23y4sjgq" path="res://scripts/ENetBenchmarkProvider.gd" id="2_yn75j"]
+[ext_resource type="Script" uid="uid://c4tbi3sj7643s" path="res://scripts/base_end_logic.gd" id="3_7i2d1"]
+[ext_resource type="Script" uid="uid://dcago8cd6ahnb" path="res://scripts/logs_manager.gd" id="3_bww3w"]
+[ext_resource type="Script" uid="uid://dm2qs0myluo3g" path="res://scripts/move_manager.gd" id="3_m38n2"]
+[ext_resource type="Script" uid="uid://jg204fg4okxn" path="res://scripts/profiler_stats_to_csv_exporter.gd" id="6_w7xlg"]
+[ext_resource type="Script" uid="uid://kphquloywugr" path="res://scripts/platform_switcher.gd" id="9_fkv06"]
+[ext_resource type="Script" uid="uid://dkkpee1vwl65j" path="res://scripts/network_logs.gd" id="10_b4xq1"]
+[ext_resource type="Script" uid="uid://b16jy0wk4mktb" path="res://scripts/client_exit.gd" id="12_fuwx0"]
+
+[sub_resource type="Environment" id="Environment_w7xlg"]
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_pdktp"]
+
+[sub_resource type="Compositor" id="Compositor_fkv06"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_m38n2"]
+
+[node name="Benchmark" type="Node" unique_id=1148516254]
+
+[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="." unique_id=296697652]
+_spawnable_scenes = PackedStringArray("uid://buv744sdd0fae")
+spawn_path = NodePath("../Manager/InstantiateManager")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1005117449]
+transform = Transform3D(1, 0, 0, 0, 0.18770894, 0.9822247, 0, -0.9822247, 0.18770894, 0, 5.662712, 0)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1635858364]
+environment = SubResource("Environment_w7xlg")
+camera_attributes = SubResource("CameraAttributesPractical_pdktp")
+compositor = SubResource("Compositor_fkv06")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=661206740]
+transform = Transform3D(1, 0, 0, 0, 0.49999997, 0.86602545, 0, -0.86602545, 0.49999997, 0, 103.832, 78.797)
+near = 0.01
+far = 1000.0
+
+[node name="XROrigin3D" type="XROrigin3D" parent="." unique_id=1046747691 node_paths=PackedStringArray("plane")]
+transform = Transform3D(-1.847323e-08, -3.9615973e-08, 1, -0.9063078, 0.42261824, 0, -0.42261824, -0.9063078, -4.371139e-08, 0, 103.83156, 78.79692)
+script = ExtResource("1_pdktp")
+plane = NodePath("../Plane")
+
+[node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D" unique_id=1741834560]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0, 0, 0)
+near = 0.01
+far = 1000.0
+
+[node name="Manager" type="Node" parent="." unique_id=1870843980]
+
+[node name="NetworkProfiler" type="Node" parent="Manager" unique_id=999437733]
+script = ExtResource("2_yn75j")
+
+[node name="NetworkLogs" type="Node" parent="Manager" unique_id=1386445293]
+script = ExtResource("10_b4xq1")
+
+[node name="InstantiateManager" type="Node" parent="Manager" unique_id=251377126 node_paths=PackedStringArray("spawn_zone")]
+unique_name_in_owner = true
+script = ExtResource("1_gyny8")
+object_to_spawn = ExtResource("2_hsk30")
+spawn_zone = NodePath("../../Plane")
+
+[node name="LogsManager" type="Node" parent="Manager" unique_id=1110955270]
+unique_name_in_owner = true
+script = ExtResource("3_bww3w")
+
+[node name="PhaseManager" type="Node" parent="Manager" unique_id=33118360]
+unique_name_in_owner = true
+script = ExtResource("2_hd43q")
+
+[node name="MoveManager" type="Node" parent="Manager" unique_id=876625828]
+unique_name_in_owner = true
+script = ExtResource("3_m38n2")
+
+[node name="ProfilerStatsToCSVExporter" type="Node" parent="Manager" unique_id=1342618612 node_paths=PackedStringArray("network_provider")]
+unique_name_in_owner = true
+script = ExtResource("6_w7xlg")
+network_provider = NodePath("../NetworkProfiler")
+
+[node name="BaseEndLogic" type="Node" parent="Manager" unique_id=1657831708]
+script = ExtResource("3_7i2d1")
+
+[node name="PlatformSwitcher" type="Node" parent="Manager" unique_id=216605403 node_paths=PackedStringArray("android_subsystem", "windows_subsystem")]
+script = ExtResource("9_fkv06")
+android_subsystem = NodePath("../../XROrigin3D")
+windows_subsystem = NodePath("../../Camera3D")
+
+[node name="ClientExit" type="Node" parent="Manager" unique_id=1336607905]
+script = ExtResource("12_fuwx0")
+
+[node name="Plane" type="MeshInstance3D" parent="." unique_id=1900329904]
+transform = Transform3D(80, 0, 0, 0, 80, 0, 0, 0, 80, 0, -0.5, 0)
+mesh = SubResource("PlaneMesh_m38n2")

@@ -1,0 +1,220 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\title{Experimental Protocol and Evaluation Methodology}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Study Objective}
+
+The objective of this experiment is to compare several methods for displaying large volumes of information in Unity, with particular attention given to the impact of networking mechanisms on rendering, computation, and synchronization performance.
+
+\section{Experimental Protocol}
+
+To ensure the reproducibility of the results, a single protocol is applied to all evaluated solutions.
+
+\subsection{Phase 1 -- Test Preparation}
+
+This phase corresponds to the initialization of the test environment and the setup of all conditions required to launch the experiment.
+
+\subsection{Phase 2 -- Entity Instantiation}
+
+Entities are instantiated progressively in successive waves using identical parameters across all scenarios. This phase evaluates the system's ability to handle the simultaneous appearance of a large number of objects.
+
+\subsection{Phase 3 -- Entity Movement}
+
+Previously instantiated entities are progressively set in motion until 100\,\% of the simulated population is moving. This phase aims to measure the impact of dynamic simulation on performance.
+
+\paragraph{Note.}
+In the current version of the experiment, the instantiation and movement phases are merged into a single scenario (\textit{Spawn + Move}). The distinction is maintained only to preserve compatibility with previous experiments.
+
+\section{Scope of Network Analysis}
+
+This study does not focus on the maximum number of simultaneously connected clients. Previous work indicates that performance tends to evolve in a relatively predictable manner as the number of clients increases.
+
+The analysis primarily focuses on:
+
+\begin{itemize}
+\item data visualization capacity for a single client;
+\item server-side workload;
+\item client-side workload;
+\item network synchronization costs.
+\end{itemize}
+
+\section{Experimental Parameters}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{7cm}p{3cm}}
+\toprule
+Parameter & Value \\
+\midrule
+Total number of entities & 20\,000 \\
+Instantiation wave size & 400 \\
+Delay between waves & 10 s \\
+Entities activated per movement step & 10 \% \\
+Delay before movement activation & 5 s \\
+Initial preparation duration & 10 s \\
+Waiting time between phases & 10 s \\
+Time before automatic shutdown & 10 s \\
+Execution mode & Spawn + Move \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Entity Definition}
+
+An entity corresponds to a standard Unity cube composed of 12 triangles, using a basic texture and no dynamic lighting.
+
+In networked versions, each entity contains a \texttt{NetworkObject} as well as a position synchronization component specific to the implementation being evaluated.
+
+Entities move at a constant speed of 5~m/s along each axis while simultaneously performing a uniform rotation.
+
+\section{Study Groups}
+
+\subsection{Local Configuration}
+
+This configuration contains no visible networking layer and is used to evaluate the intrinsic limitations of the rendering engine.
+
+\subsection{Networked Configuration}
+
+This configuration evaluates server-side and client-side performance behavior within a real client--server architecture.
+
+\section{Collected Measurements}
+
+\subsection{Rendering Performance}
+
+\begin{itemize}
+\item Frames per second (FPS);
+\item CPU frame time (ms);
+\item GPU frame time (ms).
+\end{itemize}
+
+\subsection{Memory Consumption}
+
+\begin{itemize}
+\item Memory usage (MB).
+\end{itemize}
+
+\subsection{Network Performance}
+
+\begin{itemize}
+\item RTT (Round Trip Time);
+\item RPC-based RTT.
+\end{itemize}
+
+\subsection{Network Load}
+
+\begin{itemize}
+\item Upload throughput;
+\item Download throughput;
+\item Total volume sent;
+\item Total volume received;
+\item Number of packets sent;
+\item Number of packets received.
+\end{itemize}
+
+\subsection{Traffic Analysis}
+
+An independent network traffic capture is performed to analyze:
+
+\begin{itemize}
+\item packets per second;
+\item exchanged data volume;
+\item cumulative traffic volumes;
+\item network load evolution over time.
+\end{itemize}
+
+\section{Analysis Method}
+
+Metrics are analyzed as a function of the number of entities present in the scene in order to identify:
+
+\begin{itemize}
+\item server and client limitations;
+\item the impact of the networking layer;
+\item performance bottlenecks;
+\item resource consumption trends;
+\item hardware limitations of each platform.
+\end{itemize}
+
+\section{Client Categories}
+
+Two client categories are evaluated:
+
+\begin{enumerate}
+\item Personal Computer (PC);
+\item Meta Quest 3 standalone headset.
+\end{enumerate}
+
+Results are analyzed separately for each platform.
+
+\section{Hardware Configuration}
+
+\subsection{Server}
+
+The FishNet and Netcode for GameObjects experiments use a dedicated Dell Precision 7550 server running in headless mode.
+
+\begin{longtable}{ll}
+\toprule
+Component & Specification \\
+\midrule
+Operating System & Windows 11 Enterprise 64-bit \\
+CPU & Intel Core i7-10850H \\
+RAM & 32 GB \\
+GPU & NVIDIA Quadro RTX 3000 \\
+Graphics API & DirectX 12 \\
+Resolution & 1920 $\times$ 1080 \\
+\bottomrule
+\end{longtable}
+
+\subsection{PC Client}
+
+\begin{longtable}{ll}
+\toprule
+Component & Specification \\
+\midrule
+Operating System & Windows 11 Enterprise 64-bit \\
+CPU & Intel Core Ultra 9 285K \\
+RAM & 128 GB \\
+GPU & NVIDIA RTX 5000 Ada Generation \\
+Graphics API & DirectX 12 \\
+Resolution & 2560 $\times$ 1440 \\
+\bottomrule
+\end{longtable}
+
+\subsection{Virtual Reality Client}
+
+Immersive tests are performed using a Meta Quest 3 headset.
+
+\section{Network Infrastructure}
+
+For FishNet and Netcode for GameObjects, the server and clients are connected through a local area network using a Netgear R6020 router.
+
+For Photon, communications are routed through the provider's cloud infrastructure. Consequently, the measured latency values are not directly comparable to those obtained using local architectures.
+
+\section{Network Configuration}
+
+Local experiments rely on:
+
+\begin{itemize}
+\item a headless server;
+\item a PC client or Meta Quest client;
+\item a Netgear R6020 router;
+\item stable and controlled network conditions.
+\end{itemize}
+
+In the case of Photon, communications are routed over the Internet and rely on the provider's cloud infrastructure.
+
+\end{document}

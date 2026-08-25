@@ -1,0 +1,20 @@
+﻿<Solution>
+  <Project Path="FishNet.Runtime.csproj" />
+  <Project Path="FishNet.Codegen.Cecil.csproj" />
+  <Project Path="SynapseSocket.csproj" />
+  <Project Path="base.profiling.csproj" />
+  <Project Path="GameKit.Dependencies.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="base.core.csproj" />
+  <Project Path="Unity.FishNet.Codegen.csproj" />
+  <Project Path="Unity.XR.Interaction.Toolkit.Samples.SpatialKeyboard.Editor.csproj" />
+  <Project Path="Unity.XR.Interaction.Toolkit.Samples.SpatialKeyboard.csproj" />
+  <Project Path="FishNet.Demos.csproj" />
+  <Project Path="Unity.XR.Interaction.Toolkit.Samples.StarterAssets.csproj" />
+  <Project Path="fishnet.profiling.csproj" />
+  <Project Path="fishnet.core.csproj" />
+  <Project Path="base.model.csproj" />
+  <Project Path="fishnet.model.csproj" />
+  <Project Path="Unity.XR.Interaction.Toolkit.Samples.StarterAssets.Editor.csproj" />
+  <Project Path="Assembly-CSharp-Editor.csproj" />
+</Solution>

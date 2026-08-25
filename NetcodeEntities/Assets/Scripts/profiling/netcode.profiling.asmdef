@@ -1,0 +1,26 @@
+{
+    "name": "netcode.profiling",
+    "rootNamespace": "",
+    "references": [
+        "Unity.Mathematics",
+        "Unity.Entities",
+        "Unity.Burst",
+        "Unity.NetCode",
+        "Unity.Collections",
+        "base.core",
+        "base.model",
+        "Unity.TextMeshPro",
+        "base.profiling",
+        "netcode.core",
+        "netcode.model"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

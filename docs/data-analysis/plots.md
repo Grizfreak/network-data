@@ -80,16 +80,3 @@ exports, not from the raw per-frame data the Streamlit charts read — see
 [ADR 0004](../architecture/decisions/0004-dual-analysis-pipelines.md) for
 why the two pipelines exist and don't share output.
 
-## A stale doc worth knowing about
-
-[`NETWORK_PLOTS_ASSOCIATION_EXPLAINED.md`](NETWORK_PLOTS_ASSOCIATION_EXPLAINED.md)
-describes network metrics as being combined into "a unified 3-subplot
-visualization" — that's no longer how the code works. Current
-`metrics_engine.py` extracts one metric at a time
-(`metric_series_from_stats()` returns one series per call) and
-`plotting.py` gives each selected metric its own separate figure (the
-template above), not a combined subplot grid. The document's lower-level
-walkthrough of column-name detection is still broadly accurate; only the
-"3-subplot" framing at the top is outdated. Not fixed here since it wasn't
-part of this catalog's scope — flagging it so it doesn't get taken at face
-value.

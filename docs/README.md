@@ -68,10 +68,6 @@ notes live with each project; only the ones with their own README are listed
   — hand-written qualitative comparison (docs, community, learning curve).
 - [`data-analysis/LECTURE.md`](data-analysis/LECTURE.md) — teaching
   walkthrough of the data pipeline.
-- [`data-analysis/NETWORK_PLOTS_ASSOCIATION_EXPLAINED.md`](data-analysis/NETWORK_PLOTS_ASSOCIATION_EXPLAINED.md)
-  — how network metric columns are detected and paired with runs (its
-  "unified 3-subplot" framing at the top is stale, see
-  [plots.md](data-analysis/plots.md#a-stale-doc-worth-knowing-about)).
 
 Generated (not hand-written, stays with its sibling CSVs, run
 `ccl/analyze_data.py` + `render_*.py` to regenerate — see the `ccl/README.md`

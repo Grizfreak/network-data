@@ -43,6 +43,17 @@ exports. Both are shown together above since they refer to the same metric.
 Unity GPU / Unity DOTS without any networking involved — the `network_*`
 and `pcap_*` metrics only apply to networked runs.
 
+**This table is `metrics_catalog.py`'s list, used by the `ccl/` pipelines —
+the Streamlit dashboard's multiselect exposes a different, larger set of 12
+metrics.** `app.py`'s `metric_options` splits `pcap_packets`/`pcap_bytes`
+into 4 (adding a "per GameObject (delta)" variant of each — see
+[plots.md](data-analysis/plots.md) for what that actually computes), adds a
+`network_rtt_rpc` variant, and does *not* expose `network_ping` as a
+selectable choice even though `metrics_engine.py` can compute it. Both
+lists are accurate for what they cover — this one for raw-column mapping,
+[plots.md](data-analysis/plots.md) for what's actually selectable in the
+dashboard — they're just not the same list.
+
 ## Raw column → metric mapping
 
 Different capture sources (PC profiler, Quest profiler, PCAP export) name

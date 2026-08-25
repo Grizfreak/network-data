@@ -1,0 +1,20 @@
+{
+    "Entries": [
+        {
+            "category": "Internal",
+            "name": "Main Thread"
+        },
+        {
+            "category": "Render",
+            "name": "CPU Main Thread Frame Time"
+        },
+        {
+            "category": "Render",
+            "name": "CPU Render Thread Frame Time"
+        },
+        {
+            "category": "Render",
+            "name": "CPU Total Frame Time"
+        }
+    ]
+}

@@ -52,6 +52,10 @@ public class GPUIndirectInstantiateManager : InstantiateManager
         for (int i = 0; i < numberToSpawn; i++)
         {
             instanceArray[i].isShown = 1f;
+            if (PhaseManager.Instance.moveAndSpawn)
+            {
+                instanceArray[i].isMoving = 1f;
+            }
         }
         
         instanceDataBuffer.SetData(instanceArray);
@@ -77,6 +81,10 @@ public class GPUIndirectInstantiateManager : InstantiateManager
             for (int i = start; i < end; i++)
             {
                 instanceArray[i].isShown = 1f;
+                if (PhaseManager.Instance.moveAndSpawn)
+                {
+                    instanceArray[i].isMoving = 1f;
+                }
             }
 
             SpawnedInstances = end;

@@ -18,6 +18,9 @@ using UnityEngine;
         public float waitingPhase1Time = 2f;
         public float waitBetweenPhases = 2f;
         public float waitBeforeQuittingApp = 5f;
+
+        [Header("Movement & Spawn")]
+        public bool moveAndSpawn;
         private int _currentPhase;
         public Action<string> PhaseStarted;
         public Action<string> PhaseFinished;
@@ -43,6 +46,7 @@ using UnityEngine;
                 waitingPhase1Time = BaseLoader.Instance.Resource.mWaitingPhase1Time;
                 waitBetweenPhases = BaseLoader.Instance.Resource.mWaitBetweenPhases;
                 waitBeforeQuittingApp = BaseLoader.Instance.Resource.mWaitBeforeQuittingApp;
+                moveAndSpawn = BaseLoader.Instance.Resource.moveAndSpawn;
             }
             AskPhase1Start += StartPhase1;
             PhaseFinished += OnPhaseFinished;
@@ -79,7 +83,14 @@ using UnityEngine;
                     StartPhase2();
                     break;
                 case 2:
-                    StartPhase3();
+                    if (!moveAndSpawn)
+                    {
+                        StartPhase3();
+                    }
+                    else
+                    {
+                        FinishingExperimentation.Invoke();
+                    }
                     break;
                 case 3:
                     FinishingExperimentation.Invoke();

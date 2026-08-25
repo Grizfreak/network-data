@@ -1,0 +1,40 @@
+[gd_scene format=3 uid="uid://b6wsbqry1shej"]
+
+[ext_resource type="Script" uid="uid://bwyn0ukmgrbfr" path="res://scripts/xr_origin_3d.gd" id="1_baglu"]
+[ext_resource type="Script" uid="uid://kphquloywugr" path="res://scripts/platform_switcher.gd" id="2_baglu"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_g4v7s"]
+
+[node name="base" type="Node" unique_id=69101855]
+
+[node name="Launcher" type="Node" parent="." unique_id=187065321]
+
+[node name="BaseStart" type="Node" parent="Launcher" unique_id=1111769915]
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1701432802]
+
+[node name="XROrigin3D" type="XROrigin3D" parent="." unique_id=138910905]
+script = ExtResource("1_baglu")
+
+[node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D" unique_id=449438617]
+
+[node name="Left_Hand" type="XRController3D" parent="XROrigin3D" unique_id=544530659]
+tracker = &"left_hand"
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="XROrigin3D/Left_Hand" unique_id=1884916489]
+transform = Transform3D(0.1, 0, 0, 0, 0.1, 0, 0, 0, 0.1, 0, 0, 0)
+mesh = SubResource("SphereMesh_g4v7s")
+
+[node name="Right_Hand" type="XRController3D" parent="XROrigin3D" unique_id=2126958963]
+tracker = &"right_hand"
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="XROrigin3D/Right_Hand" unique_id=1205903813]
+transform = Transform3D(0.1, 0, 0, 0, 0.1, 0, 0, 0, 0.1, 0, 0, 0)
+mesh = SubResource("SphereMesh_g4v7s")
+
+[node name="PlatformSwitcher" type="Node" parent="." unique_id=320381451 node_paths=PackedStringArray("android_subsystem", "windows_subsystem")]
+script = ExtResource("2_baglu")
+android_subsystem = NodePath("../XROrigin3D")
+windows_subsystem = NodePath("../Camera3D")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=107411437]

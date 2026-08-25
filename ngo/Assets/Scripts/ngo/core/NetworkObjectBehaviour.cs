@@ -9,6 +9,10 @@ public class NetworkObjectBehaviour : NetworkBehaviour
         if (NetworkManager.IsServer)
         {
             GetComponent<NetworkObject>().Spawn();
+            if (PhaseManager.Instance.moveAndSpawn)
+            {
+                this.GetComponent<ObjectBehaviour>().isMoving = true;
+            }
         }
     }
     

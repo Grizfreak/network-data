@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://b6wsbqry1shej"]
+
+[ext_resource type="Script" uid="uid://dix0ifpbe4075" path="res://scripts/base_start.gd" id="3_40w10"]
+
+[node name="base" type="Node" unique_id=69101855]
+
+[node name="Launcher" type="Node" parent="." unique_id=187065321]
+
+[node name="BaseStart" type="Node" parent="Launcher" unique_id=1111769915]
+script = ExtResource("3_40w10")

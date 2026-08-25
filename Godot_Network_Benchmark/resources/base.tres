@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="base_resource" format=3 uid="uid://tn82b3lpcq36"]
+
+[ext_resource type="Script" uid="uid://bsnv5guyo4dif" path="res://scripts/base_resource.gd" id="1_2xhlc"]
+[ext_resource type="PackedScene" uid="uid://buv744sdd0fae" path="res://scenes/cube.tscn" id="1_vejmy"]
+
+[resource]
+script = ExtResource("1_2xhlc")
+prefab = ExtResource("1_vejmy")
+amount = 1200
+time_before_each_spawn = 2.0
+number_per_wave = 400
+percentage_moving_cubes_per_wave = 10.0
+time_before_moving_cubes = 2.0
+waiting_phase1_time = 5.0
+wait_between_phases = 5.0
+wait_before_quitting_app = 10.0
+move_and_spawn = true
+metadata/_custom_type_script = "uid://bsnv5guyo4dif"

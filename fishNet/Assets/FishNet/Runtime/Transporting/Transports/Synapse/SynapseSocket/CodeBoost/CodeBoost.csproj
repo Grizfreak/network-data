@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+    
+    <ItemGroup>
+        <ProjectReference Include="..\submodules\CodeBoost\CodeBoost.CodeAnalysis.Analyzers\CodeBoost.CodeAnalysis.Analyzers.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
+
+        <PackageReference Include="System.Buffers" Version="4.5.1" />
+      <PackageReference Include="System.Numerics.Vectors" Version="4.4.0" />
+      <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="5.0.0" />
+    </ItemGroup>
+
+    <PropertyGroup>
+        <NoWarn>$(NoWarn);CS8618</NoWarn>
+        <NoWarn>$(NoWarn);CS8625</NoWarn>
+        <NoWarn>$(NoWarn);CS0067</NoWarn>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    </PropertyGroup>
+
+</Project>

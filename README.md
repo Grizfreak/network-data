@@ -1,127 +1,67 @@
 # Unity Network Benchmark
 
-This repository contains Unity benchmark projects centered on a three-phase workload:
+Benchmarks several game-engine / networking-library combinations against the
+same synthetic workload — spawn N objects, progressively make them move,
+record events and profiler metrics — so results are comparable. Each
+combination is its own standalone Unity or Godot project; a Python pipeline
+turns the exported CSVs into statistics and plots.
 
-1. wait for initialization and network readiness,
-2. spawn a configurable number of cubes (single batch or waves),
-3. progressively switch cubes to moving while recording events and profiler metrics.
+![Benchmark scene mid-run: entities spawned and dispersing across the platform](docs/figs/fig-app-bench.png)
 
-The repository is organized around:
+🎥 [Demo video — networked run (client + server)](docs/figs/video-app-benchmark-online-client&server.mp4)
 
-- `com.imt-atlantique.benchmark-base/` for shared runtime package code, scenes, and sample configs.
-- `base/` for the base Unity project.
-- `ngo/` for the NGO Unity project.
-- `data-analysis/` for CSV collection and plotting scripts.
+📚 **Full documentation, including C4 architecture diagrams: [`docs/`](docs/README.md).**
+Implementation-level detail (config flags, CSV schema, build/run commands):
+[`docs/reference.md`](docs/reference.md).
 
-## Architecture
+## Repo layout
 
-Core runtime layers:
+| Path | What |
+|---|---|
+| `com.imt-atlantique.benchmark-base/` | Shared Unity package (benchmark flow, CSV/profiler export) used by every Unity variant |
+| `base/`, `base_GPU/`, `base_DOTS/` | Unity baseline variants (no networking) |
+| `ngo/`, `fishNet/`, `photonFusion/`, `NetcodeEntities/` | Unity variants, one per networking library |
+| `Godot_Benchmark/`, `Godot_Network_Benchmark/` | Godot baseline + networked variants |
+| `data-analysis/` | Python pipeline: interactive dashboard (`streamlit/`) + statistical reports (`ccl/`) |
+| `builds/` | Consolidated build outputs |
 
-- `base.model` provides benchmark data containers (`BaseResource`, `ProfilerStats`, `ProfilerStatsEntry`) and JSON loading (`BaseLoader`).
-- `base.core` contains benchmark flow and scene logic (`BaseLauncher`, `PhaseManager`, `InstantiateManager`, `MoveManager`, `ObjectBehaviour`).
-- `base.profiling` handles CSV and profiler export (`LogsManager`, `ProfilerStatsToCsvExporter`, `ProfilerManagement`).
+## Quick start for development
 
-`BaseLoader` supports both standalone and Android configuration loading.
+1. **Pick a variant** from the table above and open it in Unity Hub
+   (Unity 6000.3.7f1, see `build_all_versions.ps1`) or the Godot editor.
+   Every Unity variant is a normal Unity project that pulls in
+   `com.imt-atlantique.benchmark-base` as a local package dependency — edit
+   the package once and every variant that uses it picks up the change.
+2. **Run it** from the editor, or build it (`.\build_all_versions.ps1` builds
+   all Unity variants for PC + Android). NGO has a ready-made local
+   server+client runner: `.\ngo\Assets\Runners\run-ngo-benchmark.ps1`.
+3. **Check the output**: CSVs land under `Application.persistentDataPath`
+   (see [`docs/reference.md`](docs/reference.md#runtime-outputs) for the
+   schema).
+4. **Analyze results**: put the exported CSVs under `data-analysis/data/`,
+   then `streamlit run data-analysis/streamlit/app.py` for interactive
+   exploration, or run the `data-analysis/ccl/` scripts for statistical
+   reports. See [`docs/reference.md#data-analysis-workflow`](docs/reference.md#data-analysis-workflow).
 
-## Benchmark Flow
+## Contributing
 
-The benchmark scene flow is:
+Full guide (prerequisites, adding a new variant end-to-end, running the test
+suites): [`docs/contributing.md`](docs/contributing.md). Short version:
 
-1. `BaseLauncher` loads `Packages/com.imt-atlantique.benchmark-base/Runtime/Scenes/Benchmark.unity`.
-2. `PhaseManager` starts phase 1 (setup/connect window).
-3. Phase 2 triggers spawning via `InstantiateManager.StartSpawning()`.
-4. Phase 3 triggers movement via `MoveManager.StartMovingCubes()`.
-5. After the final phase, the application exits after the configured delay.
-
-## Configuration
-
-`BaseLoader` clones scriptable objects at runtime, then applies JSON overrides.
-
-Standalone arguments:
-
-- `--conf-file <path>` loads `Base.json`.
-- `--conf-profiler <path>` loads `ProfilerStats.json` (optional).
-
-Android loading path:
-
-- `Application.persistentDataPath/conf_resources/Base.json`
-- `Application.persistentDataPath/conf_resources/ProfilerStats.json`
-
-Sample JSON files are available under `com.imt-atlantique.benchmark-base/Samples~/`.
-
-## Build
-
-Use the root script to build both Unity projects for Windows and Android:
-
-```powershell
-.\build_all_versions.ps1
-```
-
-The script builds `base` and `ngo`, then moves outputs to:
-
-- `builds/base/` (Windows exe)
-- `builds/base_android/` (APK)
-- `builds/ngo/` (Windows exe)
-- `builds/ngo_android/` (APK)
-
-## Running NGO Benchmark
-
-Runner scripts are in `ngo/Assets/Runners/`.
-
-Run local server + local client:
-
-```powershell
-.\ngo\Assets\Runners\run-ngo-benchmark.ps1
-```
-
-Both scripts pass `--conf-file` with `ngo/Assets/Resources/NgoResource.json` for the server instance.
-
-## Runtime Outputs
-
-Runtime CSV outputs are written under `Application.persistentDataPath`.
-
-- Event CSV from `LogsManager` with columns `Frame,Time,Event,Value`.
-- Profiler CSV from `ProfilerStatsToCsvExporter`.
-- Optional `profiler_handles.json` export from `ProfilerManagement`.
-
-Main benchmark events:
-
-- `PhaseStarted`
-- `PhaseFinished`
-- `StartedInstantiation`
-- `FinishedInstantiation`
-- `StartedMovingLocally`
-- `EndedMovingLocally`
-
-## Data Analysis
-
-The Python workflow is in `data-analysis/`.
-
-1. Create/activate the virtual environment.
-2. Install dependencies:
-
-```powershell
-pip install -r .\data-analysis\requirements.txt
-```
-
-3. Collect latest local/Quest CSV files into `data-analysis/data/<timestamp>/`:
-
-```powershell
-python .\data-analysis\extract_data.py
-```
-
-4. Generate plots from the latest folder in `data-analysis/data/`:
-
-```powershell
-python .\data-analysis\plot.py
-```
-
-Plots are saved to `data-analysis/results/<timestamp>/`.
-
-## Project Layout
-
-- `base/`: base Unity project.
-- `ngo/`: NGO Unity project.
-- `com.imt-atlantique.benchmark-base/`: shared package (runtime scripts, scenes, samples).
-- `builds/`: consolidated build outputs.
-- `data-analysis/`: extraction and plotting scripts.
+- **Changing shared benchmark logic** (spawn/move flow, CSV export): edit
+  `com.imt-atlantique.benchmark-base/Runtime/Scripts/` — it's the single
+  source of truth for every Unity variant, so a change there doesn't need to
+  be repeated per project. Not every variant uses it identically, though —
+  see [the component diagram](docs/architecture/c4-component-benchmark-base.md)
+  for which variants override vs. bypass which parts.
+- **Adding a new networking library / engine variant**: clone the closest
+  existing project as a starting point (e.g. `fishNet/` for a new Unity
+  netcode library), wire it to `com.imt-atlantique.benchmark-base`, and
+  register it with the analysis side by following
+  [`ccl/README.md`'s "Adding a new benchmark type"](docs/data-analysis/ccl/README.md#adding-a-new-benchmark-type)
+  checklist — skipping it means the new variant's data gets silently
+  dropped from reports rather than erroring.
+- **Working on the analysis pipeline**: `streamlit/` and `ccl/` both have
+  real test suites (`python -m unittest discover -s tests -v` in each);
+  run them before sending changes to shared modules
+  (`data_loader.py`, `metrics_engine.py`).

@@ -10,7 +10,7 @@ using UnityEngine;
     public class LogsManager : MonoBehaviour
     {
         
-#if PLATFORM_STANDALONE
+#if UNITY_STANDALONE
         public string eventsFileName = "events_";
 #elif UNITY_ANDROID
         public string eventsFileName = "quest_events_";
@@ -67,9 +67,10 @@ using UnityEngine;
             eventsWriter.WriteLine(string.Format(CultureInfo.InvariantCulture,
                 "{0},{1:F3},{2},{3}",
                 frame, timestamp, eventName, number == -1 ? -1 : number));
+            Debug.Log("Writing event for file : "+ eventsWriter);
         }
 
-        private void OnApplicationQuit()
+        private void OnDestroy()
         {
             eventsWriter?.Flush();
             eventsWriter?.Close();

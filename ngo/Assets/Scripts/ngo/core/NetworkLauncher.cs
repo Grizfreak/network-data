@@ -9,7 +9,7 @@ using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
 
-public class NetworkLauncher : NetworkBehaviour
+public class NetworkLauncher : NetworkBehaviour, IWiresharkTracking
 {
     public static NetworkLauncher Instance;
     [SerializeField] private TMP_InputField addressInputField;
@@ -44,6 +44,11 @@ public class NetworkLauncher : NetworkBehaviour
         //NetworkManager.Singleton.gameObject.GetComponent<UnityTransport>().MaxSendQueueSize = 1024 * 1024 * 100;
     }
 
+    public void StartTracking(string filter, string filename)
+    {
+        WiresharkManager.Instance.StartTracking(filter, filename);
+    }
+
     public void StartHost()
     {
         NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
@@ -58,6 +63,7 @@ public class NetworkLauncher : NetworkBehaviour
         NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
         guidelinesText.text = "Trying to start server...";
         NetworkManager.Singleton.StartServer();
+        StartTracking("udp port 7777 or tcp port 7777", "ngo_server_capture");
     }
 
     public void StartClient(string address)
@@ -85,6 +91,9 @@ public class NetworkLauncher : NetworkBehaviour
         NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
         guidelinesText.text = "Trying to connect...";
         NetworkManager.Singleton.StartClient();
+        #if !PLATFORM_ANDROID
+        StartTracking("udp port 7777 or tcp port 7777", "ngo_client_capture");
+        #endif
     }
 
     private void Update()

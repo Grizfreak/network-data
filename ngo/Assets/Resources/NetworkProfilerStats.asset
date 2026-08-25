@@ -34,8 +34,6 @@ MonoBehaviour:
   - category: Network
     name: Object Spawned Sent
   - category: Network
-    name: Ping
-  - category: Network
     name: Rpc Bytes Received
   - category: Network
     name: Rpc Bytes Sent

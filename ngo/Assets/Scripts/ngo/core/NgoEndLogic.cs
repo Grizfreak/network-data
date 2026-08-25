@@ -76,4 +76,9 @@ public class NgoEndLogic : NetworkBehaviour
         Debug.Log("Client disconnected in a non-good way.. exiting the app");
         PhaseManager.Instance.FinishTest();
     }
+
+    public override void OnDestroy()
+    {
+        WiresharkManager.Instance.StopTracking();
+    }
 }

@@ -1,0 +1,19 @@
+{
+    "name": "fishnet.profiling",
+    "rootNamespace": "",
+    "references": [
+        "GUID:15f2c92dde2ad8c4fbeddbbb30976073",
+        "GUID:7c88a4a7926ee5145ad2dfa06f454c67",
+        "GUID:a5008a88d60da4d4c983e0d1dfab136b",
+        "GUID:d033680c9678fb04cbe33ed97736422c"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

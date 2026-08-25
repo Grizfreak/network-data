@@ -1,0 +1,417 @@
+"""Convert a pcap or pcapng capture into a bucketed CSV time series.
+
+The output is meant to be loaded by the existing CSV plotting pipeline.
+It records both bucket index and elapsed time so the same file can be graphed
+on a frame-like axis or a real time axis.
+"""
+
+from __future__ import annotations
+
+import argparse
+from collections import defaultdict
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable, Iterable, List
+
+import pandas as pd
+from scapy.all import PcapNgReader, PcapReader  # type: ignore[attr-defined]
+from scapy.layers.inet import ICMP, IP, TCP, UDP
+from scapy.packet import Packet
+
+
+@dataclass
+class BucketStats:
+    packets: int = 0
+    bytes: int = 0
+    tcp_packets: int = 0
+    udp_packets: int = 0
+    icmp_packets: int = 0
+    other_packets: int = 0
+
+
+def _iter_packets(path: Path) -> Iterable[Packet]:
+    for reader_cls in (PcapReader, PcapNgReader):
+        try:
+            with reader_cls(str(path)) as reader:
+                for packet in reader:
+                    yield packet
+            return
+        except Exception:
+            continue
+    raise RuntimeError(f"Unable to read capture: {path}")
+
+
+def _packet_kind(packet: Packet) -> str:
+    if packet.haslayer(TCP):
+        return "tcp"
+    if packet.haslayer(UDP):
+        return "udp"
+    if packet.haslayer(ICMP):
+        return "icmp"
+    return "other"
+
+
+def _packet_endpoints(packet: Packet) -> tuple[str | None, str | None]:
+    """Return ``(src_ip, dst_ip)`` for an IP packet, else ``(None, None)``."""
+    if not packet.haslayer(IP):
+        return (None, None)
+    ip_layer = packet[IP]
+    return (ip_layer.src, ip_layer.dst)
+
+
+def _detect_capture_format(pcap_path: Path) -> str:
+    with pcap_path.open("rb") as handle:
+        header = handle.read(4)
+
+    if header == b"\x0a\x0d\x0d\x0a":
+        return "pcapng"
+
+    if header in {
+        b"\xd4\xc3\xb2\xa1",
+        b"\xa1\xb2\xc3\xd4",
+        b"\x4d\x3c\xb2\xa1",
+        b"\xa1\xb2\x3c\x4d",
+    }:
+        return "pcap"
+
+    return "unknown"
+
+
+def _build_empty_dataframe() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "Frame",
+            "Time (s)",
+            "Packets",
+            "Bytes",
+            "TCPPackets",
+            "UDPPackets",
+            "ICMPPackets",
+            "OtherPackets",
+            "PacketsPerSec",
+            "BytesPerSec",
+            "BitsPerSec",
+            "CumulativePackets",
+            "CumulativeBytes",
+            "CumulativeBits",
+        ]
+    )
+
+
+def _finalize_buckets(buckets: dict[int, BucketStats], bucket_seconds: float) -> pd.DataFrame:
+    if not buckets:
+        return _build_empty_dataframe()
+
+    rows = []
+    cumulative_packets = 0
+    cumulative_bytes = 0
+    for bucket_index in sorted(buckets):
+        stats = buckets[bucket_index]
+        start_s = bucket_index * bucket_seconds
+        cumulative_packets += stats.packets
+        cumulative_bytes += stats.bytes
+        rows.append(
+            {
+                "Frame": bucket_index,
+                "Time (s)": start_s,
+                "Packets": stats.packets,
+                "Bytes": stats.bytes,
+                "TCPPackets": stats.tcp_packets,
+                "UDPPackets": stats.udp_packets,
+                "ICMPPackets": stats.icmp_packets,
+                "OtherPackets": stats.other_packets,
+                "PacketsPerSec": stats.packets / bucket_seconds,
+                "BytesPerSec": stats.bytes / bucket_seconds,
+                "BitsPerSec": (stats.bytes * 8.0) / bucket_seconds,
+                "CumulativePackets": cumulative_packets,
+                "CumulativeBytes": cumulative_bytes,
+                "CumulativeBits": cumulative_bytes * 8.0,
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def _ingest_packet(
+    packet: Packet,
+    buckets: dict[int, BucketStats],
+    bucket_seconds: float,
+    start_time: float,
+    ip_filter: set[str] | None = None,
+) -> bool:
+    """Bucket a single packet and return ``True`` if it was ingested.
+
+    When *ip_filter* is provided, packets whose endpoints are not both in
+    the set are dropped. Packets without an IP layer are always dropped
+    in that case.
+    """
+    if ip_filter is not None:
+        src_ip, dst_ip = _packet_endpoints(packet)
+        if src_ip is None or dst_ip is None:
+            return False
+        if src_ip not in ip_filter or dst_ip not in ip_filter:
+            return False
+
+    elapsed = max(float(packet.time) - start_time, 0.0)
+    bucket_index = int(elapsed // bucket_seconds)
+    stats = buckets[bucket_index]
+    stats.packets += 1
+    stats.bytes += len(packet)
+
+    kind = _packet_kind(packet)
+    if kind == "tcp":
+        stats.tcp_packets += 1
+    elif kind == "udp":
+        stats.udp_packets += 1
+    elif kind == "icmp":
+        stats.icmp_packets += 1
+    else:
+        stats.other_packets += 1
+    return True
+
+
+def _count_packets(pcap_path: Path) -> int:
+    """Count how many packets a capture contains (used for diagnostics)."""
+    capture_format = _detect_capture_format(pcap_path)
+    if capture_format == "pcapng":
+        reader_classes = (PcapNgReader,)
+    elif capture_format == "pcap":
+        reader_classes = (PcapReader,)
+    else:
+        reader_classes = (PcapReader, PcapNgReader)
+
+    for reader_cls in reader_classes:
+        try:
+            with reader_cls(str(pcap_path)) as reader:
+                return sum(1 for _ in reader)
+        except Exception:
+            continue
+    return 0
+
+
+def find_dominant_conversation(
+    pcap_path: Path,
+    exclude_ips: Iterable[str] | None = None,
+) -> tuple[tuple[str, str], int] | None:
+    """Return the IP pair that exchanges the most packets in *pcap_path*.
+
+    The conversation is the unordered pair ``{src_ip, dst_ip}`` with the
+    highest packet count. The returned pair is always ordered so that
+    the lower IP comes first, which makes the result deterministic.
+
+    *exclude_ips* (e.g. ``{"127.0.0.1", "::1"}``) lets the caller ignore
+    self-loopback / multicast noise that often dominates Quest captures.
+
+    Returns ``None`` when the capture contains no IP packets.
+    """
+    excluded = set(exclude_ips or ())
+    counts: dict[tuple[str, str], int] = defaultdict(int)
+
+    capture_format = _detect_capture_format(pcap_path)
+    if capture_format == "pcapng":
+        reader_classes = (PcapNgReader,)
+    elif capture_format == "pcap":
+        reader_classes = (PcapReader,)
+    else:
+        reader_classes = (PcapReader, PcapNgReader)
+
+    for reader_cls in reader_classes:
+        try:
+            with reader_cls(str(pcap_path)) as reader:
+                for packet in reader:
+                    src_ip, dst_ip = _packet_endpoints(packet)
+                    if src_ip is None or dst_ip is None:
+                        continue
+                    if src_ip in excluded or dst_ip is None or dst_ip in excluded:
+                        continue
+                    key = tuple(sorted((src_ip, dst_ip)))
+                    counts[key] += 1
+            break
+        except Exception:
+            continue
+
+    if not counts:
+        return None
+    best_pair_count = sorted(counts.items(), key=lambda item: item[1], reverse=True)[0]
+    # `best_pair_count` is already a tuple `(ip_pair, packet_count)`. Return it directly.
+
+
+def convert_pcap_to_dataframe(
+    pcap_path: Path,
+    bucket_seconds: float = 1.0,
+    ip_filter: set[str] | None = None,
+) -> pd.DataFrame:
+    if bucket_seconds <= 0:
+        raise ValueError("bucket_seconds must be greater than 0")
+
+    buckets: dict[int, BucketStats] = defaultdict(BucketStats)
+    start_time: float | None = None
+    capture_error: Exception | None = None
+
+    capture_format = _detect_capture_format(pcap_path)
+    if capture_format == "pcapng":
+        reader_classes = (PcapNgReader,)
+    elif capture_format == "pcap":
+        reader_classes = (PcapReader,)
+    else:
+        reader_classes = (PcapReader, PcapNgReader)
+
+    for reader_cls in reader_classes:
+        try:
+            with reader_cls(str(pcap_path)) as reader:
+                for packet in reader:
+                    if start_time is None:
+                        start_time = float(packet.time)
+                    _ingest_packet(packet, buckets, bucket_seconds, start_time, ip_filter)
+            frame = _finalize_buckets(buckets, bucket_seconds)
+            if capture_error is not None:
+                frame.attrs["read_error"] = f"{type(capture_error).__name__}: {capture_error}"
+            if ip_filter is not None:
+                frame.attrs["ip_filter"] = sorted(ip_filter)
+            return frame
+        except Exception as exc:
+            if start_time is not None and buckets:
+                frame = _finalize_buckets(buckets, bucket_seconds)
+                frame.attrs["read_error"] = f"{type(exc).__name__}: {exc}"
+                frame.attrs["partial"] = True
+                if ip_filter is not None:
+                    frame.attrs["ip_filter"] = sorted(ip_filter)
+                return frame
+            capture_error = exc
+
+    raise RuntimeError(f"Unable to read capture: {pcap_path}") from capture_error
+
+
+def _iter_capture_files(folder_path: Path) -> Iterable[Path]:
+    """Yield every .pcap/.pcapng file under *folder_path*, recursing into
+    subfolders (captures are sometimes nested one or more levels deep,
+    e.g. a dated sub-run folder inside a benchmark folder). Directories
+    whose name starts with ``_`` or ``.`` are skipped (used for internal
+    / backup folders such as ``_corrupted_backup``)."""
+    for path in sorted(folder_path.rglob("*")):
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in {".pcap", ".pcapng"}:
+            continue
+        if any(part.startswith(("_", ".")) for part in path.relative_to(folder_path).parts[:-1]):
+            continue
+        yield path
+
+
+def convert_pcap_folder_to_csv(
+    folder_path: Path,
+    bucket_seconds: float = 1.0,
+    overwrite: bool = False,
+    progress_callback: Callable[[Path], None] | None = None,
+):
+    """Convert every pcap/pcapng file in a folder (including subfolders) to CSV.
+
+    If given, *progress_callback* is invoked with each capture's path right
+    before it's processed (whether it ends up converted, skipped, or
+    erroring), so a caller can drive a progress bar across a batch of
+    folders without waiting for the whole thing to finish.
+    """
+    converted = []
+    skipped = []
+    errors = []
+    warnings = []
+
+    for pcap_path in _iter_capture_files(folder_path):
+        if progress_callback is not None:
+            progress_callback(pcap_path)
+
+        output_path = pcap_path.with_suffix(f"{pcap_path.suffix}.csv")
+        if output_path.exists() and not overwrite:
+            skipped.append((pcap_path, output_path))
+            continue
+
+        try:
+            frame = convert_pcap_to_dataframe(pcap_path, bucket_seconds=bucket_seconds)
+            frame.to_csv(output_path, index=False)
+            read_error = frame.attrs.get("read_error")
+            converted.append((pcap_path, output_path, len(frame)))
+            if read_error:
+                warnings.append((pcap_path, f"Partial conversion completed: {read_error}"))
+        except Exception as exc:
+            errors.append((pcap_path, str(exc)))
+
+    return {
+        "converted": converted,
+        "skipped": skipped,
+        "warnings": warnings,
+        "errors": errors,
+    }
+
+
+def iter_pcap_folder_outputs(folder_path: Path):
+    """Yield generated CSV paths for pcap and pcapng files in a folder
+    (including subfolders)."""
+    for pcap_path in _iter_capture_files(folder_path):
+        yield pcap_path.with_suffix(f"{pcap_path.suffix}.csv")
+
+
+def cleanup_pcap_folder_csv(
+    folder_path: Path,
+    progress_callback: Callable[[Path], None] | None = None,
+):
+    """Delete generated CSV files for pcap/pcapng captures in a folder."""
+    deleted = []
+    missing = []
+    errors = []
+
+    for output_path in iter_pcap_folder_outputs(folder_path):
+        if progress_callback is not None:
+            progress_callback(output_path)
+        if not output_path.exists():
+            missing.append(output_path)
+            continue
+        try:
+            output_path.unlink()
+            deleted.append(output_path)
+        except Exception as exc:
+            errors.append((output_path, str(exc)))
+
+    return {
+        "deleted": deleted,
+        "missing": missing,
+        "errors": errors,
+    }
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Convert a pcap or pcapng capture into a bucketed CSV summary.")
+    parser.add_argument("input", type=Path, help="Input .pcap or .pcapng file")
+    parser.add_argument("-o", "--output", type=Path, help="Output CSV path")
+    parser.add_argument("--bucket-seconds", type=float, default=1.0, help="Aggregation bucket size in seconds")
+    return parser
+
+
+def find_pc_capture_files(folder_path: Path) -> List[Path]:
+    """List all potential PC capture files (pcap/pcapng) under *folder_path*,
+    including any subfolders.
+
+    A file is considered a candidate if it has the correct extension.
+    This function assumes that any pcap/pcapng file found in this folder
+    is relevant for conversion, similar to how Quest captures are handled.
+    """
+    if not folder_path.exists() or not folder_path.is_dir():
+        return []
+
+    return sorted(_iter_capture_files(folder_path))
+
+
+def main() -> None:
+    args = build_arg_parser().parse_args()
+    output_path = args.output or args.input.with_suffix(".csv")
+    frame = convert_pcap_to_dataframe(args.input, bucket_seconds=args.bucket_seconds)
+    frame.to_csv(output_path, index=False)
+    read_error = frame.attrs.get("read_error")
+    if read_error:
+        print(f"Wrote {len(frame)} bucket(s) to {output_path} (partial: {read_error})")
+    else:
+        print(f"Wrote {len(frame)} bucket(s) to {output_path}")
+
+
+
+if __name__ == "__main__":
+    main()

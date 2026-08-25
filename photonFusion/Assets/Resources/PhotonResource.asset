@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5999c9053e24271428b9865c32e9bd0b, type: 3}
+  m_Name: PhotonResource
+  m_EditorClassIdentifier: PhotonResource
+  mPrefab: {fileID: 295692051021194745, guid: fb6bcde0cba22d54689d47e9bf88bd5b, type: 3}
+  mAmount: 1200
+  mSpawnOnce: 0
+  mTimeBeforeEachSpawn: 5
+  mNumberPerWave: 400
+  mPercentageMovingCubesPerWave: 10
+  mTimeBeforeMovingCubes: 5
+  mWaitingPhase1Time: 5
+  mWaitBetweenPhases: 10
+  mWaitBeforeQuittingApp: 5
+  moveAndSpawn: 1
+  syncInterval: 0

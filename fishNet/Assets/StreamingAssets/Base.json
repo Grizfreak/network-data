@@ -1,0 +1,11 @@
+{
+    "mAmount": 20000,
+    "mSpawnOnce": 1,
+    "mTimeBeforeEachSpawn": 1,
+    "mNumberPerWave": 400,
+    "mPercentageMovingCubesPerWave": 1,
+    "mTimeBeforeMovingCubes": 1,
+    "mWaitingPhase1Time": 1,
+    "mWaitBetweenPhases": 1,
+    "mWaitBeforeQuittingApp": 1
+}

@@ -1,9 +1,16 @@
 # Streamlit Benchmark Metrics Viewer
 
+> This document lives under `docs/`; the code it describes is in
+> [`data-analysis/streamlit/`](../../../data-analysis/streamlit/).
+
 Interactive Streamlit app for exploring the PC/Quest/Godot benchmark
-captures under `../data/`: FPS, memory, CPU, GPU, PCAP-derived throughput,
+captures under `data-analysis/data/`: FPS, memory, CPU, GPU, PCAP-derived throughput,
 and network RTT/upload/download, plotted either per-frame or per-GameObject
 ("palier").
+
+![Streamlit controls: file pairing, metric selection, and line filter presets](../../figs/fig-streamlit1.png)
+
+![Streamlit metrics dashboard: FPS/Memory/CPU/GPU per GameObject pool, all captured subsystems overlaid](../../figs/fig-streamlit2.png)
 
 Requirements
 
@@ -21,7 +28,7 @@ streamlit run app.py
 
 ## What it actually does
 
-There is no file-upload widget. On launch the app scans `../data/` for
+There is no file-upload widget. On launch the app scans `data-analysis/data/` for
 run folders (`benchmarkPC#N/`, `benchmarkQuest#N/`, ...) via
 `data_loader.list_pc_and_quest_folders()` and lets you pick which PC and/or
 Quest runs to load ("Select Data to Load"). Everything downstream — pairing,
@@ -60,10 +67,11 @@ captures in a run folder into the bucketed CSVs the rest of the app reads.
 actual logic lives in four importable, Streamlit-free modules, each usable
 (and unit-tested) without running the Streamlit script:
 
-- **`data_loader.py`** / **`metrics_engine.py`** — shared with `../ccl/`
-  too (file discovery/pairing/subsystem classification, and metric
-  extraction/unit normalization/availability). See `../ccl/README.md` for
-  how that pipeline uses them.
+- **`data_loader.py`** / **`metrics_engine.py`** — shared with
+  `data-analysis/ccl/` too (file discovery/pairing/subsystem
+  classification, and metric extraction/unit normalization/availability).
+  See [`../ccl/README.md`](../ccl/README.md) for how that pipeline uses
+  them.
 - **`label_formatting.py`** — Streamlit-only, but not app.py-only: display-
   label formatting (`short_label`) and role/client-server/run-group
   detection for the quick filters and averaging. Derives its tech-name
@@ -80,7 +88,7 @@ actual logic lives in four importable, Streamlit-free modules, each usable
 
 `app.py` importing any of these three modules (or `label_formatting.py`/
 `plotting.py` importing each other) has no side effects — none of them
-scan `../data/`, touch pcap tooling, or call `st.stop()`. Only `app.py`
+scan `data-analysis/data/`, touch pcap tooling, or call `st.stop()`. Only `app.py`
 itself does that, top-to-bottom, as a Streamlit script. This is why the
 test suite (below) can exercise `short_label()`, `get_available_metrics()`,
 and `build_metric_figures()` directly with synthetic data, instead of
@@ -89,8 +97,9 @@ needing the real dataset or a running Streamlit server.
 ## Adding a new benchmark type
 
 **1. The shared classification** — see
-`../ccl/README.md#adding-a-new-benchmark-type` for the full checklist:
-`data_loader.py::_CLASSIFICATION_RULES`, `../ccl/subsystem_catalog.py`, then
+[`../ccl/README.md#adding-a-new-benchmark-type`](../ccl/README.md#adding-a-new-benchmark-type)
+for the full checklist: `data_loader.py::_CLASSIFICATION_RULES`,
+`data-analysis/ccl/subsystem_catalog.py`, then (from `data-analysis/streamlit/`)
 run `python ../ccl/check_subsystem_coverage.py`. That script checks both the
 `ccl/` report registrations *and* (via `streamlit_display_gaps()`) that this
 app's `label_formatting.base_tech_label()` still recognizes the new rule —
@@ -113,15 +122,15 @@ per-GameObject aggregation than the existing PC/Quest paths already provide
 (see `metrics_engine.metric_per_gameobject_series`'s routing).
 
 Adding *more runs* of an existing benchmark type needs none of this — drop a
-new folder under `../data/` and it's picked up automatically (see
-`../ccl/README.md`'s "Adding a new benchmark type" section for the same
-point on the `ccl/` side).
+new folder under `data-analysis/data/` and it's picked up automatically
+(see [`../ccl/README.md`](../ccl/README.md)'s "Adding a new benchmark type"
+section for the same point on the `ccl/` side).
 
 ## Tests
 
 Characterization test suites pin the current, real behavior of every
 ordered/heuristic matching table in this app against real filenames from
-`../data/` (or, for `build_metric_figures()`/`get_available_metrics()`,
+`data-analysis/data/` (or, for `build_metric_figures()`/`get_available_metrics()`,
 small synthetic DataFrames) rather than checking it by eye:
 
 - `classify_subsystem()`, `base_tech_label()`, `NETWORKED_TECH_KEYWORDS`

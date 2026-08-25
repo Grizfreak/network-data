@@ -1,5 +1,8 @@
 # 📈 Metrics Engine Documentation
 
+> This document lives under `docs/`; the code it describes is in
+> [`data-analysis/streamlit/metrics_engine.py`](../../../data-analysis/streamlit/metrics_engine.py).
+
 ## Overview and Purpose
 
 The Metrics Engine is a robust data analysis layer responsible for ingesting raw, fragmented profiling data from various benchmark sources (e.g., internal simulations, PCAP network captures, performance logs). Its primary function is to **standardize, normalize, and aggregate** these disparate metrics into consistent time-series plots suitable for comparison and visualization within the user interface.

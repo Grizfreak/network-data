@@ -1,5 +1,9 @@
 # Network Plots Association System - Architecture Explanation
 
+> This document lives under `docs/`; the code it describes
+> (`metrics_engine.py`, `app.py`) is in
+> [`data-analysis/streamlit/`](../../data-analysis/streamlit/).
+
 ## Overview
 The network plots association system links multiple network metrics (Ping, Bytes Received/Sent, RPC Messages Received/Sent) into a unified 3-subplot visualization. The key concept is **label-based association**: all network sub-metrics from the same data source are grouped together using a unique label identifier.
 

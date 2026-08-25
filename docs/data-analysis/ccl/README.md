@@ -1,15 +1,19 @@
 # ccl/ — benchmark analysis pipeline
 
-This folder turns the raw per-run CSV captures under `../data/` into the
-statistical comparisons and Markdown conclusions for the benchmark. It is
-**two independent pipelines** that share a few common building blocks — they
-answer different questions and don't feed into each other.
+> This document lives under `docs/`; the code it describes is in
+> [`data-analysis/ccl/`](../../../data-analysis/ccl/).
 
-Both pipelines reuse `../streamlit/data_loader.py` (file discovery, run
-pairing, subsystem classification) and `../streamlit/metrics_engine.py`
-(metric extraction, unit normalization) rather than re-implementing that
-logic — that's why every script does
-`sys.path.append(.../streamlit)` before importing them.
+`data-analysis/ccl/` turns the raw per-run CSV captures under
+`data-analysis/data/` into the statistical comparisons and Markdown
+conclusions for the benchmark. It is **two independent pipelines** that
+share a few common building blocks — they answer different questions and
+don't feed into each other.
+
+Both pipelines reuse `data-analysis/streamlit/data_loader.py` (file
+discovery, run pairing, subsystem classification) and
+`data-analysis/streamlit/metrics_engine.py` (metric extraction, unit
+normalization) rather than re-implementing that logic — that's why every
+script does `sys.path.append(.../streamlit)` before importing them.
 
 ## Pipeline A — per-frame analysis (`analyze_data.py` → `render_*.py`)
 
@@ -51,7 +55,7 @@ python render_base_conclusions.py
 
 ### `analyze_data.py`
 
-For every stat file in every `../data/benchmark*/` folder: extracts each
+For every stat file in every `data-analysis/data/benchmark*/` folder: extracts each
 metric's time series, computes descriptive stats (mean/median/p95/p99/std),
 runs pairwise Mann-Whitney U + Cliff's delta between subsystems within the
 same platform, and writes it all out as CSV. `MIN_SAMPLES_FOR_TEST = 5`
@@ -78,7 +82,7 @@ with N = number of runs, not number of frames. Uses an exact permutation
 Mann-Whitney (appropriate for the resulting small per-run N ≤ 10), plus
 Holm/Benjamini-Hochberg correction for testing multiple loads at once.
 
-Fully self-contained — reads `../data/` directly, doesn't depend on
+Fully self-contained — reads `data-analysis/data/` directly, doesn't depend on
 `analyze_data.py`'s output.
 
 ```bash
@@ -96,6 +100,32 @@ are surfaced, not silently dropped).
 Has a real test suite: `python -m unittest discover -s tests -v` (59 tests,
 no pytest dependency by design — see `tests/test_load_analysis.py`'s
 docstring).
+
+### `generate_paper_figures.py`
+
+Pure presentation layer on top of Pipeline B's output — reads
+`analysis_results/load_based/*.csv`, does no statistics of its own. Run
+after `load_analysis.py`. Writes PNG + PDF pairs to
+`analysis_results/figures/`:
+
+![CPU time vs. load, PC/Quest panels, IQR band, log y-axis](../../../data-analysis/ccl/analysis_results/figures/fig1-cpu-vs-load.png)
+
+*`fig1-cpu-vs-load`* — CPU time vs. load, 2 panels (PC / Quest), IQR band,
+log y-axis.
+
+![Client/server entity ceilings, grouped bars](../../../data-analysis/ccl/analysis_results/figures/fig2-capacity.png)
+
+*`fig2-capacity`* — client/server entity ceilings, grouped bars.
+
+![Forest plot of Cliff's delta vs. baseline at 20000 entities](../../../data-analysis/ccl/analysis_results/figures/fig3-forest.png)
+
+*`fig3-forest`* — forest plot of Cliff's delta vs. baseline at 20,000
+entities.
+
+```bash
+cd ccl
+python generate_paper_figures.py
+```
 
 ## Shared modules
 
@@ -134,12 +164,13 @@ scripts) need, so it's defined once instead of drifting out of sync:
 
 Dropping in *more runs* of an existing system is already cheap: both
 `analyze_data.py::_discover_run_folders` and `load_analysis.py::discover_runs`
-just glob every folder under `../data/` that contains CSVs, sorted by name —
-no hardcoded count or range anywhere. Add `benchmarkPC#6/` and re-run.
+just glob every folder under `data-analysis/data/` that contains CSVs,
+sorted by name — no hardcoded count or range anywhere. Add `benchmarkPC#6/`
+and re-run.
 
 A genuinely *new* benchmark type (a new networking library, or a new engine
 variant) is a different story: `classify_subsystem()` in
-`../streamlit/data_loader.py` is what turns a filename into a subsystem name,
+`data-analysis/streamlit/data_loader.py` is what turns a filename into a subsystem name,
 but recognizing the name is not the same as a report knowing what to do with
 it. A subsystem `classify_subsystem()` can identify but that isn't also
 registered in the lists below is silently dropped from whichever report
@@ -147,13 +178,13 @@ forgot it — no error, no missing row, just absence.
 
 To add one, touch these in order:
 
-1. **`../streamlit/data_loader.py::_CLASSIFICATION_RULES`** — add one
-   `_ClassificationRule(keyword, subsystem, is_networked=...)`. Matching is
-   ordered, case-insensitive substring matching, so a keyword that's a
-   substring of an existing one needs to go *before* it (e.g. don't let a
-   new `"GodotRelay"` fall into the existing `"godot"` rule by accident —
-   see the ordering comment above the list, and
-   `../streamlit/tests/test_data_loader.py` for the real-filename cases
+1. **`data-analysis/streamlit/data_loader.py::_CLASSIFICATION_RULES`**
+   — add one `_ClassificationRule(keyword, subsystem, is_networked=...)`.
+   Matching is ordered, case-insensitive substring matching, so a keyword
+   that's a substring of an existing one needs to go *before* it (e.g. don't
+   let a new `"GodotRelay"` fall into the existing `"godot"` rule by accident
+   — see the ordering comment above the list, and
+   `data-analysis/streamlit/tests/test_data_loader.py` for the real-filename cases
    that ordering exists to resolve). `NETWORKED_SUBSYSTEMS` is derived from
    `is_networked`, no separate registry to remember.
 2. **`subsystem_catalog.py::SUBSYSTEMS`** — add one `SubsystemSpec` entry:
@@ -165,7 +196,7 @@ To add one, touch these in order:
    automatically.
 
 Then run **`python check_subsystem_coverage.py`** — it re-derives which
-subsystems actually exist in `../data/` straight from the file names and
+subsystems actually exist in `data-analysis/data/` straight from the file names and
 diffs that against step 2 above, so it'll tell you exactly what's still
 missing instead of you finding out from a report that's just... missing a
 row:
@@ -190,7 +221,7 @@ or, with something missing:
 
 **This checklist and `check_subsystem_coverage.py` primarily cover the
 `ccl/` reports** — step 1 above is enough for the Streamlit app
-(`../streamlit/app.py`) to recognize and correctly label a new subsystem
+(`data-analysis/streamlit/app.py`) to recognize and correctly label a new subsystem
 too: `short_label()`'s tech tag and the "Network only" quick filter both
 derive from `_CLASSIFICATION_RULES` directly (`base_tech_label()` /
 `NETWORKED_TECH_KEYWORDS` in `data_loader.py`) rather than keeping their
@@ -207,11 +238,11 @@ See `../streamlit/README.md#adding-a-new-benchmark-type` for that part.
 It's read-only and doesn't depend on `analyze_data.py`/`load_analysis.py`
 having run first, so it's safe to run any time.
 
-## Other files in `analysis_results/`
+## Other documentation
 
-- **`developer_experience.md`** — hand-written qualitative notes (docs
-  quality, community support, learning curve per library). Not generated
-  by any script here; edit it directly.
+- **[`developer_experience.md`](../developer_experience.md)** — hand-written
+  qualitative notes (docs quality, community support, learning curve per
+  library). Not generated by any script here; edit it directly.
 
 ## Known data caveats worth knowing before trusting a number
 
@@ -222,7 +253,7 @@ having run first, so it's safe to run any time.
   (capped rows average ~2.6 FPS vs. ~29 FPS uncapped), not noise. Hits
   ~75% of Godot-on-Quest samples, ~40-49% of Photon Fusion, ~27-33% of
   Unity base. Nothing in the pipeline filters or flags this (unlike the
-  RTT sentinel handling in `../streamlit/metrics_engine.py`), so
+  RTT sentinel handling in `data-analysis/streamlit/metrics_engine.py`), so
   median/p95/max Quest GPU figures for the worst-performing subsystems are
   understated lower bounds, not exact values.
 - **`raw_per_file_metrics.csv` isn't byte-reproducible run to run** — a

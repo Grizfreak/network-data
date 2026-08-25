@@ -54,6 +54,9 @@ notes live with each project; only the ones with their own README are listed
 
 ## Data analysis (`docs/data-analysis/`)
 
+- [`data-analysis/plots.md`](data-analysis/plots.md) — every plot the
+  pipeline produces (Streamlit's per-metric chart template, and the 3
+  static `generate_paper_figures.py` figures) and what each one shows.
 - [`data-analysis/streamlit/README.md`](data-analysis/streamlit/README.md)
   — interactive Streamlit dashboard (module layout, pipeline, tests).
 - [`data-analysis/streamlit/Stats.md`](data-analysis/streamlit/Stats.md)
@@ -66,7 +69,9 @@ notes live with each project; only the ones with their own README are listed
 - [`data-analysis/LECTURE.md`](data-analysis/LECTURE.md) — teaching
   walkthrough of the data pipeline.
 - [`data-analysis/NETWORK_PLOTS_ASSOCIATION_EXPLAINED.md`](data-analysis/NETWORK_PLOTS_ASSOCIATION_EXPLAINED.md)
-  — how network plots are paired with runs.
+  — how network metric columns are detected and paired with runs (its
+  "unified 3-subplot" framing at the top is stale, see
+  [plots.md](data-analysis/plots.md#a-stale-doc-worth-knowing-about)).
 
 Generated (not hand-written, stays with its sibling CSVs, run
 `ccl/analyze_data.py` + `render_*.py` to regenerate — see the `ccl/README.md`

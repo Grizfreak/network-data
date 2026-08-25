@@ -65,5 +65,3 @@ suites): [`docs/contributing.md`](docs/contributing.md). Short version:
   real test suites (`python -m unittest discover -s tests -v` in each);
   run them before sending changes to shared modules
   (`data_loader.py`, `metrics_engine.py`).
-- Documentation history (what was missing, how it was addressed) is in
-  [`docs/architecture/README.md`'s "Documentation pass" section](docs/architecture/README.md#documentation-pass-2026-08-25).

@@ -66,11 +66,31 @@ for why the workload is phase-based in the first place.
 .\build_all_versions.ps1
 ```
 
-Builds PC + Android for every project passed via `-ProjectFolders` (defaults
-to `base`, `base_DOTS`, `base_GPU`, `photonFusion`, `ngo`, `fishNet`,
-`NetcodeEntities` — Godot projects are not covered by this script, build
-them from the Godot editor). Outputs land in `builds/<project>/` (PC) and
-`builds/<project>_android/` (APK).
+Builds PC + Android for every Unity project passed via `-ProjectFolders`
+(defaults to `base`, `base_DOTS`, `base_GPU`, `photonFusion`, `ngo`,
+`fishNet`, `NetcodeEntities`), **and** exports the Godot projects passed via
+`-GodotProjectFolders` (defaults to `Godot_Benchmark`,
+`Godot_Network_Benchmark` — pass `-SkipGodot` to skip them). Outputs land in
+`builds/<project>/` (PC) and `builds/<project>_android/` (APK) either way.
+
+Godot exports use `--export-debug` (not `--export-release`) to match the
+Unity side's choice of `BuildOptions.Development` +
+`BuildOptions.ConnectWithProfiler` in `BuildCommands.cs` — both keep
+profiling/debug capability in the build rather than shipping an optimized
+release binary. The Godot export needs the editor's export templates
+installed and, for Android, an SDK + debug keystore configured in Editor
+Settings (one-time per machine, not something the script can set up); the
+script hardcodes `$godot_path` to the local Steam install
+(`Godot_Benchmark/.vscode/settings.json`'s `godotTools.editorPath.godot4`)
+— edit that variable if Godot is installed elsewhere.
+
+**Close every Godot editor window before running the script.** A running
+editor instance can hold the `godotopenxrvendors` GDExtension's `.dll`
+locked, and the CLI export itself can leave a background Godot process
+running past when the invoking process returns — the script waits for all
+`godot*` processes to exit (`Wait-ForGodotExit`, 180s timeout) after each
+export before checking whether it produced output, and warns up front if
+Godot is already running when the script starts.
 
 ## Running each variant locally
 

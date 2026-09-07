@@ -58,6 +58,10 @@ See the diagrams for the visual version:
 - [C4 — Components: `benchmark-base`](c4-component-benchmark-base.md) — how
   the shared package's classes work, and the four different strategies
   variants use to extend or bypass them.
+- [The `Interaction` demo scene](interaction-system.md) — how hover/drag/zone
+  interaction is implemented in `base_DOTS` (ECS systems) vs. `base_GPU`
+  (single MonoBehaviour over a `ComputeBuffer`). Not part of the benchmark
+  flow and not networked in any variant.
 
 For the *why* behind the structure above, see the
 [Architecture Decision Records](decisions/README.md).

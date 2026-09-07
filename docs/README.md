@@ -37,6 +37,9 @@ generated alongside, and is linked, not copied.
 - [Architecture Decision Records](architecture/decisions/README.md) — why
   one Unity project per library, the shared package, the phase-based
   workload, the two analysis pipelines.
+- [The `Interaction` demo scene](architecture/interaction-system.md) — how
+  hover/drag/zone interaction is implemented in `base_DOTS` (ECS) vs.
+  `base_GPU` (single MonoBehaviour over a `ComputeBuffer`).
 
 ## Benchmark clients (Unity / Godot)
 

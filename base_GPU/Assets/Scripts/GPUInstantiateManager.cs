@@ -4,6 +4,10 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering;
 
+/// <summary>
+/// CPU-side GPU instancing variant: spawns cubes as plain data (no GameObjects), simulates their
+/// movement/jump/rotation in Update, and batches them for rendering via Graphics.DrawMeshInstanced.
+/// </summary>
 public class GPUInstantiateManager : InstantiateManager
 {
     [Header("GPU Instancing")]
@@ -19,6 +23,8 @@ public class GPUInstantiateManager : InstantiateManager
     }
 
     private readonly List<InstanceData> _instances = new();
+    // DrawMeshInstanced caps out at 1023 instances per call, hence the fixed array size and the
+    // batching loop in RenderInstances.
     private readonly Matrix4x4[] _matrices = new Matrix4x4[1023];
 
     protected override IEnumerator SpawnObjects()
@@ -115,7 +121,7 @@ public class GPUInstantiateManager : InstantiateManager
             _instances[i] = inst;
         }
     }
-    
+
     private void LateUpdate()
     {
         RenderInstances();
@@ -135,6 +141,8 @@ public class GPUInstantiateManager : InstantiateManager
         OnInstanceCreated?.Invoke(null);
     }
 
+    // Draws all instances in batches of at most 1023 (the DrawMeshInstanced limit), rebuilding
+    // the matrix array for each batch from the live instance data.
     private void RenderInstances()
     {
         if (instanceMesh == null || instanceMaterial == null)
@@ -181,7 +189,8 @@ public class GPUInstantiateManager : InstantiateManager
 
         return new Vector3(x, 0f, z);
     }
-    
+
+    /// <summary>Marks up to amountToMove not-yet-moving instances as moving; returns how many were actually flagged.</summary>
     public int StartMovingWave(int amountToMove)
     {
         int moved = 0;

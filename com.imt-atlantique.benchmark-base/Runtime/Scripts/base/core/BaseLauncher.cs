@@ -1,9 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>
-/// This class is responsible for launching the benchmark by loading the Benchmark scene and starting the first phase when the PhaseManager is found.
-/// </summary>
+/// <summary>Waits for a PhaseManager to appear after a scene change, then triggers phase 1 automatically.</summary>
     public class BaseLauncher : MonoBehaviour
     {
         private bool searchingForPhaseManager;

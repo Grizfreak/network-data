@@ -1,6 +1,7 @@
 using UnityEngine;
 using Random = Unity.Mathematics.Random;
 
+/// <summary>Inspector-facing settings for the benchmark spawn/move scenario, baked into BenchmarkConfig and SpawnArea by BenchmarkBaker.</summary>
 public class BenchmarkAuthoring : MonoBehaviour
 {
     public GameObject CubePrefab;

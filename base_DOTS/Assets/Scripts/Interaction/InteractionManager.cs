@@ -4,6 +4,7 @@ using Unity.Entities;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>UI controller for the interaction demo: wires spawn/despawn buttons and the spawn-count input to the InteractionSpawnConfig singleton, and displays FPS and the currently hovered cube's values.</summary>
 public class InteractionManager : MonoBehaviour
 {
     [Header("UI Elements")]
@@ -57,6 +58,7 @@ public class InteractionManager : MonoBehaviour
         SyncValueDisplay();
     }
 
+    /// <summary>Requests spawning of NumberToSpawn cubes on the ECS side; ignored if a spawn or despawn is already pending.</summary>
     public void SpawnInstances()
     {
         if (!TryInitializeEcsReferences())
@@ -77,6 +79,7 @@ public class InteractionManager : MonoBehaviour
         SyncButtonStates();
     }
 
+    /// <summary>Requests despawning of all spawned cubes (outside the protected zone, if enabled) on the ECS side.</summary>
     public void DeleteAllCubes()
     {
         if (!TryInitializeEcsReferences())
@@ -90,6 +93,7 @@ public class InteractionManager : MonoBehaviour
         SyncButtonStates();
     }
 
+    /// <summary>Callback for the spawn-count input field; parses and clamps the value into NumberToSpawn.</summary>
     public void OnInstanceValueChanged(string input)
     {
         if (!TryInitializeEcsReferences())

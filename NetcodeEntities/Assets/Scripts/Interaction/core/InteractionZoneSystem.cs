@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
 
+/// <summary>Colors spawned entities based on whether they sit inside the configured zone bounds, skipping the entity currently hovered or dragged so interaction feedback takes precedence.</summary>
 [BurstCompile]
 public partial struct InteractionZoneSystem : ISystem
 {

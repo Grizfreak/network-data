@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>Lets a build launched with the "--interaction" command-line argument skip straight to the interaction scene, for automated/headless benchmark runs.</summary>
 public class InteractionBypass : MonoBehaviour
 {
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -14,7 +15,7 @@ public class InteractionBypass : MonoBehaviour
             {
                 if (args[i] == "--interaction")
                 {
-                    SceneManager.LoadScene(2);
+                    SceneManager.LoadScene(2); // Build index 2: the interaction scene.
                 }
             }
         }

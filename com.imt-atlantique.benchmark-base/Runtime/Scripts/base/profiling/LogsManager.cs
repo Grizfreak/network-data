@@ -3,10 +3,7 @@ using System.Globalization;
 using System.IO;
 using UnityEngine;
 
-    /// <summary>
-    /// This component will log events related to the Phase System, by telling which frame happened which event
-    /// This component is thought to be extensive, because it uses one method named <c>Log Event</c>
-    /// </summary>
+    /// <summary>Subscribes to phase/instantiation/movement events and logs each one with frame number and timestamp to a CSV file.</summary>
     public class LogsManager : MonoBehaviour
     {
         

@@ -8,6 +8,7 @@ using Unity.Networking.Transport;
 using Unity.Entities;
 using UnityEngine.SceneManagement;
 
+/// <summary>Drives the menu UI and owns the client/server Netcode worlds: starting host/server/client, tracking connection state, and kicking off the benchmark scene.</summary>
 public class NetworkLauncher : MonoBehaviour
 {
     public static NetworkLauncher Instance { get; private set; }
@@ -49,11 +50,13 @@ public class NetworkLauncher : MonoBehaviour
         //NetworkManager.Singleton.gameObject.GetComponent<UnityTransport>().MaxSendQueueSize = 1024 * 1024 * 100;
     }
 
+    /// <summary>Starts a Wireshark packet capture using the given filter, writing to the given file.</summary>
     public void StartTracking(string filter, string filename)
     {
         WiresharkManager.Instance.StartTracking(filter, filename);
     }
 
+    /// <summary>Creates a local server world and a client world connected to it (127.0.0.1:7777), for single-process host+client testing.</summary>
     public void StartHost()
     {
         /*NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
@@ -78,6 +81,7 @@ public class NetworkLauncher : MonoBehaviour
         OnServerStarted();
     }
 
+    /// <summary>Creates a server world listening on port 7777 and starts a packet capture for the benchmark run.</summary>
     public void StartServer()
     {
         foreach (var world in World.All)
@@ -107,6 +111,7 @@ public class NetworkLauncher : MonoBehaviour
 
     }
 
+    /// <summary>Creates a client world and connects it to the given "host:port" address (or the address input field if "null" is passed).</summary>
     public void StartClient(string address)
     {
         if (address == "null")
@@ -148,12 +153,14 @@ public class NetworkLauncher : MonoBehaviour
         
     }
 
+    /// <summary>Called by ClientConnectionSystem once the client has a NetworkId; updates the UI to reflect the connected state.</summary>
     public void OnClientConnected()
     {
         OnClientStarted();
         guidelinesText.text = "Connected to server ! Waiting for the test to start...";
     }
 
+    /// <summary>Broadcasts a StartBenchmarkRpc to clients and loads the Benchmark scene on the server.</summary>
     public void StartTest()
     {
         /*NetworkManager.SceneManager.LoadScene(
@@ -237,6 +244,7 @@ public class NetworkLauncher : MonoBehaviour
         CurrentState = LauncherNetworkState.Disconnected;
     }
 
+    /// <summary>Disconnects any active worlds and quits the application (or stops play mode in the editor).</summary>
     public void ExitApp()
     {
         Disconnect();
@@ -247,6 +255,7 @@ public class NetworkLauncher : MonoBehaviour
         #endif
     }
 
+    /// <summary>Disposes the client and/or server worlds, if any are active, and resets the UI accordingly.</summary>
     public void Disconnect()
     {
         if (clientWorld != null && clientWorld.IsCreated)
@@ -279,6 +288,7 @@ public class NetworkLauncher : MonoBehaviour
     }
 }
 
+/// <summary>Connection lifecycle state tracked by NetworkLauncher.</summary>
 public enum LauncherNetworkState
 {
     Idle,

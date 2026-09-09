@@ -5,6 +5,7 @@ using Unity.Mathematics;
 using Unity.Transforms;
 using Unity.Rendering;
 
+/// <summary>Handles spawn and despawn requests raised through InteractionSpawnConfig: instantiates randomized cubes on spawn, and destroys spawned entities outside the zone on despawn.</summary>
 [BurstCompile]
 public partial struct InteractionSpawnSystem : ISystem
 {
@@ -26,6 +27,7 @@ public partial struct InteractionSpawnSystem : ISystem
             {
                 if (config.ZoneEnabled)
                 {
+                    // Entities inside the zone are protected from the despawn-all action.
                     float3 position = state.EntityManager.GetComponentData<LocalTransform>(entity).Position;
                     if (IsPositionInZone(position, config.ZoneMin, config.ZoneMax))
                     {
@@ -124,6 +126,8 @@ public partial struct InteractionSpawnSystem : ISystem
 
         if (maxInclusive == int.MaxValue)
         {
+            // range + 1 would overflow int when maxInclusive is int.MaxValue, so compute the
+            // inclusive range in uint instead of falling back to Random.NextInt(min, max + 1).
             uint range = (uint)(maxInclusive - minInclusive);
             return minInclusive + (int)math.min(range, random.NextUInt(range + 1u));
         }

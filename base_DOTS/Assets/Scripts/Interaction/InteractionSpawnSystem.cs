@@ -5,6 +5,7 @@ using Unity.Mathematics;
 using Unity.Transforms;
 using Unity.Rendering;
 
+/// <summary>Handles on-demand spawning and despawning of interaction cubes based on the SpawnRequested/DespawnRequested flags on InteractionSpawnConfig, respecting the protected zone on despawn.</summary>
 [BurstCompile]
 public partial struct InteractionSpawnSystem : ISystem
 {
@@ -26,6 +27,7 @@ public partial struct InteractionSpawnSystem : ISystem
             {
                 if (config.ZoneEnabled)
                 {
+                    // Cubes inside the protected zone survive a "despawn all" request
                     float3 position = state.EntityManager.GetComponentData<LocalTransform>(entity).Position;
                     if (IsPositionInZone(position, config.ZoneMin, config.ZoneMax))
                     {
@@ -124,6 +126,7 @@ public partial struct InteractionSpawnSystem : ISystem
 
         if (maxInclusive == int.MaxValue)
         {
+            // range + 1 would overflow int at int.MaxValue, so work in uint here
             uint range = (uint)(maxInclusive - minInclusive);
             return minInclusive + (int)math.min(range, random.NextUInt(range + 1u));
         }

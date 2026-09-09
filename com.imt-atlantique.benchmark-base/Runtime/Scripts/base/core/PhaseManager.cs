@@ -3,10 +3,8 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// This component will manage the different phases of the benchmark, by invoking events when each phase starts and ends, to allow other components to react to these events. The phases are defined as follows:
-/// Phase 1: Players connect to the server and then start instantiation phase
-/// Phase 2: Objects instantiate via InstantiateManager per wave defined in the manager
-/// Phase 3: Objects instantiated move one by one, everything is defined in MoveManager
+/// Drives the benchmark's three phases (connect, instantiate, move), invoking start/finish events and
+/// auto-chaining to the next phase unless autoLinkingPhase is disabled.
 /// </summary>
     public class PhaseManager : MonoBehaviour
     {
@@ -127,6 +125,7 @@ using UnityEngine;
             StartCoroutine(WaitAndStartPhase3());
         }
 
+        /// <summary>Marks the benchmark as finished, optionally quitting the application after waitBeforeQuittingApp seconds.</summary>
         public void FinishTest(bool terminate = true)
         {
             Debug.Log("Phase 3 finished");

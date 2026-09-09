@@ -1,9 +1,9 @@
 using UnityEngine;
 
+/// <summary>On Android, rotates the camera 180° on start to compensate for Quest headset orientation.</summary>
 public class CameraRotate : MonoBehaviour
 {
     #if PLATFORM_ANDROID
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
         this.transform.Rotate(0, 180, 0);

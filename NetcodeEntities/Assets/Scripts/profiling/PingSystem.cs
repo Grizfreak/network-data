@@ -4,6 +4,7 @@ using Unity.NetCode;
 
 #region CLIENT SENDS PING
 
+/// <summary>Sends a PingRpc to the server once per second, tagged with a client-side timestamp and sequence id, to measure RTT.</summary>
 [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
 public partial struct PingSenderSystem : ISystem
 {
@@ -39,6 +40,7 @@ public partial struct PingSenderSystem : ISystem
 
 #region SERVER RECEIVES PING AND SENDS PONG
 
+/// <summary>Answers every incoming PingRpc with a PongRpc echoing back the original client timestamp and sequence id.</summary>
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 public partial struct PingReceiveSystem : ISystem
 {
@@ -81,6 +83,7 @@ public partial struct PingReceiveSystem : ISystem
 
 #region CLIENT RECEIVES PONG
 
+/// <summary>Computes RTT from the elapsed time since the matching PingRpc was sent and forwards it to DotsRttProvider.</summary>
 [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
 public partial struct PongReceiveSystem : ISystem
 {
@@ -110,12 +113,14 @@ public partial struct PongReceiveSystem : ISystem
 
 #region DEFINE PING AND PONG RPCS
 
+/// <summary>RPC sent by the client to the server carrying a local timestamp and sequence id, for RTT measurement.</summary>
 public struct PingRpc : IRpcCommand
 {
     public double ClientTime;
     public int SequenceId;
 }
 
+/// <summary>RPC sent back by the server echoing the original PingRpc's timestamp and sequence id.</summary>
 public struct PongRpc : IRpcCommand
 {
     public double OriginalTime;

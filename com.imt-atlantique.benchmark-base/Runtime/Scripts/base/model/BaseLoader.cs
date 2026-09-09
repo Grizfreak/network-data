@@ -1,6 +1,10 @@
 using UnityEngine;
 using System.IO;
 
+/// <summary>
+/// Loads the active BaseResource and ProfilerStats configuration, from a JSON config file passed via
+/// command-line/device path if present, otherwise from the assigned default assets.
+/// </summary>
 public class BaseLoader : MonoBehaviour
 {
     [Header("Settings Asset")]
@@ -127,7 +131,8 @@ public class BaseLoader : MonoBehaviour
 #endif
     }
 
-    // 🔥 Core: type-agnostic factory
+    // Type-agnostic factory: reads the "type" field from the JSON to pick the concrete BaseResource
+    // subclass via ResourceTypeRegistry, so config files can select a variant-specific resource type.
     private BaseResource CreateResourceFromJson(string json)
     {
         if (originalResource == null)

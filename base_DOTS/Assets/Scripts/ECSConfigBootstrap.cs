@@ -1,6 +1,7 @@
 using Unity.Entities;
 using UnityEngine;
 
+/// <summary>Waits for the BenchmarkConfig singleton to exist, then overwrites it once with values loaded from BaseLoader's resource file.</summary>
 public class ECSConfigBootstrap : MonoBehaviour
 {
     private bool initialized = false;

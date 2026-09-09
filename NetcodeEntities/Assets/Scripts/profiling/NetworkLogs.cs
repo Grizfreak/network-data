@@ -1,6 +1,7 @@
 using Unity.Entities;
 using UnityEngine;
 
+/// <summary>Prefixes the LogsManager/ProfilerStatsToCsvExporter output file names with the role-specific prefix read from the LogConfig singleton (client vs. server).</summary>
 public class NetworkLogs : MonoBehaviour
 {
     void Start()
@@ -31,6 +32,7 @@ public class NetworkLogs : MonoBehaviour
         Debug.Log($"NetworkLogs: Updated file names with prefix '{config.Prefix}' on world '{world.Name}'");
     }
 
+    // Prefer the benchmark's own Server/Client world over the default injection world.
     private static World ResolveWorld()
     {
         foreach (var world in World.All)

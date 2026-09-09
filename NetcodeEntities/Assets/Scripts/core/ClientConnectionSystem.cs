@@ -3,6 +3,7 @@ using Unity.NetCode;
 using Unity.Burst;
 using UnityEngine;
 
+/// <summary>Tracks the client's connection lifecycle (connected, ready-for-gameplay, disconnected, timed out) and drives NetworkLauncher/PhaseManager accordingly.</summary>
 [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
 public partial struct ClientConnectionSystem : ISystem
 {
@@ -44,7 +45,7 @@ public partial struct ClientConnectionSystem : ISystem
             
         }
 
-        // 🧠 NEW: READY CHECK FOR INGAME
+        // READY CHECK FOR INGAME
         if (_connected && !_inGameSent)
         {
             if (IsClientReadyForGameplay(ref state))
@@ -99,6 +100,7 @@ public partial struct ClientConnectionSystem : ISystem
         }
     }
 
+    // Gameplay is considered ready once the ghost collection has replicated and the scene entities exist.
     private bool IsClientReadyForGameplay(ref SystemState state)
     {
         // 1. Ghost collection must exist

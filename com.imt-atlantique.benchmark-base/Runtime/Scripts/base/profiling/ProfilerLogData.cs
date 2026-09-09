@@ -3,9 +3,7 @@ using System.IO;
 using UnityEngine;
 using Unity.Profiling.LowLevel.Unsafe;
 
-/// <summary>
-/// Class describing a profiler stat in the Unity Profiler system
-/// </summary>
+/// <summary>Describes one profiler stat (category, name and unit) in the Unity Profiler system.</summary>
 [System.Serializable]
 public class ProfilerStat
 {
@@ -14,9 +12,7 @@ public class ProfilerStat
     public string Unit;
 }
 
-/// <summary>
-/// Class used to aggregate profiler stat (See <c>ProfilerStat</c> class for more informations
-/// </summary>
+/// <summary>A serializable list of ProfilerStat, used to export available stats to JSON.</summary>
 [System.Serializable]
 public class ProfilerStatCollection
 {
@@ -24,8 +20,8 @@ public class ProfilerStatCollection
 }
 
 /// <summary>
-/// This component will log all the available ProfilerRecorderHandles in the Unity Profiler system, and export them to a JSON file. This is useful to have a reference of all the available handles, and to be able to use them in the future for more specific profiling. The JSON file will be saved in the persistent data path of the application, with the name "profiler_handles.json".
-/// It is currently used as debug purposes
+/// Debug utility that dumps every available ProfilerRecorderHandle on this platform to "profiler_handles.json",
+/// so valid category/name pairs can be found for use in ProfilerStatsEntry.
 /// </summary>
 public class ProfilerManagement : MonoBehaviour
 {

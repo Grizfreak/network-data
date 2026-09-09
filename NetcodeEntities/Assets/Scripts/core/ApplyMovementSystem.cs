@@ -3,6 +3,7 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 
+/// <summary>Advances every moving entity each frame: walks it forward, applies a simple gravity/jump bounce, and spins it in place.</summary>
 [BurstCompile]
 public partial struct ApplyMovementSystem : ISystem
 {

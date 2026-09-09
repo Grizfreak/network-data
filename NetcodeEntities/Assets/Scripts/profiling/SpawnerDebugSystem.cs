@@ -3,6 +3,7 @@ using UnityEngine;
 using Unity.Burst;
 
 
+/// <summary>Debug-only system that logs the Spawner singleton's prefab entity once, then disables itself.</summary>
 [BurstCompile]
 public partial struct SpawnerDebugSystem : ISystem
 {

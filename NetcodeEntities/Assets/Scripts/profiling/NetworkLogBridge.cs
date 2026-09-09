@@ -3,6 +3,7 @@ using Unity.Entities;
 using Unity.NetCode;
 using UnityEngine;
 
+/// <summary>Subscribes to the server-side manager events (spawn/phase/move) and forwards each one to clients as a LogEventRpc.</summary>
 public class NetworkLogsBridge : MonoBehaviour
 {
     private EntityManager _entityManager;
@@ -107,6 +108,7 @@ public class NetworkLogsBridge : MonoBehaviour
             new SendRpcCommandRequest());
     }
 
+    // Only the server world hosts the benchmark managers this bridge listens to.
     private static World GetServerWorld()
     {
         foreach (var world in World.All)

@@ -1,14 +1,8 @@
 using System.Diagnostics;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
-/*
-    * WiresharkManager.cs
-    * 
-    * This class intends to manage the Wireshark process, allowing to start and stop it as needed, and to capture the network traffic of the application for analysis.
-    * It can be used to automate the process of capturing network traffic during testing or debugging sessions, making it easier to analyze the communication between the application and external services.
-    * This without using proprietary solutions, which might have differents features and limitations.
-    *
-*/
+
+/// <summary>Starts and stops a tshark process to capture network traffic to a .pcap file, with a Quest-specific capture mode.</summary>
 public class WiresharkManager : MonoBehaviour
 {
     public static WiresharkManager Instance { get; private set; }
@@ -51,6 +45,7 @@ public class WiresharkManager : MonoBehaviour
         }
     }
 
+    /// <summary>Starts a tshark capture to a timestamped .pcap file in persistent data path, using a Quest-specific filter if running for Quest.</summary>
     public void StartTracking(string filter, string filename)
     {
         if (_tsharkProcess != null && !_tsharkProcess.HasExited)
@@ -103,6 +98,7 @@ public class WiresharkManager : MonoBehaviour
         }
     }
 
+    /// <summary>Kills the running tshark process, if any.</summary>
     public void StopTracking()
     {
         if (_tsharkProcess != null && !_tsharkProcess.HasExited)

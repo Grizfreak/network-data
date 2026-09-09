@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.Mathematics;
 
+/// <summary>Singleton component holding spawn/hover/zone configuration and runtime state for the Interaction scene.</summary>
 public struct InteractionSpawnConfig : IComponentData
 {
     public Entity Prefab;
@@ -31,6 +32,7 @@ public struct InteractionSpawnConfig : IComponentData
     public Random Random;
 }
 
+/// <summary>Tag marking an entity as one spawned by InteractionSpawnSystem (as opposed to the prefab or other entities).</summary>
 public struct InteractionSpawnedTag : IComponentData
 {
 }

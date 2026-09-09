@@ -1,6 +1,7 @@
 using UnityEngine;
 using Random = Unity.Mathematics.Random;
 
+/// <summary>Inspector-facing configuration for the benchmark; baked into ECS components (Spawner, BenchmarkConfig, SpawnArea) by BenchmarkBaker.</summary>
 public class BenchmarkAuthoring : MonoBehaviour
 {
     public GameObject CubePrefab;

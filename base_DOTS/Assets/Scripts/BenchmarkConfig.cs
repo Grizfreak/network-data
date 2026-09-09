@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.Mathematics;
 
+/// <summary>Singleton component holding the spawn/move scenario parameters and runtime state shared by SpawnSystem and MoveSystem.</summary>
 public struct BenchmarkConfig : IComponentData
 {
     //Only non-managed types are allowed

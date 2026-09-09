@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
 
+/// <summary>Recolors spawned cubes based on whether they sit inside the protected zone, skipping the currently hovered or dragged entity so its highlight color isn't overwritten.</summary>
 [BurstCompile]
 public partial struct InteractionZoneSystem : ISystem
 {

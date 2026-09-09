@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.Mathematics;
 
+/// <summary>Converts a BenchmarkAuthoring GameObject into the Spawner, BenchmarkConfig and SpawnArea ECS components used at runtime.</summary>
 public class BenchmarkBaker : Baker<BenchmarkAuthoring>
 {
     public override void Bake(BenchmarkAuthoring authoring)

@@ -4,6 +4,7 @@ using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 
+/// <summary>Once phase 3 starts, gradually converts StaticTag entities to MovingTag in timed waves according to BenchmarkConfig.PercentageMoving.</summary>
 [BurstCompile]
 public partial struct MoveSystem : ISystem
 {

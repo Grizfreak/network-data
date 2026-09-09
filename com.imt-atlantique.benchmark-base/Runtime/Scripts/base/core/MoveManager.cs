@@ -4,9 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
 
-    /// <summary>
-    /// This component will manage the movement of the cubes, by moving a percentage of them after a certain amount of time. It will also invoke events when the movement starts and ends, to allow other components to react to these events. The movement is done by changing the isMoving property of the ObjectBehaviour component attached to each cube. The percentage of cubes to move and the time before moving can be set in the inspector or loaded from the BaseLoader resource. The movement will continue until there are no more static cubes left, at which point it will invoke the PhaseFinished event from the PhaseManager.
-    /// </summary>
+    /// <summary>Progressively sets a percentage of static cubes to moving, at fixed intervals, until none remain, then signals PhaseManager.</summary>
     public class MoveManager : MonoBehaviour
     {
         public static MoveManager Instance;
@@ -66,6 +64,7 @@ using UnityEngine.Serialization;
             staticCubes.Add(go);
         }
 
+        /// <summary>Begins moving cubes from the static list to the moving list over time.</summary>
         public virtual void StartMovingCubes()
         {
             StartCoroutine(MoveCubesAfterDelay());

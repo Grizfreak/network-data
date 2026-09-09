@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.Serialization;
 
+    /// <summary>ScriptableObject holding the benchmark's tunable parameters (instantiation, movement, phase timings).</summary>
     [CreateAssetMenu(fileName = "BaseResource", menuName = "Scriptable Objects/BaseResource")]
     public class BaseResource : ScriptableObject
     {
@@ -34,9 +35,10 @@ using UnityEngine.Serialization;
         [Header("Move and spawn")]
         public bool moveAndSpawn;
 
+        /// <summary>Overwrites this resource's fields with values parsed from a JSON config string.</summary>
         public void ParseConfiguration(string fileContent)
         {
-            // JsonUtility.FromJsonOverwrite takes the JSON string and 
+            // JsonUtility.FromJsonOverwrite takes the JSON string and
             // injects the values directly into this ScriptableObject instance.
             JsonUtility.FromJsonOverwrite(fileContent, this);
         }

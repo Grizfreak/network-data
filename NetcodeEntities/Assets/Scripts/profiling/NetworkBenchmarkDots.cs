@@ -1,5 +1,6 @@
 using UnityEngine;
 
+/// <summary>Holds the cumulative RTT and byte-sent/byte-received counters gathered from the DOTS Netcode systems and exposes them via INetworkBenchmarkProvider.</summary>
 public class NetworkBenchmarkDots : MonoBehaviour, INetworkBenchmarkProvider
 {
     public static NetworkBenchmarkDots Instance { get; private set; }

@@ -2,10 +2,11 @@ using System;
 using System.Collections;
 using UnityEngine;
 
+/// <summary>Wave-based movement driver for the GPU-indirect instancing path: flags contiguous ranges of instances as moving via the compute-buffer-backed instantiate manager.</summary>
 public class GPUIndirectMoveManager : MoveManager
 {
     private GPUIndirectInstantiateManager instantiateManager;
-    
+
     protected override void Start()
     {
         if (BaseLoader.Instance != null)
@@ -25,6 +26,8 @@ public class GPUIndirectMoveManager : MoveManager
         StartCoroutine(MoveByWave());
     }
 
+    // Advances a moving "front" of instance indices by movePerWave every timeBeforeMovingCubes
+    // seconds, marking each new range as moving via SetMovingRange, until all instances move.
     private IEnumerator MoveByWave()
     {
         int totalToMove = instantiateManager.numberToSpawn;

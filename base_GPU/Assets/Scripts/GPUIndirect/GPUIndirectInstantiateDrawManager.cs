@@ -3,6 +3,11 @@ using System.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
+/// <summary>
+/// Variant of GPUIndirectInstantiateManager that uses a legacy ComputeBuffer (IndirectArguments)
+/// with Graphics.DrawMeshInstancedIndirect instead of the base class's GraphicsBuffer +
+/// RenderMeshIndirect path, while reusing the same spawn/instance-data logic.
+/// </summary>
 public class GPUIndirectInstantiateDrawManager : GPUIndirectInstantiateManager
 {
     private ComputeBuffer argsBuffer;
@@ -22,12 +27,12 @@ public class GPUIndirectInstantiateDrawManager : GPUIndirectInstantiateManager
         InitializeBuffers();
         yield return new WaitForSeconds(timeBeforeSpawn);
         StartingInstantiation.Invoke("StartedInstantiation");
-        
+
         for (int i = 0; i < numberToSpawn; i++)
         {
             instanceArray[i].isShown = 1f;
         }
-        
+
         args[1] = (uint)numberToSpawn;
         argsBuffer.SetData(args);
         instanceDataBuffer.SetData(instanceArray);
@@ -40,7 +45,7 @@ public class GPUIndirectInstantiateDrawManager : GPUIndirectInstantiateManager
     {
         // Initialize buffer
         InitializeBuffers();
-        
+
         while (SpawnedInstances < numberToSpawn)
         {
             yield return new WaitForSeconds(timeBeforeSpawn);
@@ -66,10 +71,14 @@ public class GPUIndirectInstantiateDrawManager : GPUIndirectInstantiateManager
         PhaseManager.Instance.PhaseFinished.Invoke("PhaseFinished");
     }
 
+    // Same allocation strategy as the base class's InitializeBuffers, but builds a raw uint[5]
+    // IndirectArguments buffer (index count, instance count, start index, base vertex, start
+    // instance) as required by DrawMeshInstancedIndirect, with instance count starting at 0 so
+    // nothing is drawn until instances are revealed.
     private void InitializeBuffers()
     {
         kernel = computeShader.FindKernel("CSMain");
-        
+
         instanceArray = new InstanceData[numberToSpawn];
         Renderer zoneRenderer = spawnZone.GetComponent<Renderer>();
         if (zoneRenderer == null)
@@ -84,7 +93,7 @@ public class GPUIndirectInstantiateDrawManager : GPUIndirectInstantiateManager
 
         float minZ = bounds.min.z;
         float maxZ = bounds.max.z;
-        
+
         for (int i = 0; i < numberToSpawn; i++)
         {
             Vector3 randomPos = new Vector3(
@@ -102,15 +111,15 @@ public class GPUIndirectInstantiateDrawManager : GPUIndirectInstantiateManager
                 verticalVelocity = 0f
             };
         }
-        
+
         instanceDataBuffer = new ComputeBuffer(
             numberToSpawn,
             InstanceData.Size()
         );
-        
+
         instanceDataBuffer.SetData(instanceArray);
         material.SetBuffer("_InstanceDataBuffer", instanceDataBuffer);
-        
+
         // arguments used by RenderMeshIndirect
         argsBuffer = new ComputeBuffer(
             1,
@@ -149,7 +158,7 @@ public class GPUIndirectInstantiateDrawManager : GPUIndirectInstantiateManager
         int groups = Mathf.CeilToInt(numberToSpawn / 64f);
 
         computeShader.Dispatch(kernel, groups, 1, 1);
-        
+
         Graphics.DrawMeshInstancedIndirect(
             mesh,
             0,

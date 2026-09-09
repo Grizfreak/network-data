@@ -1,8 +1,10 @@
 using Unity.Collections;
 using Unity.Entities;
 
+/// <summary>Read-only lookup helpers for querying InteractionEntityValues from outside ECS systems (e.g. UI code).</summary>
 public static class InteractionValuesApi
 {
+    /// <summary>Gets the InteractionEntityValues attached to the given entity, if it exists and has the component.</summary>
     public static bool TryGetValues(Entity entity, out InteractionEntityValues values)
     {
         values = default;
@@ -17,6 +19,7 @@ public static class InteractionValuesApi
         return true;
     }
 
+    /// <summary>Gets the InteractionEntityValues for the spawned entity with the given Id.</summary>
     public static bool TryGetValuesById(int id, out InteractionEntityValues values)
     {
         values = default;
@@ -26,6 +29,7 @@ public static class InteractionValuesApi
         return TryGetValues(entity, out values);
     }
 
+    /// <summary>Linearly scans all spawned entities to find the one whose InteractionEntityValues.Id matches.</summary>
     public static bool TryGetEntityById(int id, out Entity entity)
     {
         entity = Entity.Null;
@@ -56,6 +60,7 @@ public static class InteractionValuesApi
         return false;
     }
 
+    /// <summary>Gets the InteractionEntityValues of the entity currently hovered, as tracked by InteractionSpawnConfig.HoveredEntity.</summary>
     public static bool TryGetHoveredValues(out InteractionEntityValues values)
     {
         values = default;

@@ -1,14 +1,16 @@
 using System.Linq;
 using UnityEditor;
 
+/// <summary>Editor menu commands to build the benchmark player for PC and Android with profiler support enabled.</summary>
 public class BuildCommands
 {
+    /// <summary>Paths of all enabled scenes in the build settings.</summary>
     public static string[] Scenes =>
         EditorBuildSettings.scenes
             .Where(s => s.enabled)
             .Select(s => s.path)
             .ToArray();
-    
+
     static void PerformBuildPC()
     {
         EditorUserBuildSettings.SwitchActiveBuildTarget(

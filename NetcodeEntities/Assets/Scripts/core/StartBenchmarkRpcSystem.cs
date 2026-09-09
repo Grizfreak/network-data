@@ -3,6 +3,7 @@ using Unity.NetCode;
 using Unity.Burst;
 using UnityEngine.SceneManagement;
 
+/// <summary>Client-side handler for StartBenchmarkRpc: loads the Benchmark scene once the server signals the test should begin.</summary>
 [BurstCompile]
 [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
 public partial struct StartBenchmarkRpcSystem : ISystem
@@ -32,6 +33,7 @@ public partial struct StartBenchmarkRpcSystem : ISystem
     }
 }
 
+/// <summary>RPC sent from the server to all clients to signal that the benchmark test should start.</summary>
 public struct StartBenchmarkRpc : IRpcCommand
 {
 }

@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.Mathematics;
 
+/// <summary>Singleton component holding all interaction-demo settings and runtime state: spawn parameters, hover/drag grid settings, colors, the protected zone, and current hover/drag/spawn state.</summary>
 public struct InteractionSpawnConfig : IComponentData
 {
     public Entity Prefab;
@@ -31,6 +32,7 @@ public struct InteractionSpawnConfig : IComponentData
     public Random Random;
 }
 
+/// <summary>Tag marking an entity as a cube spawned by InteractionSpawnSystem, distinguishing it from other entities in queries.</summary>
 public struct InteractionSpawnedTag : IComponentData
 {
 }

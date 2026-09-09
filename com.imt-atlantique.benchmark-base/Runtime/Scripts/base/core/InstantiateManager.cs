@@ -3,9 +3,7 @@ using System.Collections;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
-    /// <summary>
-    /// This component will manage the instantiation of the cubes, by instantiating a certain number of them at random positions within a defined area. The number of cubes to instantiate, the time before instantiating, and the number of cubes to instantiate per wave can be set in the inspector or loaded from the BaseLoader resource. The instantiation can be done all at once or by group, depending on the spawnInstantly boolean. The component will also invoke events when the instantiation starts and ends, to allow other components to react to these events. The OnInstanceCreated event is also invoked for each instantiated object, allowing other components to keep track of the instantiated objects. The instantiation will continue until the defined number of cubes is instantiated, at which point it will invoke the PhaseFinished event from the PhaseManager.
-    /// </summary>
+    /// <summary>Spawns objects at random positions within spawnZone, either all at once or wave by wave, then signals PhaseManager when done.</summary>
     public class InstantiateManager : MonoBehaviour
     {
         public static InstantiateManager Instance;
@@ -49,6 +47,7 @@ using Random = UnityEngine.Random;
             numberPerWave = BaseLoader.Instance.Resource.mNumberPerWave;
         }
 
+        /// <summary>Starts spawning objects, either all at once or by wave depending on spawnInstantly.</summary>
         public void StartSpawning()
         {
             StartCoroutine(spawnInstantly ? SpawnObjects() : SpawnObjectsByGroup());

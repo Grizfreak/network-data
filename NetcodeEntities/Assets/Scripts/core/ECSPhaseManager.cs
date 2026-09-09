@@ -2,6 +2,7 @@ using System.Linq;
 using Unity.Entities;
 using Unity.NetCode;
 using UnityEngine;
+/// <summary>ECS-backed PhaseManager implementation: drives the spawn phase and the move phase by toggling flags on the BenchmarkConfig singleton and watching entity counts to detect completion.</summary>
 public class ECSPhaseManager : PhaseManager
 {
         private bool hasInstantiated = false;
@@ -10,7 +11,7 @@ public class ECSPhaseManager : PhaseManager
         private EntityManager _em;
         private Entity _configEntity;
         private EntityQuery _configQuery;
-        private EntityQuery _numberOfStaticInstances;
+        private EntityQuery _staticInstancesQuery;
         private bool initialized = false;
 
         private int lastRecordedEntityCount = 0;
@@ -22,7 +23,7 @@ public class ECSPhaseManager : PhaseManager
                 _em = world.EntityManager;
 
                 _configQuery = _em.CreateEntityQuery(typeof(BenchmarkConfig));
-                _numberOfStaticInstances = _em.CreateEntityQuery(typeof(StaticTag));
+                _staticInstancesQuery = _em.CreateEntityQuery(typeof(StaticTag));
         }
         protected override void Update()
         {
@@ -62,9 +63,10 @@ public class ECSPhaseManager : PhaseManager
                 
                 if (!hasMoved)
                 {
-                        bool anyMoving = _numberOfStaticInstances.CalculateEntityCount() > 0;
+                        // Phase 3 is done once no entity is left tagged StaticTag (all have transitioned to MovingTag).
+                        bool anyStillStatic = _staticInstancesQuery.CalculateEntityCount() > 0;
 
-                        if (!anyMoving)
+                        if (!anyStillStatic)
                         {
                                 hasMoved = true;
 
@@ -102,6 +104,7 @@ public class ECSPhaseManager : PhaseManager
                 _em.SetComponentData(_configEntity, config);
         }
 
+        // Prefer the benchmark's own Server/Client world over the default injection world.
         private static World ResolveWorld()
         {
         foreach (var world in World.All)

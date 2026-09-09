@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.Mathematics;
 
+/// <summary>Bakes a BenchmarkAuthoring GameObject into a Spawner, BenchmarkConfig and SpawnArea entity.</summary>
 public class BenchmarkBaker : Baker<BenchmarkAuthoring>
 {
     public override void Bake(BenchmarkAuthoring authoring)

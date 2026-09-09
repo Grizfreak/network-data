@@ -1,6 +1,8 @@
 using Unity.Entities;
-    public struct Velocity : IComponentData
-    {
-        public float Speed;
-        public float JumpVelocity;
-    }
+
+/// <summary>Per-entity linear and jump speed used by ApplyMovementSystem.</summary>
+public struct Velocity : IComponentData
+{
+    public float Speed;
+    public float JumpVelocity;
+}

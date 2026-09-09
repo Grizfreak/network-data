@@ -1,9 +1,9 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>Jumps straight to the interaction demo scene (scene index 2) when the app is launched with the --interaction command-line flag.</summary>
 public class InteractionBypass : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
         string[] args = System.Environment.GetCommandLineArgs();

@@ -3,6 +3,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using Random = Unity.Mathematics.Random;
 
+/// <summary>Inspector-facing settings for the interaction demo scene, baked into a single InteractionSpawnConfig by InteractionBaker.</summary>
 public class InteractionAuthoring : MonoBehaviour
 {
     public GameObject CubePrefab;
@@ -25,6 +26,7 @@ public class InteractionAuthoring : MonoBehaviour
     public float HoverHalfExtent = 0.5f;
 }
 
+/// <summary>Bakes InteractionAuthoring into an InteractionSpawnConfig singleton, normalizing min/max ranges and converting colors/vectors to ECS-friendly types.</summary>
 public class InteractionBaker : Baker<InteractionAuthoring>
 {
     public override void Bake(InteractionAuthoring authoring)

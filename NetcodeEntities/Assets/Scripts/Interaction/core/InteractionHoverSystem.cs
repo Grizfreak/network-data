@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using Unity.Burst;
 
+/// <summary>Handles mouse hover and drag for spawned interaction entities: maintains a spatial grid to find the entity under the cursor, applies hover/drag colors, and moves the dragged entity along the ground plane.</summary>
 [BurstCompile]
 public partial struct InteractionHoverSystem : ISystem
 {
@@ -16,6 +17,8 @@ public partial struct InteractionHoverSystem : ISystem
         public float3 Position;
     }
 
+    // Spatial hash grid of spawned entities, keyed by cell coordinates, so hover picking only has
+    // to check nearby cells instead of every spawned entity every frame.
     private NativeParallelMultiHashMap<int2, HoverEntry> hoverMap;
 
     public void OnCreate(ref SystemState state)
@@ -54,6 +57,8 @@ public partial struct InteractionHoverSystem : ISystem
 
         if (Mouse.current.leftButton.wasPressedThisFrame)
         {
+            // A press can start a drag even while the hover index is stale/empty, since
+            // TryGetHoveredEntity reads directly from the (possibly outdated) grid built so far.
             if (TryGetHoveredEntity(ray, config, out Entity pressedEntity) && pressedEntity != Entity.Null)
             {
                 StartDrag(ref state, ref config, configEntity, pressedEntity, ray);
@@ -90,6 +95,8 @@ public partial struct InteractionHoverSystem : ISystem
         state.EntityManager.SetComponentData(configEntity, config);
     }
 
+    // Begins dragging the given entity, capturing its offset from the ray hit point so it doesn't
+    // snap to the cursor on the first frame of the drag.
     private void StartDrag(ref SystemState state, ref InteractionSpawnConfig config, Entity configEntity, Entity draggedEntity, Ray ray)
     {
         if (draggedEntity == Entity.Null || !state.EntityManager.Exists(draggedEntity))
@@ -105,6 +112,8 @@ public partial struct InteractionHoverSystem : ISystem
         state.EntityManager.SetComponentData(configEntity, config);
     }
 
+    // Moves the currently dragged entity to follow the cursor along the hover plane, and releases
+    // it when the mouse button is let go or the entity was destroyed mid-drag.
     private void UpdateDraggedEntity(ref SystemState state, ref InteractionSpawnConfig config, Entity configEntity, Ray ray)
     {
         Entity draggedEntity = config.DraggedEntity;
@@ -133,6 +142,8 @@ public partial struct InteractionHoverSystem : ISystem
         state.EntityManager.SetComponentData(draggedEntity, LocalTransform.FromPosition(targetPosition));
     }
 
+    // Intersects the ray with the horizontal hover plane, falling back to fallbackPosition when
+    // the ray is (near) parallel to the plane or the plane is behind the camera.
     private static float3 ProjectRayToPlane(Ray ray, float planeY, float3 fallbackPosition)
     {
         if (math.abs(ray.direction.y) < 0.0001f)
@@ -160,6 +171,8 @@ public partial struct InteractionHoverSystem : ISystem
         return true;
     }
 
+    // Rebuilds the spatial hash grid from all currently spawned entities; called only when
+    // HoverIndexDirty is set (after a spawn/despawn) rather than every frame.
     private void RebuildHoverIndex(ref SystemState state, Entity configEntity, ref InteractionSpawnConfig config)
     {
         hoverMap.Clear();
@@ -179,6 +192,8 @@ public partial struct InteractionHoverSystem : ISystem
 
         if (hoverMap.Capacity < math.max(1024, spawnedCount))
         {
+            // Grow ahead of the current count to reduce the frequency of costly reallocations
+            // as more entities get spawned.
             hoverMap.Capacity = math.max(1024, spawnedCount);
         }
 
@@ -186,6 +201,8 @@ public partial struct InteractionHoverSystem : ISystem
         state.EntityManager.SetComponentData(configEntity, config);
     }
 
+    // Finds the closest entity whose AABB the ray intersects, searching only the 3x3 block of
+    // grid cells around the ray's plane hit point rather than the whole hover map.
     private bool TryGetHoveredEntity(Ray ray, in InteractionSpawnConfig config, out Entity hoveredEntity)
     {
         hoveredEntity = Entity.Null;
@@ -227,6 +244,7 @@ public partial struct InteractionHoverSystem : ISystem
         return found;
     }
 
+    // Converts a world position to its hash grid cell using config.HoverCellSize.
     private int2 GetCell(float3 position, in InteractionSpawnConfig config)
     {
         float cellSize = math.max(0.01f, config.HoverCellSize);
@@ -235,6 +253,7 @@ public partial struct InteractionHoverSystem : ISystem
         return new int2(cellX, cellZ);
     }
 
+    // Standard slab-method ray/AABB intersection test.
     private static bool RayIntersectsAabb(Ray ray, float3 center, float halfExtent, out float hitDistance)
     {
         float3 min = center - new float3(halfExtent);
@@ -265,9 +284,11 @@ public partial struct InteractionHoverSystem : ISystem
         return tMax >= 0f && tMax >= tMin;
     }
 
+    // Narrows [tMin, tMax] against a single axis' slab; used by RayIntersectsAabb for each of x/y/z.
     private static bool AxisIntersection(float origin, float direction, float min, float max, ref float tMin, ref float tMax)
     {
         if (math.abs(direction) < 0.000001f)
+            // Ray is parallel to this axis' slab: it only intersects if the origin already lies within it.
             return origin >= min && origin <= max;
 
         float inverseDirection = 1f / direction;
@@ -284,6 +305,7 @@ public partial struct InteractionHoverSystem : ISystem
         return tMax >= tMin;
     }
 
+    // Sets the entity's base color, adding the material property component if it isn't present yet.
     private static void ApplyColor(ref SystemState state, Entity entity, float4 color)
     {
         if (entity == Entity.Null || !state.EntityManager.Exists(entity))

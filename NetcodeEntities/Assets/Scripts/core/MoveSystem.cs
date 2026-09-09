@@ -4,6 +4,7 @@ using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 
+/// <summary>Phase-3 driver: periodically converts a percentage of the remaining StaticTag entities to MovingTag, in timed waves, until all have started moving.</summary>
 [BurstCompile]
 public partial struct MoveSystem : ISystem
 {

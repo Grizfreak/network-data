@@ -1,6 +1,7 @@
 using Unity.Entities;
 using UnityEngine;
 
+/// <summary>Debug-only system that logs the Spawner singleton's prefab entity once, then disables itself.</summary>
 public partial struct SpawnerDebugSystem : ISystem
 {
     public void OnCreate(ref SystemState state)

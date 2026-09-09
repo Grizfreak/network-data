@@ -1,8 +1,10 @@
 using Unity.Collections;
 using Unity.Entities;
 
+/// <summary>Static helper for MonoBehaviours (outside the ECS world) to read InteractionEntityValues off spawned entities, by entity, by assigned id, or for whichever cube is currently hovered.</summary>
 public static class InteractionValuesApi
 {
+    /// <summary>Gets the InteractionEntityValues attached to the given entity, if it exists and is valid.</summary>
     public static bool TryGetValues(Entity entity, out InteractionEntityValues values)
     {
         values = default;
@@ -17,6 +19,7 @@ public static class InteractionValuesApi
         return true;
     }
 
+    /// <summary>Finds the spawned cube with the given assigned Id and returns its values.</summary>
     public static bool TryGetValuesById(int id, out InteractionEntityValues values)
     {
         values = default;
@@ -26,6 +29,7 @@ public static class InteractionValuesApi
         return TryGetValues(entity, out values);
     }
 
+    /// <summary>Linear-scans all spawned cubes to find the one whose InteractionEntityValues.Id matches.</summary>
     public static bool TryGetEntityById(int id, out Entity entity)
     {
         entity = Entity.Null;
@@ -56,6 +60,7 @@ public static class InteractionValuesApi
         return false;
     }
 
+    /// <summary>Gets the InteractionEntityValues of the cube currently hovered by the mouse, per InteractionHoverSystem's state.</summary>
     public static bool TryGetHoveredValues(out InteractionEntityValues values)
     {
         values = default;

@@ -24,6 +24,8 @@ public class GPUMoveManager : MoveManager
         StartCoroutine(MoveByWave());
     }
 
+    // Repeatedly flags a percentage-sized wave of not-yet-moving instances as moving, waiting
+    // timeBeforeMovingCubes seconds between waves, until every instance is moving.
     private IEnumerator MoveByWave()
     {
         int total =

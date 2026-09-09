@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.NetCode;
 
+/// <summary>Ensures a server-side LogConfig singleton exists, providing the "netcodeEntities_server_" file name prefix used by the log exporters.</summary>
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 public partial struct ServerNetworkLogsSystem : ISystem
 {

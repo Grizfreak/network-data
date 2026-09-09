@@ -3,6 +3,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using Random = Unity.Mathematics.Random;
 
+/// <summary>Editor-facing settings for the Interaction scene (spawn counts, random ranges, colors, hover/zone bounds); baked into an InteractionSpawnConfig singleton.</summary>
 public class InteractionAuthoring : MonoBehaviour
 {
     public GameObject CubePrefab;
@@ -25,6 +26,7 @@ public class InteractionAuthoring : MonoBehaviour
     public float HoverHalfExtent = 0.5f;
 }
 
+/// <summary>Bakes InteractionAuthoring into an InteractionSpawnConfig component, normalizing min/max ranges and converting Unity types to ECS-friendly ones.</summary>
 public class InteractionBaker : Baker<InteractionAuthoring>
 {
     public override void Bake(InteractionAuthoring authoring)

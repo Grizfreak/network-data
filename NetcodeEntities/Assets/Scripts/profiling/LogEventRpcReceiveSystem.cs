@@ -2,6 +2,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.NetCode;
 
+/// <summary>Receives LogEventRpc on the client and re-dispatches each event to the matching manager (InstantiateManager, PhaseManager, MoveManager) for local logging.</summary>
 [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
 public partial struct LogEventRpcReceiveSystem : ISystem
 {

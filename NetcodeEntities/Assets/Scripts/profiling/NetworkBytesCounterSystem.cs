@@ -21,6 +21,7 @@ using Unity.NetCode;
 //     - IncomingCommandDataStreamBuffer    -> bytes received  (client -> server)
 //     - SnapshotDataBuffer                 -> bytes sent      (server -> client snapshots)
 
+/// <summary>Client-side counterpart of the byte counters: sums per-frame growth of the command/snapshot streaming buffers into NetworkBenchmarkDots.</summary>
 [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
 [UpdateInGroup(typeof(Unity.NetCode.NetworkReceiveSystemGroup), OrderLast = true)]
 public partial struct ClientBytesCounterSystem : ISystem
@@ -99,6 +100,7 @@ public partial struct ClientBytesCounterSystem : ISystem
         ReapMissing(_snapshotSeen, em);
     }
 
+    // Drops tracking entries for entities that no longer exist (disconnected connections), so the map doesn't grow unbounded.
     private static void ReapMissing(NativeHashMap<Entity, int> seen, EntityManager em)
     {
         using var keys = seen.GetKeyArray(Allocator.Temp);
@@ -110,6 +112,7 @@ public partial struct ClientBytesCounterSystem : ISystem
     }
 }
 
+/// <summary>Server-side counterpart of the byte counters: sums per-frame growth of the command/snapshot streaming buffers into NetworkBenchmarkDots.</summary>
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 [UpdateInGroup(typeof(Unity.NetCode.NetworkReceiveSystemGroup), OrderLast = true)]
 public partial struct ServerBytesCounterSystem : ISystem
@@ -188,6 +191,7 @@ public partial struct ServerBytesCounterSystem : ISystem
         ReapMissing(_snapshotSeen, em);
     }
 
+    // Drops tracking entries for entities that no longer exist (disconnected connections), so the map doesn't grow unbounded.
     private static void ReapMissing(NativeHashMap<Entity, int> seen, EntityManager em)
     {
         using var keys = seen.GetKeyArray(Allocator.Temp);

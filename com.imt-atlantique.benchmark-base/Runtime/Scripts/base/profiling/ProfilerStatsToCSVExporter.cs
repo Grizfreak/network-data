@@ -6,10 +6,8 @@ using Unity.Profiling;
 using UnityEngine;
 
 /// <summary>
-/// This component will export the specified Profiler stats to a CSV file in the application persistent data path.
-/// Data is written in time-based buckets (default: every 0.5s) so that the X axis reflects real elapsed time,
-/// making graphs readable regardless of FPS fluctuations.
-/// cf. https://docs.unity3d.com/ScriptReference/Unity.Profiling.ProfilerRecorder.html
+/// Exports configured Profiler stats (and optional network RTT/bandwidth) to a CSV file, averaged into fixed-duration
+/// time buckets so the X axis reflects real elapsed time regardless of FPS fluctuations.
 /// </summary>
 public class ProfilerStatsToCsvExporter : MonoBehaviour
 {

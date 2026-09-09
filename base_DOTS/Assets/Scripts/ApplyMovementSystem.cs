@@ -3,6 +3,7 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 
+/// <summary>Advances position, jump arc and in-place rotation each frame for every entity tagged MovingTag.</summary>
 [BurstCompile]
 public partial struct ApplyMovementSystem : ISystem
 {

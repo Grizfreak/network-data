@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.Mathematics;
 
+/// <summary>Singleton holding the benchmark's spawn/move parameters and runtime progress, shared by SpawnSystem, MoveSystem and the phase managers.</summary>
 public struct BenchmarkConfig : IComponentData
 {
     //Only non-managed types are allowed

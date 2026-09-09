@@ -1,6 +1,7 @@
 using Unity.Entities;
 using UnityEngine;
 
+/// <summary>Applies the values loaded from BaseLoader's external resource file onto the ECS BenchmarkConfig singleton once it becomes available.</summary>
 public class ECSConfigBootstrap : MonoBehaviour
 {
     private bool initialized = false;
@@ -44,6 +45,7 @@ public class ECSConfigBootstrap : MonoBehaviour
         initialized = true;
         Debug.Log("BenchmarkConfig updated from file.");
     }
+    // Prefer the benchmark's own Server/Client world over the default injection world, which may not host the singleton.
     private static World ResolveWorld()
     {
         foreach (var world in World.All)

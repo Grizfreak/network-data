@@ -1,9 +1,9 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>Jumps straight to the interaction scene (index 2) when launched with the "--interaction" command-line argument, skipping the usual menu flow.</summary>
 public class InteractionBypass : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
         string[] args = System.Environment.GetCommandLineArgs();

@@ -7,6 +7,7 @@ using Unity.Mathematics;
 using Unity.Transforms;
 using Unity.Collections;
 
+/// <summary>Spawns benchmark entities on the server, either all at once or in timed waves, based on BenchmarkConfig.</summary>
 [BurstCompile]
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 public partial struct SpawnSystem : ISystem
@@ -35,6 +36,8 @@ public partial struct SpawnSystem : ISystem
         }
         else
         {
+            // Wave mode: spawn NumberPerWave entities every TimeBeforeSpawn seconds
+            // instead of all at once, to spread the instantiation cost across frames.
             config.ValueRW.SpawnTimer -= SystemAPI.Time.DeltaTime;
 
             if (config.ValueRO.SpawnTimer <= 0f)
@@ -63,6 +66,7 @@ public partial struct SpawnSystem : ISystem
         ecb.Dispose();
     }
     
+    // Instantiates `amount` prefab copies at random positions within the spawn area, tagged Static or Moving depending on the current phase config.
     private void SpawnBatch(
         ref BenchmarkConfig config,
         SpawnArea area,

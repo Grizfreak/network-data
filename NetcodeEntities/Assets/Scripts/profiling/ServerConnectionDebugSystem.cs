@@ -2,6 +2,7 @@ using Unity.Entities;
 using Unity.NetCode;
 using UnityEngine;
 
+/// <summary>Logs each new server connection, puts it in-game, and (when running headless) auto-starts the benchmark once a client connects.</summary>
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 public partial struct ServerConnectionDebugSystem : ISystem
 {
@@ -34,4 +35,5 @@ public partial struct ServerConnectionDebugSystem : ISystem
     }
 }
 
+/// <summary>Tag preventing a connection from being logged/processed more than once by ServerConnectionDebugSystem.</summary>
 public struct DebugLoggedConnection : IComponentData { }

@@ -4,6 +4,11 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
+/// <summary>
+/// Spawns and renders a large number of instanced cubes via DrawMeshInstancedIndirect-style
+/// rendering (Graphics.RenderMeshIndirect), and lets the user hover/drag/despawn them with the
+/// mouse using a custom uniform spatial grid for fast hit-testing (no physics colliders involved).
+/// </summary>
 public class InteractionManager : MonoBehaviour
 {
 
@@ -56,6 +61,11 @@ public class InteractionManager : MonoBehaviour
     protected int kernel;
     private Camera cachedHoverCamera;
     private int hoveredInstanceIndex = -1;
+
+    // Uniform spatial hash grid over the XZ plane, used to find the instance under the pointer
+    // without iterating every instance. Each cell stores a linked list of instance indices via
+    // gridHead/gridNext (classic bucket-linked-list layout), and instanceCellIndex lets an
+    // instance be removed from its cell in O(1) when it moves or is deleted.
     private int[] gridHead;
     private int[] gridNext;
     private int[] instanceCellIndex;
@@ -74,12 +84,13 @@ public class InteractionManager : MonoBehaviour
     private Bounds spawnZoneBounds;
     private Bounds secondPlaneBounds;
 
+    // Mirrors the layout expected by the instancing shader's structured buffer.
     protected struct InstanceData {
         public Vector4 position_scale;
         public int nodeRandomInt;
         public float nodeRandomFloat;
         public float2 nodePadding;
-        
+
         public static int Size()
         {
             return sizeof(float) * 7 + sizeof(int);
@@ -95,6 +106,7 @@ public class InteractionManager : MonoBehaviour
         }
     }
 
+    /// <summary>Returns the random int/float payload of the currently hovered instance, if any.</summary>
     public bool TryGetHoveredNodeData(out int nodeRandomInt, out float nodeRandomFloat, out int instanceIndex)
     {
         instanceIndex = hoveredInstanceIndex;
@@ -111,6 +123,8 @@ public class InteractionManager : MonoBehaviour
         return true;
     }
 
+    // Refreshes the on-screen info panel/log to reflect the given instance, or hides the panel
+    // when nothing valid is hovered (instanceIndex == -1).
     private void UpdateHoveredNodeDataOutput(int instanceIndex)
     {
         if (instanceArray == null || instanceIndex < 0 || instanceIndex >= instanceArray.Length)
@@ -142,7 +156,7 @@ public class InteractionManager : MonoBehaviour
     private InstanceData CreateInstanceData(Vector3 worldPosition)
     {
         int minInt = Mathf.Min(randomIntRange.x, randomIntRange.y);
-        int maxIntExclusive = Mathf.Max(randomIntRange.x, randomIntRange.y) + 1;
+        int maxIntExclusive = Mathf.Max(randomIntRange.x, randomIntRange.y) + 1; // +1: Random.Range's upper bound is exclusive for ints.
 
         float minFloat = Mathf.Min(randomFloatRange.x, randomFloatRange.y);
         float maxFloat = Mathf.Max(randomFloatRange.x, randomFloatRange.y);
@@ -167,6 +181,8 @@ public class InteractionManager : MonoBehaviour
         UpdateHoveredNodeDataOutput(hoveredInstanceIndex);
     }
 
+    // Uploads the current "second zone" bounds/color to the material each frame so the shader can
+    // highlight instances sitting inside it.
     private void PushZoneMaterialState()
     {
         RefreshSecondZoneBounds();
@@ -213,6 +229,7 @@ public class InteractionManager : MonoBehaviour
                position.z >= secondPlaneBounds.min.z && position.z <= secondPlaneBounds.max.z;
     }
 
+    // Tells RenderMeshIndirect how many instances to draw without recreating the args buffer.
     private void UpdateDrawCount(int instanceCount)
     {
         if (argsBuffer == null || commandData == null || commandData.Length == 0)
@@ -222,6 +239,8 @@ public class InteractionManager : MonoBehaviour
         argsBuffer.SetData(commandData);
     }
 
+    // Grows instanceDataBuffer to fit requiredCount, doubling capacity to amortize GPU buffer
+    // reallocation cost instead of resizing on every single spawn.
     private void EnsureInstanceBufferCapacity(int requiredCount)
     {
         if (requiredCount <= instanceBufferCapacity && instanceDataBuffer != null)
@@ -239,6 +258,7 @@ public class InteractionManager : MonoBehaviour
         material.SetBuffer("_InstanceDataBuffer", instanceDataBuffer);
     }
 
+    // Releases GPU buffers and resets all interaction/grid state back to "nothing spawned".
     private void ReleaseAllBuffersAndState()
     {
         hoveredInstanceIndex = -1;
@@ -264,6 +284,7 @@ public class InteractionManager : MonoBehaviour
         buffersInitialized = false;
     }
 
+    /// <summary>Spawns additionalCount new instances at random positions inside the spawn zone and appends them to the existing set.</summary>
     private void AppendSpawnWave(int additionalCount)
     {
         if (additionalCount <= 0)
@@ -302,6 +323,9 @@ public class InteractionManager : MonoBehaviour
         BuildHoverGridFromInstances();
     }
 
+    // Raycasts the pointer against the plane at the first instance's height and returns the hit
+    // point in world space. Returns false if there's no camera/pointer or the ray is parallel to
+    // the plane.
     private bool TryGetPointerWorldPosition(out Vector3 worldPosition)
     {
         worldPosition = default;
@@ -350,6 +374,7 @@ public class InteractionManager : MonoBehaviour
         return true;
     }
 
+    // Same as the overload above but also returns the ray used, for callers that need it.
     private bool TryGetPointerWorldPosition(out Vector3 worldPosition, out Ray ray)
     {
         worldPosition = default;
@@ -433,6 +458,7 @@ public class InteractionManager : MonoBehaviour
         return IsPositionInsideSecondZoneXZ(position);
     }
 
+    // Unlinks instanceIndex from its current grid cell's bucket list (O(1) given instanceCellIndex).
     private void RemoveInstanceFromGrid(int instanceIndex)
     {
         if (instanceCellIndex == null || gridHead == null || gridNext == null)
@@ -468,6 +494,7 @@ public class InteractionManager : MonoBehaviour
         }
     }
 
+    // Inserts instanceIndex at the head of the bucket list for the cell containing position.
     private void AddInstanceToGrid(int instanceIndex, Vector3 position)
     {
         if (instanceCellIndex == null || gridHead == null || gridNext == null)
@@ -479,6 +506,9 @@ public class InteractionManager : MonoBehaviour
         instanceCellIndex[instanceIndex] = cellIndex;
     }
 
+    // Moves the instance being dragged to follow the pointer (preserving the initial grab offset
+    // and height), keeps the spatial grid in sync, and rebuilds the grid entirely if the new
+    // position falls outside its current bounds.
     private void UpdateDraggedInstance(Vector3 worldPosition)
     {
         if (draggingInstanceIndex < 0 || draggingInstanceIndex >= instanceArray.Length)
@@ -513,6 +543,9 @@ public class InteractionManager : MonoBehaviour
         }
     }
 
+    // Recomputes the grid bounds/resolution from the current instance positions and rebuilds the
+    // bucket lists from scratch. Called after any bulk change (spawn/despawn) or when a dragged
+    // instance leaves the current bounds.
     private void BuildHoverGridFromInstances()
     {
         if (instanceArray == null || instanceArray.Length == 0)
@@ -538,6 +571,8 @@ public class InteractionManager : MonoBehaviour
             meshFootprint = Mathf.Max(mesh.bounds.size.x, mesh.bounds.size.z);
         }
 
+        // Cell size must cover at least one full instance so a single 3x3 cell neighborhood search
+        // in FindHoveredInstance can never miss an overlapping instance.
         gridCellSize = Mathf.Max(hoverCellSize, meshFootprint * 2f);
         gridMinX = minX - hoverPadding;
         gridMinZ = minZ - hoverPadding;
@@ -567,6 +602,9 @@ public class InteractionManager : MonoBehaviour
         }
     }
 
+    // Finds the closest instance to worldPosition among the 3x3 grid cells centered on it (the
+    // cell size guarantees any overlapping instance is within this neighborhood), using an
+    // axis-aligned box test scaled by each instance's own scale factor.
     private int FindHoveredInstance(Vector3 worldPosition)
     {
         if (gridHead == null || gridNext == null)
@@ -622,6 +660,9 @@ public class InteractionManager : MonoBehaviour
         return bestIndex;
     }
 
+    // Per-frame input handling: starts a drag on mouse-down over a hovered instance, updates the
+    // dragged instance's position while the button stays held, ends the drag on release, and
+    // otherwise just refreshes which instance is hovered.
     private void UpdateHoverState()
     {
         if (WasDragPressedThisFrame() && hoveredInstanceIndex >= 0)
@@ -663,6 +704,7 @@ public class InteractionManager : MonoBehaviour
         SetHoveredInstance(FindHoveredInstance(worldPosition));
     }
 
+    /// <summary>UI entry point (spawn button): initializes GPU buffers on first use, or appends another wave of instances.</summary>
     public void SpawnInstances()
     {
         if (!buffersInitialized)
@@ -678,6 +720,10 @@ public class InteractionManager : MonoBehaviour
         despawnButton.interactable = true;
     }
 
+    /// <summary>
+    /// UI entry point (despawn button): removes every instance outside the "second zone", keeping
+    /// only the survivors that lie inside it; releases all buffers if nothing survives.
+    /// </summary>
     public void DeleteAllCubes()
     {
         if (!buffersInitialized || instanceArray == null || instanceArray.Length == 0)
@@ -747,9 +793,11 @@ public class InteractionManager : MonoBehaviour
             despawnButton.interactable = false;
     }
 
+    // First-time setup: generates the initial instance array, creates the compute/graphics buffers
+    // backing the indirect draw call, and uploads all shader-side state.
     private void InitializeBuffers()
     {
-        
+
         instanceArray = new InstanceData[numberToSpawn];
         Renderer zoneRenderer = spawnZone.GetComponent<Renderer>();
         if (zoneRenderer == null)
@@ -766,7 +814,7 @@ public class InteractionManager : MonoBehaviour
 
         float minZ = bounds.min.z;
         float maxZ = bounds.max.z;
-        
+
         for (int i = 0; i < numberToSpawn; i++)
         {
             Vector3 randomPos = new Vector3(
@@ -777,10 +825,10 @@ public class InteractionManager : MonoBehaviour
 
             instanceArray[i] = CreateInstanceData(randomPos);
         }
-        
+
         instanceDataBuffer = new ComputeBuffer(numberToSpawn, InstanceData.Size());
         instanceBufferCapacity = numberToSpawn;
-        
+
         instanceDataBuffer.SetData(instanceArray);
         material.SetBuffer("_InstanceDataBuffer", instanceDataBuffer);
         material.SetColor("_HoverColor", hoverColor);
@@ -788,7 +836,7 @@ public class InteractionManager : MonoBehaviour
         material.SetInteger("_HoveredInstance", -1);
         cachedHoverCamera = hoverCamera != null ? hoverCamera : Camera.main;
         BuildHoverGridFromInstances();
-        
+
         // arguments used by RenderMeshIndirect
         argsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, 1, GraphicsBuffer.IndirectDrawIndexedArgs.size);
         commandData = new GraphicsBuffer.IndirectDrawIndexedArgs[1];
@@ -797,9 +845,10 @@ public class InteractionManager : MonoBehaviour
         commandData[0].startIndex = 0;
         commandData[0].baseVertexIndex = 0;
         commandData[0].startInstance = 0;
-        
+
         argsBuffer.SetData(commandData);
         rp = new RenderParams(material);
+        // Large fixed bounds so the indirect draw is never culled regardless of where instances end up.
         rp.worldBounds = new Bounds(spawnZone.transform.position, new Vector3(500, 500, 500));
         buffersInitialized = true;
     }
@@ -833,6 +882,7 @@ public class InteractionManager : MonoBehaviour
         Gizmos.DrawSphere(debugHitPoint, debugSphereRadius);
     }
 
+    /// <summary>UI callback wired to the spawn-count input field; parses and stores the new spawn count.</summary>
     public void OnInstanceValueChanged(string input)
     {
         if (int.TryParse(input, out int newValue))

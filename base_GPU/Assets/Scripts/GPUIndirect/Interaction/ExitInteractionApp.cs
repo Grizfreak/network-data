@@ -1,5 +1,6 @@
 using UnityEngine;
 
+/// <summary>UI callback that quits the application (or stops play mode in the editor).</summary>
 public class ExitInteractionApp : MonoBehaviour
 {
     public void ExitApp()

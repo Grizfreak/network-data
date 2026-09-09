@@ -4,6 +4,7 @@ using Unity.Entities;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>Drives the Interaction scene UI: wires spawn/despawn buttons and the spawn-count field to the InteractionSpawnConfig singleton, and displays FPS and hovered-entity values.</summary>
 public class InteractionManager : MonoBehaviour
 {
     [Header("UI Elements")]
@@ -57,6 +58,7 @@ public class InteractionManager : MonoBehaviour
         SyncValueDisplay();
     }
 
+    /// <summary>Requests a spawn of NumberToSpawn entities (read from the UI field) via InteractionSpawnConfig; no-op if a spawn or despawn is already pending.</summary>
     public void SpawnInstances()
     {
         if (!TryInitializeEcsReferences())
@@ -77,6 +79,7 @@ public class InteractionManager : MonoBehaviour
         SyncButtonStates();
     }
 
+    /// <summary>Requests despawn of all spawned entities (outside the protected zone) via InteractionSpawnConfig.</summary>
     public void DeleteAllCubes()
     {
         if (!TryInitializeEcsReferences())
@@ -90,6 +93,7 @@ public class InteractionManager : MonoBehaviour
         SyncButtonStates();
     }
 
+    /// <summary>Updates NumberToSpawn in InteractionSpawnConfig as the spawn-count input field changes.</summary>
     public void OnInstanceValueChanged(string input)
     {
         if (!TryInitializeEcsReferences())
@@ -105,6 +109,8 @@ public class InteractionManager : MonoBehaviour
         entityManager.SetComponentData(interactionEntity, config);
     }
 
+    // Lazily resolves ECS references once the default world and its singleton exist, since both
+    // can be created after this MonoBehaviour's Start().
     private bool TryInitializeEcsReferences()
     {
         if (initialized)

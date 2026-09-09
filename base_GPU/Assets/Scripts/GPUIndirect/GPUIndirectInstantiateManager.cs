@@ -3,6 +3,11 @@ using System.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
+/// <summary>
+/// GPU-indirect instancing base class: spawns instances as entries in a compute buffer and
+/// simulates their movement entirely on the GPU via a ComputeShader, rendering them with
+/// Graphics.RenderMeshIndirect instead of per-instance GameObjects.
+/// </summary>
 public class GPUIndirectInstantiateManager : InstantiateManager
 {
 
@@ -16,14 +21,15 @@ public class GPUIndirectInstantiateManager : InstantiateManager
     protected RenderParams rp;
     protected bool buffersInitialized = false;
     protected int kernel;
-    
+
+    // Mirrors the layout expected by the movement compute shader's structured buffer.
     protected struct InstanceData {
         public Vector4 position_scale;
         public float yaw;
         public float isShown;
         public float isMoving;
         public float verticalVelocity;
-        
+
         public static int Size()
         {
             return sizeof(float) * 4 +
@@ -48,7 +54,7 @@ public class GPUIndirectInstantiateManager : InstantiateManager
         InitializeBuffers();
         yield return new WaitForSeconds(timeBeforeSpawn);
         StartingInstantiation.Invoke("StartedInstantiation");
-        
+
         for (int i = 0; i < numberToSpawn; i++)
         {
             instanceArray[i].isShown = 1f;
@@ -57,7 +63,7 @@ public class GPUIndirectInstantiateManager : InstantiateManager
                 instanceArray[i].isMoving = 1f;
             }
         }
-        
+
         instanceDataBuffer.SetData(instanceArray);
         FinishedInstantiation.Invoke("FinishedInstantiation", numberToSpawn);
         PhaseManager.Instance.PhaseFinished.Invoke("PhaseFinished");
@@ -67,7 +73,7 @@ public class GPUIndirectInstantiateManager : InstantiateManager
     {
         // Initialize buffer
         InitializeBuffers();
-        
+
         while (SpawnedInstances < numberToSpawn)
         {
             yield return new WaitForSeconds(timeBeforeSpawn);
@@ -95,10 +101,14 @@ public class GPUIndirectInstantiateManager : InstantiateManager
         PhaseManager.Instance.PhaseFinished.Invoke("PhaseFinished");
     }
 
+    // Pre-allocates every instance (hidden, at a random spawn-zone position) up front, creates the
+    // compute/graphics buffers, and binds them to both the material and the compute shader kernel.
+    // Instances are revealed later (isShown = 1) by SpawnObjects/SpawnObjectsByGroup rather than
+    // being created on demand, so the buffers never need to be resized.
     private void InitializeBuffers()
     {
         kernel = computeShader.FindKernel("CSMain");
-        
+
         instanceArray = new InstanceData[numberToSpawn];
         Renderer zoneRenderer = spawnZone.GetComponent<Renderer>();
         if (zoneRenderer == null)
@@ -113,7 +123,7 @@ public class GPUIndirectInstantiateManager : InstantiateManager
 
         float minZ = bounds.min.z;
         float maxZ = bounds.max.z;
-        
+
         for (int i = 0; i < numberToSpawn; i++)
         {
             Vector3 randomPos = new Vector3(
@@ -131,15 +141,15 @@ public class GPUIndirectInstantiateManager : InstantiateManager
                 verticalVelocity = 0f
             };
         }
-        
+
         instanceDataBuffer = new ComputeBuffer(
             numberToSpawn,
             InstanceData.Size()
         );
-        
+
         instanceDataBuffer.SetData(instanceArray);
         material.SetBuffer("_InstanceDataBuffer", instanceDataBuffer);
-        
+
         // arguments used by RenderMeshIndirect
         argsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, 1, GraphicsBuffer.IndirectDrawIndexedArgs.size);
         commandData = new GraphicsBuffer.IndirectDrawIndexedArgs[1];
@@ -148,7 +158,7 @@ public class GPUIndirectInstantiateManager : InstantiateManager
         commandData[0].startIndex = 0;
         commandData[0].baseVertexIndex = 0;
         commandData[0].startInstance = 0;
-        
+
         argsBuffer.SetData(commandData);
         computeShader.SetBuffer(kernel, "_InstanceDataBuffer", instanceDataBuffer);
         rp = new RenderParams(material);
@@ -156,6 +166,7 @@ public class GPUIndirectInstantiateManager : InstantiateManager
         buffersInitialized = true;
     }
 
+    /// <summary>Flags instances in [start, end) as moving so the compute shader starts simulating their movement.</summary>
     public virtual void SetMovingRange(int start, int end)
     {
         end = Mathf.Min(end, numberToSpawn);

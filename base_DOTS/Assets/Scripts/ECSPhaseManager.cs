@@ -1,5 +1,6 @@
 using Unity.Entities;
 using UnityEngine;
+/// <summary>PhaseManager implementation that drives the ECS spawn (phase 2) and move (phase 3) phases by toggling flags on the BenchmarkConfig singleton and watching entity counts for completion.</summary>
 public class ECSPhaseManager : PhaseManager
 {
         private bool hasInstantiated = false;
@@ -8,7 +9,7 @@ public class ECSPhaseManager : PhaseManager
         private EntityManager _em;
         private Entity _configEntity;
         private EntityQuery _configQuery;
-        private EntityQuery _numberOfStaticInstances;
+        private EntityQuery _staticInstancesQuery;
         private bool initialized = false;
 
         private int lastRecordedEntityCount = 0;
@@ -20,7 +21,7 @@ public class ECSPhaseManager : PhaseManager
                 _em = World.DefaultGameObjectInjectionWorld.EntityManager;
 
                 _configQuery = _em.CreateEntityQuery(typeof(BenchmarkConfig));
-                _numberOfStaticInstances = _em.CreateEntityQuery(typeof(StaticTag));
+                _staticInstancesQuery = _em.CreateEntityQuery(typeof(StaticTag));
         }
         protected override void Update()
         {
@@ -60,9 +61,10 @@ public class ECSPhaseManager : PhaseManager
                 
                 if (!hasMoved)
                 {
-                        bool anyMoving = _numberOfStaticInstances.CalculateEntityCount() > 0;
+                        // Phase 3 is done once no entity is left tagged StaticTag (all have transitioned to MovingTag).
+                        bool anyStillStatic = _staticInstancesQuery.CalculateEntityCount() > 0;
 
-                        if (!anyMoving)
+                        if (!anyStillStatic)
                         {
                                 hasMoved = true;
 

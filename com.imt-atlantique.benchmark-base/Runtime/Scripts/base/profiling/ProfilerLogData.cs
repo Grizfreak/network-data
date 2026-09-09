@@ -19,6 +19,7 @@ public class ProfilerStatCollection
     public List<ProfilerStat> Stats = new List<ProfilerStat>();
 }
 
+// NOTE: file is named "ProfilerLogData.cs" but defines ProfilerStat, ProfilerStatCollection and ProfilerManagement (no class named ProfilerLogData); not renamed here as the class may be referenced by Unity meta/GUID and a rename is risky without further verification.
 /// <summary>
 /// Debug utility that dumps every available ProfilerRecorderHandle on this platform to "profiler_handles.json",
 /// so valid category/name pairs can be found for use in ProfilerStatsEntry.

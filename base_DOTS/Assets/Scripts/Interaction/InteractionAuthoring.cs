@@ -59,6 +59,7 @@ public class InteractionBaker : Baker<InteractionAuthoring>
             HoverIndexDirty = true,
             SpawnRequested = false,
             DespawnRequested = false,
+            // Unity.Mathematics.Random does not accept a seed of 0, so clamp to a minimum of 1.
             Random = new Random((uint)math.max(1, authoring.RandomSeed))
         });
     }

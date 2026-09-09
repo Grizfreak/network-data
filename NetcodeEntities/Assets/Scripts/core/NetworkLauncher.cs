@@ -22,9 +22,7 @@ public class NetworkLauncher : MonoBehaviour
 
     public LauncherNetworkState CurrentState;
     public float ConnectionStartTime { get; private set; }
-    private BaseLauncher baseLauncher;
     public bool isLaunchedHeadless = false;
-    private bool searchForPhaseManager = false;
 
     private World serverWorld;
     private World clientWorld;
@@ -43,11 +41,6 @@ public class NetworkLauncher : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     private void Start()
     {
-        //baseLauncher = this.GetComponent<BaseLauncher>();
-        //NetworkManager.Singleton.OnServerStarted += OnServerStarted;
-        //NetworkManager.Singleton.OnServerStopped += OnServerStopped;
-        //TODO
-        //NetworkManager.Singleton.gameObject.GetComponent<UnityTransport>().MaxSendQueueSize = 1024 * 1024 * 100;
     }
 
     /// <summary>Starts a Wireshark packet capture using the given filter, writing to the given file.</summary>
@@ -59,10 +52,6 @@ public class NetworkLauncher : MonoBehaviour
     /// <summary>Creates a local server world and a client world connected to it (127.0.0.1:7777), for single-process host+client testing.</summary>
     public void StartHost()
     {
-        /*NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
-        NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
-        guidelinesText.text = "Trying to start server...";
-        NetworkManager.Singleton.StartHost();*/
         serverWorld = ClientServerBootstrap.CreateServerWorld("Server");
         clientWorld = ClientServerBootstrap.CreateClientWorld("Client");
 
@@ -88,11 +77,6 @@ public class NetworkLauncher : MonoBehaviour
         {
             Debug.Log("WORLD: " + world.Name);
         }
-        /*NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
-        NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
-        guidelinesText.text = "Trying to start server...";
-        NetworkManager.Singleton.StartServer();
-        StartTracking("udp port 7777 or tcp port 7777", "ngo_server_capture");*/
         serverWorld = ClientServerBootstrap.CreateServerWorld("Server");
 
         var entity = serverWorld.EntityManager.CreateEntity(
@@ -137,37 +121,19 @@ public class NetworkLauncher : MonoBehaviour
         #if !PLATFORM_ANDROID
         StartTracking("udp port 7777 or tcp port 7777", "netcodeEntities_client_capture");
         #endif
-        guidelinesText.text = "Connecting...";
-    }
-
-    private void Update()
-    {
-        if (searchForPhaseManager)
-        {
-            if (PhaseManager.Instance != null)
-            {
-                searchForPhaseManager = false;
-                PhaseManager.Instance.autoLinkingPhase = false;
-            }
-        }
-        
+        if (!isLaunchedHeadless) guidelinesText.text = "Connecting...";
     }
 
     /// <summary>Called by ClientConnectionSystem once the client has a NetworkId; updates the UI to reflect the connected state.</summary>
     public void OnClientConnected()
     {
         OnClientStarted();
-        guidelinesText.text = "Connected to server ! Waiting for the test to start...";
+        if (!isLaunchedHeadless) guidelinesText.text = "Connected to server ! Waiting for the test to start...";
     }
 
     /// <summary>Broadcasts a StartBenchmarkRpc to clients and loads the Benchmark scene on the server.</summary>
     public void StartTest()
     {
-        /*NetworkManager.SceneManager.LoadScene(
-            "Benchmark",
-            UnityEngine.SceneManagement.LoadSceneMode.Single);
-        baseLauncher.startAutoPhase1 = true;
-        DisablePhaseManagerRpc();*/
         var entityManager = serverWorld.EntityManager;
         var rpc = entityManager.CreateEntity();
 
@@ -181,12 +147,6 @@ public class NetworkLauncher : MonoBehaviour
         SceneManager.LoadScene("Benchmark", LoadSceneMode.Single);
     }
 
-    /*[Rpc(SendTo.NotServer)]
-    private void DisablePhaseManagerRpc()
-    {
-        searchForPhaseManager = true;
-    }*/
-
     private void OnClientDisconnected(ulong connectionId)
     {
         Debug.Log(connectionId);
@@ -195,6 +155,7 @@ public class NetworkLauncher : MonoBehaviour
     private void OnServerStarted()
     {
         Debug.Log("Server started on address : " + GetLocalIPv4());
+        if (isLaunchedHeadless) return; // No menu UI exists in a headless build.
         hostButton.gameObject.SetActive(false);
         serverButton.gameObject.SetActive(false);
         quitButton.gameObject.SetActive(true);
@@ -207,6 +168,8 @@ public class NetworkLauncher : MonoBehaviour
     public void OnServerStopped()
     {
         Debug.Log("Server stopped on address : " + GetLocalIPv4());
+        CurrentState = LauncherNetworkState.Disconnected;
+        if (isLaunchedHeadless) return; // No menu UI exists in a headless build.
         hostButton.gameObject.SetActive(true);
         serverButton.gameObject.SetActive(true);
         quitButton.gameObject.SetActive(false);
@@ -214,7 +177,6 @@ public class NetworkLauncher : MonoBehaviour
         startButton.gameObject.SetActive(false);
         addressInputField.gameObject.SetActive(true);
         guidelinesText.text = "Server stopped ! You can start a new one or connect to another one...";
-        CurrentState = LauncherNetworkState.Disconnected;
     }
 
     public void OnClientStarted()
@@ -223,6 +185,7 @@ public class NetworkLauncher : MonoBehaviour
         {
             return;
         }
+        if (isLaunchedHeadless) return; // No menu UI exists in a headless build.
         hostButton.gameObject.SetActive(false);
         serverButton.gameObject.SetActive(false);
         quitButton.gameObject.SetActive(true);
@@ -234,6 +197,8 @@ public class NetworkLauncher : MonoBehaviour
 
     public void OnClientStopped()
     {
+        CurrentState = LauncherNetworkState.Disconnected;
+        if (isLaunchedHeadless) return; // No menu UI exists in a headless build.
         hostButton.gameObject.SetActive(true);
         serverButton.gameObject.SetActive(true);
         quitButton.gameObject.SetActive(false);
@@ -241,7 +206,6 @@ public class NetworkLauncher : MonoBehaviour
         startButton.gameObject.SetActive(false);
         addressInputField.gameObject.SetActive(true);
         guidelinesText.text = "Disconnected ! You can start a new one or connect to another one...";
-        CurrentState = LauncherNetworkState.Disconnected;
     }
 
     /// <summary>Disconnects any active worlds and quits the application (or stops play mode in the editor).</summary>
@@ -294,6 +258,5 @@ public enum LauncherNetworkState
     Idle,
     Connecting,
     Connected,
-    ServerRunning,
     Disconnected
 }

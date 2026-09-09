@@ -104,8 +104,8 @@ public partial struct MoveSystem : ISystem
             // Mark as moving
             ecb.AddComponent<MovingTag>(entity);
 
-            // Enable actual movement
-            velocity.ValueRW.Speed = 5f;
+            // Speed is already set to 5f in SpawnSystem when Velocity is added at spawn time,
+            // so no reassignment is needed here.
 
             movedThisWave++;
         }

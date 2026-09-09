@@ -13,14 +13,6 @@ public class GPUIndirectInstantiateDrawManager : GPUIndirectInstantiateManager
     private ComputeBuffer argsBuffer;
     private uint[] args = new uint[5];
 
-    protected override void Start()
-    {
-        base.Start();
-        computeShader.SetFloat("_MoveSpeed", 5f);
-        computeShader.SetFloat("_Gravity", 9.81f);
-        computeShader.SetFloat("_JumpForce", 5f);
-    }
-
     protected override IEnumerator SpawnObjects()
     {
         // Initialize buffer
@@ -136,18 +128,6 @@ public class GPUIndirectInstantiateDrawManager : GPUIndirectInstantiateManager
         computeShader.SetBuffer(kernel, "_InstanceDataBuffer", instanceDataBuffer);
         rp = new RenderParams(material);
         rp.worldBounds = new Bounds(spawnZone.transform.position, new Vector3(500, 500, 500));
-    }
-
-    public override void SetMovingRange(int start, int end)
-    {
-        end = Mathf.Min(end, numberToSpawn);
-
-        for (int i = start; i < end; i++)
-        {
-            instanceArray[i].isMoving = 1f;
-        }
-
-        instanceDataBuffer.SetData(instanceArray);
     }
 
     protected override void Update()

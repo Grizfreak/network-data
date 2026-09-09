@@ -58,7 +58,6 @@ public class InteractionManager : MonoBehaviour
     protected RenderParams rp;
     protected bool buffersInitialized = false;
     private int instanceBufferCapacity;
-    protected int kernel;
     private Camera cachedHoverCamera;
     private int hoveredInstanceIndex = -1;
 
@@ -374,48 +373,6 @@ public class InteractionManager : MonoBehaviour
         return true;
     }
 
-    // Same as the overload above but also returns the ray used, for callers that need it.
-    private bool TryGetPointerWorldPosition(out Vector3 worldPosition, out Ray ray)
-    {
-        worldPosition = default;
-        ray = default;
-
-        Camera activeCamera = cachedHoverCamera != null ? cachedHoverCamera : hoverCamera;
-        if (activeCamera == null)
-        {
-            activeCamera = Camera.main;
-            cachedHoverCamera = activeCamera;
-        }
-
-        if (activeCamera == null || Pointer.current == null)
-            return false;
-
-        Vector2 pointerScreenPosition = Pointer.current.position.ReadValue();
-        ray = activeCamera.ScreenPointToRay(pointerScreenPosition);
-
-        float planeY = instanceArray != null && instanceArray.Length > 0
-            ? instanceArray[0].position_scale.y
-            : 0f;
-
-        Plane plane = new Plane(Vector3.up, new Vector3(0f, planeY, 0f));
-        if (!plane.Raycast(ray, out float enter))
-        {
-            hasDebugHitPoint = false;
-            return false;
-        }
-
-        worldPosition = ray.GetPoint(enter);
-        debugHitPoint = worldPosition;
-        hasDebugHitPoint = true;
-
-        return true;
-    }
-
-    private bool IsDragPressed()
-    {
-        return Mouse.current != null && Mouse.current.leftButton.isPressed;
-    }
-
     private bool WasDragPressedThisFrame()
     {
         return Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
@@ -436,16 +393,6 @@ public class InteractionManager : MonoBehaviour
     private bool IsWithinCurrentGridBounds(Vector3 position)
     {
         return position.x >= gridMinX && position.x <= gridMaxX && position.z >= gridMinZ && position.z <= gridMaxZ;
-    }
-
-    private bool IsInstanceInSpawnZone(int instanceIndex)
-    {
-        if (instanceArray == null || instanceIndex < 0 || instanceIndex >= instanceArray.Length)
-            return false;
-
-        Vector4 positionScale = instanceArray[instanceIndex].position_scale;
-        Vector3 position = new Vector3(positionScale.x, positionScale.y, positionScale.z);
-        return spawnZoneBounds.Contains(position);
     }
 
     private bool IsInstanceInSecondPlaneZone(int instanceIndex)
@@ -746,9 +693,7 @@ public class InteractionManager : MonoBehaviour
 
         for (int i = 0; i < instanceArray.Length; i++)
         {
-            Vector4 positionScale = instanceArray[i].position_scale;
-            Vector3 position = new Vector3(positionScale.x, positionScale.y, positionScale.z);
-            if (IsPositionInsideSecondZoneXZ(position))
+            if (IsInstanceInSecondPlaneZone(i))
             {
                 survivors[survivorCount] = instanceArray[i];
                 survivorCount++;

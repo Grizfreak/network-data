@@ -18,6 +18,8 @@ using UnityEngine;
         public float waitBeforeQuittingApp = 5f;
 
         [Header("Movement & Spawn")]
+        // When true, spawned objects start moving immediately (see InstantiateManager/SpawnSystem),
+        // so phase 3 (the separate move phase) is skipped in OnPhaseFinished below.
         public bool moveAndSpawn;
         private int _currentPhase;
         public Action<string> PhaseStarted;
@@ -87,6 +89,7 @@ using UnityEngine;
                     }
                     else
                     {
+                        // Objects already started moving as they spawned, so there's nothing left for phase 3 to do.
                         FinishingExperimentation.Invoke();
                     }
                     break;

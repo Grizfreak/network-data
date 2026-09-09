@@ -54,15 +54,20 @@ using Random = UnityEngine.Random;
         }
 
 
+        private Vector3 GetRandomSpawnPosition()
+        {
+            float x = Random.Range(spawnZone.GetComponent<Renderer>().bounds.min.x, spawnZone.GetComponent<Renderer>().bounds.max.x);
+            float z = Random.Range(spawnZone.GetComponent<Renderer>().bounds.min.z, spawnZone.GetComponent<Renderer>().bounds.max.z);
+            return new Vector3(x, 0, z);
+        }
+
         protected virtual IEnumerator SpawnObjects()
         {
             yield return new WaitForSeconds(timeBeforeSpawn);
             StartingInstantiation.Invoke("StartedInstantiation");
             for (int i = 0; i < numberToSpawn; i++)
             {
-                float x = Random.Range(spawnZone.GetComponent<Renderer>().bounds.min.x, spawnZone.GetComponent<Renderer>().bounds.max.x);
-                float z = Random.Range(spawnZone.GetComponent<Renderer>().bounds.min.z, spawnZone.GetComponent<Renderer>().bounds.max.z);
-                Vector3 spawnPos = new Vector3(x, 0, z);
+                Vector3 spawnPos = GetRandomSpawnPosition();
                 var go = Instantiate(objectToSpawn, spawnPos, transform.rotation);
                 if (PhaseManager.Instance.moveAndSpawn)
                 {
@@ -82,9 +87,7 @@ using Random = UnityEngine.Random;
                 StartingInstantiation.Invoke("StartedInstantiation");
                 for (int i = 0; i < numberPerWave; i++)
                 {
-                    float x = Random.Range(spawnZone.GetComponent<Renderer>().bounds.min.x, spawnZone.GetComponent<Renderer>().bounds.max.x);
-                    float z = Random.Range(spawnZone.GetComponent<Renderer>().bounds.min.z, spawnZone.GetComponent<Renderer>().bounds.max.z);
-                    Vector3 spawnPos = new Vector3(x, 0, z);
+                    Vector3 spawnPos = GetRandomSpawnPosition();
                     var go = Instantiate(objectToSpawn, spawnPos, transform.rotation);
                     if (PhaseManager.Instance.moveAndSpawn)
                     {

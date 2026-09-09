@@ -117,6 +117,7 @@ public partial struct PongReceiveSystem : ISystem
 public struct PingRpc : IRpcCommand
 {
     public double ClientTime;
+    // Currently unused by the receiver — reserved for future request/response pairing.
     public int SequenceId;
 }
 
@@ -124,6 +125,7 @@ public struct PingRpc : IRpcCommand
 public struct PongRpc : IRpcCommand
 {
     public double OriginalTime;
+    // Currently unused by the receiver — reserved for future request/response pairing.
     public int SequenceId;
 }
 #endregion

@@ -6,7 +6,7 @@ public class NetworkLogs : MonoBehaviour
 {
     void Start()
     {
-        var world = ResolveWorld();
+        var world = WorldResolver.ResolveWorld();
 
         if (world == null)
         {
@@ -30,19 +30,5 @@ public class NetworkLogs : MonoBehaviour
         manager.eventsFileName = config.Prefix.ToString() + manager.eventsFileName;
         profiler.outputName = config.Prefix.ToString() + profiler.outputName;
         Debug.Log($"NetworkLogs: Updated file names with prefix '{config.Prefix}' on world '{world.Name}'");
-    }
-
-    // Prefer the benchmark's own Server/Client world over the default injection world.
-    private static World ResolveWorld()
-    {
-        foreach (var world in World.All)
-        {
-            if (world.Name == "Server" || world.Name == "Client")
-            {
-                return world;
-            }
-        }
-
-        return World.DefaultGameObjectInjectionWorld;
     }
 }

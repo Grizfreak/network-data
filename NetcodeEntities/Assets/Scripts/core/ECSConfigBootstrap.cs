@@ -11,7 +11,7 @@ public class ECSConfigBootstrap : MonoBehaviour
     {
         if (BaseLoader.Instance == null)
             return;
-        var world = ResolveWorld();
+        var world = WorldResolver.ResolveWorld();
         _em = world.EntityManager;
         _configQuery = _em.CreateEntityQuery(typeof(BenchmarkConfig));
     }
@@ -44,18 +44,5 @@ public class ECSConfigBootstrap : MonoBehaviour
 
         initialized = true;
         Debug.Log("BenchmarkConfig updated from file.");
-    }
-    // Prefer the benchmark's own Server/Client world over the default injection world, which may not host the singleton.
-    private static World ResolveWorld()
-    {
-        foreach (var world in World.All)
-        {
-            if (world.Name == "Server" || world.Name == "Client")
-            {
-                return world;
-            }
-        }
-
-        return World.DefaultGameObjectInjectionWorld;
     }
 }

@@ -2,7 +2,9 @@ using Unity.Entities;
 using Unity.NetCode;
 using UnityEngine;
 
-/// <summary>Logs each new server connection, puts it in-game, and (when running headless) auto-starts the benchmark once a client connects.</summary>
+/// <summary>Logs each new server connection, puts it in-game, and (when running headless) auto-starts the benchmark once a client connects.
+/// NOTE: despite the "Debug" name, this system has real functional side effects (adding NetworkStreamInGame, triggering StartTest()) —
+/// it is not just logging/debug output and must not be disabled or stripped as if it were.</summary>
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 public partial struct ServerConnectionDebugSystem : ISystem
 {

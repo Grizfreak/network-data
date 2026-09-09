@@ -1,5 +1,6 @@
 using UnityEngine;
 
+// Note: class name differs in casing from the file name (historical).
 /// <summary>Exposes the latest client-measured RTT (set by PongReceiveSystem) to the generic IRealtimeRTTProvider consumers.</summary>
 public class DotsRttProvider : MonoBehaviour, IRealtimeRTTProvider
 {

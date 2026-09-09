@@ -3,6 +3,7 @@ using Unity.Entities;
 using Unity.NetCode;
 using UnityEngine;
 
+// Note: class name differs in casing from the file name (historical).
 /// <summary>Subscribes to the server-side manager events (spawn/phase/move) and forwards each one to clients as a LogEventRpc.</summary>
 public class NetworkLogsBridge : MonoBehaviour
 {

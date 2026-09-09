@@ -11,7 +11,7 @@ using UnityEngine;
 /// </summary>
 public class ProfilerStatsToCsvExporter : MonoBehaviour
 {
-    public string outputName = $"profiler_stats";
+    public string outputName = "profiler_stats";
 
     [SerializeField]
     [Tooltip("Duration of each time bucket in seconds. One CSV row is written per bucket.")]
@@ -220,8 +220,11 @@ public class ProfilerStatsToCsvExporter : MonoBehaviour
             _bucketRttSum += _networkBenchmarkProvider.GetRttMs();
             _bucketRttSamples++;
 
-            _bucketRttSumFromRpc += _realtimeRttProvider.GetRttMs();
-            _bucketRttSamplesFromRpc++;
+            if (_realtimeRttProvider != null)
+            {
+                _bucketRttSumFromRpc += _realtimeRttProvider.GetRttMs();
+                _bucketRttSamplesFromRpc++;
+            }
 
             long currentSent = _networkBenchmarkProvider.GetBytesSent();
             long currentReceived = _networkBenchmarkProvider.GetBytesReceived();
